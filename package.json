@@ -5,10 +5,9 @@
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
-  "unpkg": "./dist/index.umd.js",
   "exports": {
     "require": "./dist/index.cjs",
-    "default": "./dist/index.js"
+    "import": "./dist/index.js"
   },
   "files": [
     "dist"
@@ -18,7 +17,7 @@
     "prettier": "prettier --write \"{src,tests}/**/*.{js,ts,json}\"",
     "release": "npx release",
     "test": "node src/index.test.js",
-    "build": "npm run clean && microbundle src/index.js --no-sourcemap --target node"
+    "build": "npm run clean && rollup -c"
   },
   "repository": {
     "type": "git",
@@ -36,8 +35,8 @@
   "devDependencies": {
     "@marianmeres/release": "^0.0.7",
     "@types/node": "^18.11.9",
-    "microbundle": "^0.15.1",
     "prettier": "^2.7.1",
-    "rimraf": "^3.0.2"
+    "rimraf": "^3.0.2",
+    "rollup": "^2.79.1"
   }
 }
