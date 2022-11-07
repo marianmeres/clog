@@ -20,6 +20,8 @@
 	ClogConfig.error = true;
 	const createClog = (ns, config = ClogConfig, writer = null) => {
 	  writer || (writer = console);
+
+	  // explicit false => no "namespace"
 	  if (ns !== false) ns = `[${ns}]`;
 
 	  // explicit true/false shortcuts
@@ -33,18 +35,13 @@
 	    warn: false,
 	    error: false
 	  };
-	  const clog = (...args) => {
+	  const apply = (k, args) => {
 	    var _config;
-	    return ((_config = config) == null ? void 0 : _config.log) && writer.log.apply(writer, ns ? [ns, ...args] : [...args]);
+	    return ((_config = config) == null ? void 0 : _config[k]) && writer[k].apply(writer, ns ? [ns, ...args] : [...args]);
 	  };
-	  clog.warn = (...args) => {
-	    var _config2;
-	    return ((_config2 = config) == null ? void 0 : _config2.warn) && writer.warn.apply(writer, ns ? [ns, ...args] : [...args]);
-	  };
-	  clog.error = (...args) => {
-	    var _config3;
-	    return ((_config3 = config) == null ? void 0 : _config3.error) && writer.error.apply(writer, ns ? [ns, ...args] : [...args]);
-	  };
+	  const clog = (...args) => apply('log', args);
+	  clog.warn = (...args) => apply('warn', args);
+	  clog.error = (...args) => apply('error', args);
 	  clog.log = clog;
 	  return clog;
 	};

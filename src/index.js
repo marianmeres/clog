@@ -18,21 +18,20 @@ export class ClogConfig {
 
 export const createClog = (ns, config = ClogConfig, writer = null) => {
 	writer ||= console;
+
+	// explicit false => no "namespace"
 	if (ns !== false) ns = `[${ns}]`;
 
 	// explicit true/false shortcuts
 	if (config === true) config = { log: true, warn: true, error: true };
 	if (config === false) config = { log: false, warn: false, error: false };
 
-	const clog = (...args) =>
-		config?.log && writer.log.apply(writer, ns ? [ns, ...args] : [...args]);
+	const apply = (k, args) =>
+		config?.[k] && writer[k].apply(writer, ns ? [ns, ...args] : [...args]);
 
-	clog.warn = (...args) =>
-		config?.warn && writer.warn.apply(writer, ns ? [ns, ...args] : [...args]);
-
-	clog.error = (...args) =>
-		config?.error && writer.error.apply(writer, ns ? [ns, ...args] : [...args]);
-
+	const clog = (...args) => apply('log', args);
+	clog.warn = (...args) => apply('warn', args);
+	clog.error = (...args) => apply('error', args);
 	clog.log = clog;
 
 	return clog;
