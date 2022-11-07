@@ -1,3 +1,15 @@
+interface ConfigFlags {
+	log: boolean;
+	warn: boolean;
+	error: boolean;
+}
+
+interface ClogWriter {
+	log: Function;
+	warn: Function;
+	error: Function;
+}
+
 export class ClogConfig {
 	static log = true;
 	static warn = true;
@@ -16,13 +28,11 @@ export class ClogConfig {
 	}
 }
 
-interface ClogWriter {
-	log: Function;
-	warn: Function;
-	error: Function;
-}
-
-export const createClog = (ns, config: any = ClogConfig, writer: ClogWriter = null) => {
+export const createClog = (
+	ns,
+	config: boolean | ConfigFlags = ClogConfig,
+	writer: ClogWriter = null
+) => {
 	writer ||= console;
 
 	// explicit false => no "namespace"
