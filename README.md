@@ -1,7 +1,8 @@
 # @marianmeres/clog
 On top of console.log. Mostly.
 
-Tiny namespaced console.log wrapper with configurable writer and silence config (global or local).
+Tiny namespaced console.log wrapper with configurable silence switches (global or local).
+And with custom writer support.
 
 ## Installation
 ```shell
