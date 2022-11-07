@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import typescript from '@rollup/plugin-typescript';
 
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
 
@@ -10,10 +11,10 @@ export default [
 	// an array for the `output` option, where we can specify
 	// `file` and `format` for each target)
 	{
-		input: 'src/index.js',
+		input: 'src/index.ts',
 		// external: ['lodash'],
 		plugins: [
-			// typescript(), // so Rollup can convert TypeScript to JavaScript
+			typescript(), // so Rollup can convert TypeScript to JavaScript
 			// terser()
 		],
 		output: [

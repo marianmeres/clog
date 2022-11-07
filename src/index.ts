@@ -16,7 +16,13 @@ export class ClogConfig {
 	}
 }
 
-export const createClog = (ns, config = ClogConfig, writer = null) => {
+interface ClogWriter {
+	log: Function;
+	warn: Function;
+	error: Function;
+}
+
+export const createClog = (ns, config: any = ClogConfig, writer: ClogWriter = null) => {
 	writer ||= console;
 
 	// explicit false => no "namespace"

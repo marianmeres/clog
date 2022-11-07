@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { ClogConfig, createClog } from './index.js';
+import { ClogConfig, createClog } from '../dist/index.js';
 
 let log = [];
 let error = [];
