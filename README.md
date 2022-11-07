@@ -32,6 +32,9 @@ ClogConfig.none();
 clog('bar', 'baz');
 // output none
 
+// to use clog without namespace, use `false`
+createClog(false)('foo', 'bar');
+
 ```
 
-For custom writer setup see [test](./src/index.test.js);
+For custom writer setup see [src/index.test.js](./src/index.test.js)

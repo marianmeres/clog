@@ -12,7 +12,7 @@ const reset = () => {
 	ClogConfig.all();
 };
 
-// mock
+// custom writer
 const writer = {
 	log: (...args) => args.forEach((v) => log.push(v)),
 	error: (...args) => args.forEach((v) => error.push(v)),
@@ -64,6 +64,11 @@ clog2.error('alert');
 assert(!log.length);
 assert('[2] alert' === error.join(' '));
 assert(!warn.length);
+reset();
+
+// no namespace
+createClog(false, true, writer)('foo', 'bar');
+assert('foo bar' === log.join(' '));
 reset();
 
 // either change global ClogConfig.all(), or just:

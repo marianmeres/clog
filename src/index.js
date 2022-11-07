@@ -20,6 +20,10 @@ export const createClog = (ns, config = ClogConfig, writer = null) => {
 	writer ||= console;
 	if (ns !== false) ns = `[${ns}]`;
 
+	// explicit true/false shortcuts
+	if (config === true) config = { log: true, warn: true, error: true };
+	if (config === false) config = { log: false, warn: false, error: false };
+
 	const clog = (...args) =>
 		config?.log && writer.log.apply(writer, ns ? [ns, ...args] : [...args]);
 
