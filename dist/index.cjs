@@ -2,31 +2,45 @@
 
 Object.defineProperty(exports, '__esModule', { value: true });
 
+const _confObj = (v = true) => ({
+    debug: v,
+    log: v,
+    info: v,
+    warn: v,
+    error: v,
+});
 class ClogConfig {
+    static debug = true;
     static log = true;
+    static info = true;
     static warn = true;
     static error = true;
+    static MASTER = null;
     static none() {
-        ClogConfig.log = false;
-        ClogConfig.warn = false;
-        ClogConfig.error = false;
+        Object.assign(ClogConfig, _confObj(false));
     }
     static all() {
-        ClogConfig.log = true;
-        ClogConfig.warn = true;
-        ClogConfig.error = true;
+        Object.assign(ClogConfig, _confObj(true));
     }
 }
-const createClog = (ns, config = ClogConfig, writer = null) => {
+const createClog = (ns, config = null, writer = null) => {
     writer ||= console;
     if (ns !== false)
         ns = `[${ns}]`;
+    if (config === null)
+        config = ClogConfig;
     if (config === true)
-        config = { log: true, warn: true, error: true };
+        config = _confObj(true);
     if (config === false)
-        config = { log: false, warn: false, error: false };
-    const apply = (k, args) => config?.[k] && writer[k].apply(writer, ns ? [ns, ...args] : [...args]);
+        config = _confObj(false);
+    const apply = (k, args) => {
+        if (ClogConfig.MASTER !== false && (ClogConfig.MASTER || config?.[k])) {
+            writer[k].apply(writer, ns ? [ns, ...args] : [...args]);
+        }
+    };
     const clog = (...args) => apply('log', args);
+    clog.debug = (...args) => apply('debug', args);
+    clog.info = (...args) => apply('info', args);
     clog.warn = (...args) => apply('warn', args);
     clog.error = (...args) => apply('error', args);
     clog.log = clog;

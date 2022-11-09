@@ -1,24 +1,26 @@
 interface ConfigFlags {
+    debug: boolean;
     log: boolean;
+    info: boolean;
     warn: boolean;
     error: boolean;
 }
-interface ClogWriter {
+interface Writer {
+    debug: Function;
     log: Function;
+    info: Function;
     warn: Function;
     error: Function;
 }
 export declare class ClogConfig {
+    static debug: boolean;
     static log: boolean;
+    static info: boolean;
     static warn: boolean;
     static error: boolean;
+    static MASTER: any;
     static none(): void;
     static all(): void;
 }
-export declare const createClog: (ns: any, config?: boolean | ConfigFlags, writer?: ClogWriter) => {
-    (...args: any[]): any;
-    warn(...args: any[]): any;
-    error(...args: any[]): any;
-    log: any;
-};
+export declare const createClog: (ns: any, config?: boolean | ConfigFlags, writer?: Writer) => Writer;
 export {};
