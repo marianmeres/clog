@@ -33,12 +33,21 @@ export class ClogConfig {
 	// will be ignored if null/undef
 	static MASTER = null;
 
+	// override global writer
+	static WRITER: Writer = null;
+
 	static none() {
 		Object.assign(ClogConfig, _confObj(false));
 	}
 
 	static all() {
 		Object.assign(ClogConfig, _confObj(true));
+	}
+
+	static reset() {
+		ClogConfig.all();
+		ClogConfig.MASTER = null;
+		ClogConfig.WRITER = null;
 	}
 }
 
@@ -48,6 +57,9 @@ export const createClog = (
 	writer: Writer = null
 ): Writer => {
 	writer ||= console;
+
+	// higher priority
+	if (ClogConfig.WRITER) writer = ClogConfig.WRITER;
 
 	// explicit false means no "namespace"
 	if (ns !== false) ns = `[${ns}]`;

@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { ClogConfig, createClog } from '../dist/index.js';
 
 let output = {};
-const reset = () => (output = {}) && ClogConfig.all() && (ClogConfig.MASTER = null);
+const reset = () => {
+	output = {};
+	ClogConfig.reset();
+}
 
 const _init =
 	(k) =>
@@ -63,7 +66,10 @@ suite.test('local vs global config 1', () => {
 });
 
 suite.test('local vs global config 1', () => {
-	const clog = createClog('foo', { log: false }, writer);
+	// testing global writer (just as a side test here)
+	ClogConfig.WRITER = writer;
+
+	const clog = createClog('foo', { log: false });
 	// will be ignored since local has higher importance
 	ClogConfig.all();
 	clog('bar');

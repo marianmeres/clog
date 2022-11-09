@@ -19,8 +19,10 @@ export declare class ClogConfig {
     static warn: boolean;
     static error: boolean;
     static MASTER: any;
+    static WRITER: Writer;
     static none(): void;
     static all(): void;
+    static reset(): void;
 }
 export declare const createClog: (ns: any, config?: boolean | ConfigFlags, writer?: Writer) => Writer;
 export {};
