@@ -11,8 +11,6 @@ const _confObj = (v = true) => ({
 });
 const createClog = (ns, config = null, writer = null) => {
     writer ||= console;
-    if (createClog.CONFIG?.WRITER)
-        writer = createClog.CONFIG.WRITER;
     if (ns !== false)
         ns = `[${ns}]`;
     if (config === null)
@@ -22,8 +20,11 @@ const createClog = (ns, config = null, writer = null) => {
     if (config === false)
         config = _confObj(false);
     const apply = (k, args) => {
+        let w = writer;
+        if (createClog.CONFIG?.WRITER)
+            w = createClog.CONFIG.WRITER;
         if (createClog.CONFIG?.MASTER !== false && (createClog.CONFIG?.MASTER || config?.[k])) {
-            writer[k].apply(writer, ns ? [ns, ...args] : [...args]);
+            w[k].apply(w, ns ? [ns, ...args] : [...args]);
         }
     };
     const clog = (...args) => apply('log', args);

@@ -29,9 +29,6 @@ export const createClog = (
 ): Writer => {
 	writer ||= console;
 
-	// higher priority
-	if (createClog.CONFIG?.WRITER) writer = createClog.CONFIG.WRITER;
-
 	// explicit false means no "namespace"
 	if (ns !== false) ns = `[${ns}]`;
 
@@ -41,8 +38,10 @@ export const createClog = (
 	if (config === false) config = _confObj(false);
 
 	const apply = (k, args) => {
+		let w = writer;
+		if (createClog.CONFIG?.WRITER) w = createClog.CONFIG.WRITER;
 		if (createClog.CONFIG?.MASTER !== false && (createClog.CONFIG?.MASTER || config?.[k])) {
-			writer[k].apply(writer, ns ? [ns, ...args] : [...args]);
+			w[k].apply(w, ns ? [ns, ...args] : [...args]);
 		}
 	};
 
