@@ -22,35 +22,6 @@ const _confObj = (v = true): ConfigFlags => ({
 	error: v,
 });
 
-export class ClogConfig {
-	static debug = true;
-	static log = true;
-	static info = true;
-	static warn = true;
-	static error = true;
-
-	// highest priority master switch, only if defined as boolean
-	// will be ignored if null/undef
-	static MASTER = null;
-
-	// override global writer
-	static WRITER: Writer = null;
-
-	static none() {
-		Object.assign(ClogConfig, _confObj(false));
-	}
-
-	static all() {
-		Object.assign(ClogConfig, _confObj(true));
-	}
-
-	static reset() {
-		ClogConfig.all();
-		ClogConfig.MASTER = null;
-		ClogConfig.WRITER = null;
-	}
-}
-
 export const createClog = (
 	ns,
 	config: boolean | ConfigFlags = null,
@@ -59,18 +30,18 @@ export const createClog = (
 	writer ||= console;
 
 	// higher priority
-	if (ClogConfig.WRITER) writer = ClogConfig.WRITER;
+	if (createClog.CONFIG?.WRITER) writer = createClog.CONFIG.WRITER;
 
 	// explicit false means no "namespace"
 	if (ns !== false) ns = `[${ns}]`;
 
 	// default is global, also support for boolean shortcuts
-	if (config === null) config = ClogConfig;
+	if (config === null) config = createClog.CONFIG;
 	if (config === true) config = _confObj(true);
 	if (config === false) config = _confObj(false);
 
 	const apply = (k, args) => {
-		if (ClogConfig.MASTER !== false && (ClogConfig.MASTER || config?.[k])) {
+		if (createClog.CONFIG?.MASTER !== false && (createClog.CONFIG?.MASTER || config?.[k])) {
 			writer[k].apply(writer, ns ? [ns, ...args] : [...args]);
 		}
 	};
@@ -83,4 +54,29 @@ export const createClog = (
 	clog.log = clog;
 
 	return clog;
+};
+
+createClog.CONFIG = {
+	debug: true,
+	log: true,
+	info: true,
+	warn: true,
+	error: true,
+
+	// highest priority master switch, only if defined as boolean
+	// will be ignored if null/undef
+	MASTER: null,
+
+	// master global writer
+	WRITER: null,
+
+	none: () => Object.assign(createClog.CONFIG, _confObj(false)),
+
+	all: () => Object.assign(createClog.CONFIG, _confObj(true)),
+
+	reset: () => {
+		createClog.CONFIG.all();
+		createClog.CONFIG.MASTER = null;
+		createClog.CONFIG.WRITER = null;
+	}
 };

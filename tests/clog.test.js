@@ -2,12 +2,12 @@ import path from 'node:path';
 import { strict as assert } from 'node:assert';
 import { TestRunner } from '@marianmeres/test-runner';
 import { fileURLToPath } from 'node:url';
-import { ClogConfig, createClog } from '../dist/index.js';
+import { createClog } from '../dist/index.js';
 
 let output = {};
 const reset = () => {
 	output = {};
-	ClogConfig.reset();
+	createClog.CONFIG.reset();
 }
 
 const _init =
@@ -45,10 +45,10 @@ suite.test('global config', () => {
 	const clog = createClog('foo', null, writer);
 	clog('bar');
 	assert(output.log === '[foo]bar');
-	ClogConfig.none();
+	createClog.CONFIG.none();
 	clog('baz');
 	assert(output.log === '[foo]bar'); // no change
-	ClogConfig.all();
+	createClog.CONFIG.all();
 	clog('bat');
 	assert(output.log === '[foo]bar[foo]bat');
 });
@@ -56,26 +56,26 @@ suite.test('global config', () => {
 suite.test('local vs global config 1', () => {
 	const clog = createClog('foo', { log: true }, writer);
 	// will be ignored since local has higher importance
-	ClogConfig.none();
+	createClog.CONFIG.none();
 	clog('bar');
 	assert(output.log === '[foo]bar');
 	// except for master switch
-	ClogConfig.MASTER = false;
+	createClog.CONFIG.MASTER = false;
 	clog('baz');
 	assert(output.log === '[foo]bar'); // no baz
 });
 
 suite.test('local vs global config 1', () => {
 	// testing global writer (just as a side test here)
-	ClogConfig.WRITER = writer;
+	createClog.CONFIG.WRITER = writer;
 
 	const clog = createClog('foo', { log: false });
 	// will be ignored since local has higher importance
-	ClogConfig.all();
+	createClog.CONFIG.all();
 	clog('bar');
 	assert(!output.log);
 	// except for master switch
-	ClogConfig.MASTER = true;
+	createClog.CONFIG.MASTER = true;
 	clog('baz');
 	assert(output.log === '[foo]baz');
 });
