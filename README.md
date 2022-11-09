@@ -34,7 +34,7 @@ clog.error('error');
 // output: [foo] error
 
 // example for global config silence
-ClogConfig.none();
+createClog.CONFIG.none();
 clog('bar', 'baz');
 // output none
 
