@@ -9,7 +9,7 @@ const _confObj = (v = true) => ({
     warn: v,
     error: v,
 });
-const createClog = (ns, config = null, writer = null) => {
+function createClog(ns, config = null, writer = null) {
     writer ||= console;
     if (ns !== false)
         ns = `[${ns}]`;
@@ -34,7 +34,7 @@ const createClog = (ns, config = null, writer = null) => {
     clog.error = (...args) => apply('error', args);
     clog.log = clog;
     return clog;
-};
+}
 createClog.CONFIG = {
     debug: true,
     log: true,

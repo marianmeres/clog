@@ -22,11 +22,11 @@ const _confObj = (v = true): ConfigFlags => ({
 	error: v,
 });
 
-export const createClog = (
+export function createClog(
 	ns,
 	config: boolean | ConfigFlags = null,
 	writer: Writer = null
-): Writer => {
+): Writer {
 	writer ||= console;
 
 	// explicit false means no "namespace"

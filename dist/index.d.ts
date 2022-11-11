@@ -12,9 +12,9 @@ interface Writer {
     warn: Function;
     error: Function;
 }
-export declare const createClog: {
-    (ns: any, config?: boolean | ConfigFlags, writer?: Writer): Writer;
-    CONFIG: {
+export declare function createClog(ns: any, config?: boolean | ConfigFlags, writer?: Writer): Writer;
+export declare namespace createClog {
+    var CONFIG: {
         debug: boolean;
         log: boolean;
         info: boolean;
@@ -26,5 +26,5 @@ export declare const createClog: {
         all: () => any & ConfigFlags;
         reset: () => void;
     };
-};
+}
 export {};

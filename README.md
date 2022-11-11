@@ -13,7 +13,7 @@ $ npm i @marianmeres/clog
 ```typescript
 
 // factory signature
-const createClog = (ns, config: boolean | ConfigFlags = null, writer: Writer = null): Writer
+const createClog = (ns, config: boolean | ConfigFlags = null, writer: Writer = null) => Writer
 
 // create logger
 const clog = createClog('foo');
@@ -43,4 +43,27 @@ createClog(false)('foo', 'bar');
 // output: foo bar
 ```
 
-For custom writer setup see [test](tests/clog.test.js)
+## Custom writer setup example
+
+This creates colored output based on log level
+
+```typescript
+import { gray, green, red, yellow } from 'kleur/colors';
+
+// somewhere in app bootstrap
+const _setup = (k, c) => (...a) => console[k].apply(null, a.map((v) => c(v)));
+createClog.CONFIG.WRITER = {
+    debug: _setup('debug', gray),
+    log: _setup('log', gray),
+    info: _setup('info', green),
+    warn: _setup('warn', yellow),
+    error: _setup('error', red),
+};
+
+// somewhere later in app
+const clog = createClog('my-module');
+clog('foo') // output "[my-module] foo" in gray
+clog.info('success'); // output "[my-module] success" in green
+clog.error('alert!') // output "[my-module] alert!" in red
+
+```
