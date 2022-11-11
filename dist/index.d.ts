@@ -6,6 +6,7 @@ interface ConfigFlags {
     error: boolean;
 }
 interface Writer {
+    (...args: any[]): any;
     debug: Function;
     log: Function;
     info: Function;

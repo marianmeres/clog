@@ -7,6 +7,7 @@ interface ConfigFlags {
 }
 
 interface Writer {
+	(...args): any;
 	debug: Function;
 	log: Function;
 	info: Function;
@@ -27,7 +28,7 @@ export function createClog(
 	config: boolean | ConfigFlags = null,
 	writer: Writer = null
 ): Writer {
-	writer ||= console;
+	writer ||= console as any;
 
 	// explicit false means no "namespace"
 	if (ns !== false) ns = `[${ns}]`;
@@ -53,7 +54,7 @@ export function createClog(
 	clog.log = clog;
 
 	return clog;
-};
+}
 
 createClog.CONFIG = {
 	debug: true,
