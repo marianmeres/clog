@@ -13,7 +13,7 @@ interface Writer {
     warn: Function;
     error: Function;
 }
-export declare function createClog(ns: any, config?: boolean | ConfigFlags, writer?: Writer): Writer;
+export declare function createClog(ns: any, config?: boolean | ConfigFlags, writer?: Writer, filter?: Function): Writer;
 export declare namespace createClog {
     var CONFIG: {
         debug: boolean;

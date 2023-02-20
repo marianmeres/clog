@@ -8,7 +8,7 @@ let output = {};
 const reset = () => {
 	output = {};
 	createClog.CONFIG.reset();
-}
+};
 
 const _init =
 	(k) =>
@@ -78,6 +78,18 @@ suite.test('local vs global config 1', () => {
 	createClog.CONFIG.MASTER = true;
 	clog('baz');
 	assert(output.log === '[foo]baz');
+});
+
+suite.test('filter test', () => {
+	createClog.CONFIG.WRITER = writer;
+	const clog = createClog('foo', null, null, (args) => {
+		return args.map((a) => (typeof a !== 'string' ? JSON.stringify(a) : a));
+	});
+
+	clog({ a: 123 }, 456);
+
+	// not [object Object]
+	assert(output.log === '[foo]{"a":123}456');
 });
 
 export default suite;

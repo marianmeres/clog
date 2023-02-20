@@ -5,7 +5,7 @@ const _confObj = (v = true) => ({
     warn: v,
     error: v,
 });
-function createClog(ns, config = null, writer = null) {
+function createClog(ns, config = null, writer = null, filter = null) {
     writer ||= console;
     if (ns !== false)
         ns = `[${ns}]`;
@@ -19,7 +19,11 @@ function createClog(ns, config = null, writer = null) {
         let w = writer;
         if (createClog.CONFIG?.WRITER)
             w = createClog.CONFIG.WRITER;
-        if (createClog.CONFIG?.MASTER !== false && (createClog.CONFIG?.MASTER || config?.[k])) {
+        if (createClog.CONFIG?.MASTER !== false &&
+            (createClog.CONFIG?.MASTER || config?.[k])) {
+            if (typeof filter === 'function') {
+                args = filter(args);
+            }
             w[k].apply(w, ns ? [ns, ...args] : [...args]);
         }
     };
@@ -45,7 +49,7 @@ createClog.CONFIG = {
         createClog.CONFIG.all();
         createClog.CONFIG.MASTER = null;
         createClog.CONFIG.WRITER = null;
-    }
+    },
 };
 
 export { createClog };

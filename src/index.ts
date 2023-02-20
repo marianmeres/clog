@@ -26,7 +26,8 @@ const _confObj = (v = true): ConfigFlags => ({
 export function createClog(
 	ns,
 	config: boolean | ConfigFlags = null,
-	writer: Writer = null
+	writer: Writer = null,
+	filter: Function = null
 ): Writer {
 	writer ||= console as any;
 
@@ -41,7 +42,13 @@ export function createClog(
 	const apply = (k, args) => {
 		let w = writer;
 		if (createClog.CONFIG?.WRITER) w = createClog.CONFIG.WRITER;
-		if (createClog.CONFIG?.MASTER !== false && (createClog.CONFIG?.MASTER || config?.[k])) {
+		if (
+			createClog.CONFIG?.MASTER !== false &&
+			(createClog.CONFIG?.MASTER || config?.[k])
+		) {
+			if (typeof filter === 'function') {
+				args = filter(args);
+			}
 			w[k].apply(w, ns ? [ns, ...args] : [...args]);
 		}
 	};
@@ -78,5 +85,5 @@ createClog.CONFIG = {
 		createClog.CONFIG.all();
 		createClog.CONFIG.MASTER = null;
 		createClog.CONFIG.WRITER = null;
-	}
+	},
 };
