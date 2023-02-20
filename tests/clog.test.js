@@ -2,7 +2,7 @@ import path from 'node:path';
 import { strict as assert } from 'node:assert';
 import { TestRunner } from '@marianmeres/test-runner';
 import { fileURLToPath } from 'node:url';
-import { createClog } from '../dist/index.js';
+import { createClog, createClogStr } from '../dist/index.js';
 
 let output = {};
 const reset = () => {
@@ -82,14 +82,12 @@ suite.test('local vs global config 1', () => {
 
 suite.test('filter test', () => {
 	createClog.CONFIG.WRITER = writer;
-	const clog = createClog('foo', null, null, (args) => {
-		return args.map((a) => (typeof a !== 'string' ? JSON.stringify(a) : a));
-	});
+	const clog = createClogStr('foo');
 
 	clog({ a: 123 }, 456);
-
+	
 	// not [object Object]
-	assert(output.log === '[foo]{"a":123}456');
+	assert(output.log === `[foo]{\n    "a": 123\n}456`);
 });
 
 export default suite;

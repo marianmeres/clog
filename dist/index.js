@@ -35,6 +35,8 @@ function createClog(ns, config = null, writer = null, filter = null) {
     clog.log = clog;
     return clog;
 }
+const clogFilterStringifier = (args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 4)));
+const createClogStr = (ns, config = null, writer = null) => createClog(ns, config, writer, (args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 4))));
 createClog.CONFIG = {
     debug: true,
     log: true,
@@ -52,4 +54,4 @@ createClog.CONFIG = {
     },
 };
 
-export { createClog };
+export { clogFilterStringifier, createClog, createClogStr };

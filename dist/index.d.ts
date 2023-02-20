@@ -28,4 +28,6 @@ export declare namespace createClog {
         reset: () => void;
     };
 }
+export declare const clogFilterStringifier: (args: any) => any;
+export declare const createClogStr: (ns: any, config?: boolean | ConfigFlags, writer?: Writer) => Writer;
 export {};
