@@ -85,7 +85,7 @@ suite.test('filter test', () => {
 	const clog = createClogStr('foo');
 
 	clog({ a: 123 }, 456);
-	
+
 	// not [object Object]
 	assert(output.log === `[foo]{\n    "a": 123\n}456`);
 });
