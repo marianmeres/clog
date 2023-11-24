@@ -7,13 +7,13 @@ interface ConfigFlags {
 }
 interface Writer {
     (...args: any[]): any;
-    debug: Function;
-    log: Function;
-    info: Function;
-    warn: Function;
-    error: Function;
+    debug: CallableFunction;
+    log: CallableFunction;
+    info: CallableFunction;
+    warn: CallableFunction;
+    error: CallableFunction;
 }
-export declare function createClog(ns: any, config?: boolean | ConfigFlags, writer?: Writer, filter?: Function): Writer;
+export declare function createClog(ns: any, config?: boolean | ConfigFlags, writer?: Writer, filter?: CallableFunction): Writer;
 export declare namespace createClog {
     var CONFIG: {
         debug: boolean;
