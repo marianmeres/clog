@@ -8,11 +8,11 @@ interface ConfigFlags {
 
 interface Writer {
 	(...args): any;
-	debug: Function;
-	log: Function;
-	info: Function;
-	warn: Function;
-	error: Function;
+	debug: CallableFunction;
+	log: CallableFunction;
+	info: CallableFunction;
+	warn: CallableFunction;
+	error: CallableFunction;
 }
 
 const _confObj = (v = true): ConfigFlags => ({
@@ -27,7 +27,7 @@ export function createClog(
 	ns,
 	config: boolean | ConfigFlags = null,
 	writer: Writer = null,
-	filter: Function = null
+	filter: CallableFunction = null
 ): Writer {
 	writer ||= console as any;
 
