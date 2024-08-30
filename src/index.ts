@@ -64,17 +64,18 @@ export function createClog(
 }
 
 export const clogFilterStringifier = (args) =>
-	args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 4)));
+	// args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 4)));
+	args.map((a) => {
+		if (typeof a === 'string' || a?.toString?.() !== '[object Object]') return a;
+		return JSON.stringify(a, null, 4);
+	});
 
 // stringified version
 export const createClogStr = (
 	ns,
 	config: boolean | ConfigFlags = null,
 	writer: Writer = null
-) =>
-	createClog(ns, config, writer, (args) =>
-		args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 4)))
-	);
+) => createClog(ns, config, writer, clogFilterStringifier);
 
 createClog.CONFIG = {
 	debug: true,

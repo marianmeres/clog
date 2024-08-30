@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { createClog, createClogStr } from '../dist/index.js';
 
 let output = {};
+let output2 = {};
 const reset = () => {
 	output = {};
+	output2 = {};
 	createClog.CONFIG.reset();
 };
 
@@ -16,6 +18,8 @@ const _init =
 		args.forEach((v) => {
 			output[k] ||= '';
 			output[k] += v;
+			output2[k] ??= [];
+			output2[k].push(v);
 		});
 
 const writer = {
@@ -84,10 +88,13 @@ suite.test('filter test', () => {
 	createClog.CONFIG.WRITER = writer;
 	const clog = createClogStr('foo');
 
-	clog({ a: 123 }, 456);
+	clog({ a: 123 }, 456, new Response());
 
 	// not [object Object]
-	assert(output.log === `[foo]{\n    "a": 123\n}456`);
+	assert(
+		Object.values(output2.log).join('') ===
+			`[foo]{\n    "a": 123\n}456[object Response]`
+	);
 });
 
 export default suite;
