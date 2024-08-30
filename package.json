@@ -1,6 +1,6 @@
 {
 	"name": "@marianmeres/clog",
-	"version": "1.0.1",
+	"version": "1.1.0",
 	"description": "On top of console.log",
 	"type": "module",
 	"main": "./dist/index.cjs",
