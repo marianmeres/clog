@@ -64,7 +64,6 @@ export function createClog(
 }
 
 export const clogFilterStringifier = (args) =>
-	// args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 4)));
 	args.map((a) => {
 		if (typeof a === 'string' || a?.toString?.() !== '[object Object]') return a;
 		return JSON.stringify(a, null, 4);
