@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 
+/** Log function type */
 export type LogFn = (...args: any[]) => void;
 
 /** Writer interface */
@@ -17,6 +18,7 @@ export interface ClogConfigFlags extends Record<keyof Writer, boolean> {
 	time: boolean;
 }
 
+/** createClog return type */
 export type Clog = LogFn &
 	Writer & { ns: string | false; color: (color: string | null) => Clog };
 
