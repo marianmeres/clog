@@ -23,6 +23,22 @@ export interface ClogConfigFlags extends Record<keyof Writer, boolean> {
 export type Clog = LogFn &
 	Writer & { ns: string | false; color: (color: string | null) => Clog };
 
+// default globals
+const _CONFIG = {
+	debug: true,
+	log: true,
+	info: true,
+	warn: true,
+	error: true,
+	//
+	dateTime: false,
+	time: false,
+};
+
+const _DISABLED = false;
+
+const _WRITER = null;
+
 /** Will create a logger with provided "namespace". */
 export function createClog(
 	ns: string | false,
@@ -43,10 +59,15 @@ export function createClog(
 	// explicit false means no "namespace"
 	ns = ns !== false ? `[${ns}]` : "";
 
-	// default is global, also support for boolean shortcuts
-	config ??= createClog.CONFIG;
+	// if we're passing in some object configuration, make sure it inherits the defaults
+	if (config && typeof config !== "boolean") {
+		config = { ..._CONFIG, ...config };
+	}
 
-	// special case "all" key shortcut
+	// if undef, use global config
+	config ??= Object.assign({}, createClog.CONFIG);
+
+	// we may have used the special case "all" key shortcut
 	if (typeof config !== "boolean" && config.all !== undefined) {
 		const all = _confObj(!!config.all);
 		delete config.all;
@@ -130,22 +151,6 @@ export function createClog(
 
 	return clog;
 }
-
-// default globals
-const _CONFIG = {
-	debug: true,
-	log: true,
-	info: true,
-	warn: true,
-	error: true,
-	//
-	dateTime: false,
-	time: false,
-};
-
-const _DISABLED = false;
-
-const _WRITER = null;
 
 /** Global config */
 createClog.CONFIG = _CONFIG as Partial<ClogConfigFlags> | boolean;
