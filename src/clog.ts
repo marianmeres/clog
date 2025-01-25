@@ -123,7 +123,7 @@ export function createClog(
 }
 
 // default globals
-const CONFIG = {
+const _CONFIG = {
 	debug: true,
 	log: true,
 	info: true,
@@ -134,24 +134,24 @@ const CONFIG = {
 	time: false,
 };
 
-const DISABLED = false;
+const _DISABLED = false;
 
-const WRITER = null;
+const _WRITER = null;
 
 /** Global config */
-createClog.CONFIG = CONFIG as Partial<ClogConfigFlags> | boolean;
+createClog.CONFIG = _CONFIG as Partial<ClogConfigFlags> | boolean;
 
 /** Master global `disabled` switch. If truthy, every instance will become no-op. */
-createClog.DISABLED = DISABLED as boolean;
+createClog.DISABLED = _DISABLED as boolean;
 
 /** Master global Writer */
-createClog.WRITER = WRITER as Partial<Writer> | null;
+createClog.WRITER = _WRITER as Partial<Writer> | null;
 
 /** Resets globals to default, out-of-the-box state. Needed for tests. */
-createClog.reset = () => {
-	createClog.CONFIG = CONFIG;
-	createClog.DISABLED = DISABLED;
-	createClog.WRITER = WRITER;
+createClog.reset = (): void => {
+	createClog.CONFIG = _CONFIG;
+	createClog.DISABLED = _DISABLED;
+	createClog.WRITER = _WRITER;
 };
 
 /** createClog with pretty JSON.stringify-ied output. */
@@ -159,7 +159,7 @@ export const createClogStr = (
 	ns: string | false,
 	config?: Partial<ClogConfigFlags> | boolean | null,
 	writer?: Partial<Writer> | null
-) =>
+): Clog =>
 	createClog(ns, config, writer, (args: any[]) => {
 		return args.map((a) => {
 			return typeof a === "string" || !_isPlainObject(a)
@@ -215,6 +215,7 @@ function _moveArrayElement(
 	return arr;
 }
 
+/** Internal helper */
 function _isPlainObject(v: any): boolean {
 	return (
 		v !== null &&
