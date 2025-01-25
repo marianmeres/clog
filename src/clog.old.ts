@@ -4,6 +4,9 @@ interface ConfigFlags {
 	info: boolean;
 	warn: boolean;
 	error: boolean;
+	//
+	dateTime?: boolean;
+	time?: boolean;
 }
 
 interface Writer {
@@ -21,13 +24,28 @@ const _confObj = (v = true): ConfigFlags => ({
 	info: v,
 	warn: v,
 	error: v,
+	dateTime: false,
+	time: false,
 });
 
+function _moveArrayElement(arr: any[], fromIndex: number, toIndex: number): any[] {
+	if (fromIndex < 0 || fromIndex >= arr.length) {
+		throw new RangeError("Invalid fromIndex");
+	}
+	if (toIndex < 0 || toIndex >= arr.length) {
+		throw new RangeError("Invalid toIndex");
+	}
+
+	const element = arr.splice(fromIndex, 1)[0];
+	arr.splice(toIndex, 0, element);
+	return arr;
+}
+
 export function createClog(
-	ns,
+	ns: string | false,
 	config: boolean | ConfigFlags = null,
 	writer: Writer = null,
-	filter: CallableFunction = null
+	filter: CallableFunction = null,
 ): Writer {
 	writer ||= console as any;
 
@@ -46,26 +64,56 @@ export function createClog(
 			createClog.CONFIG?.MASTER !== false &&
 			(createClog.CONFIG?.MASTER || config?.[k])
 		) {
-			if (typeof filter === 'function') {
+			if (typeof filter === "function") {
 				args = filter(args);
 			}
-			w[k].apply(w, ns ? [ns, ...args] : [...args]);
+
+			let _ns = ns;
+
+			//
+			if (typeof config !== "boolean" && (config?.dateTime || config?.time)) {
+				const iso = new Date().toISOString();
+				if (config?.dateTime) {
+					_ns = `[${iso.replace("T", " ")}] ${_ns}`;
+				} else if (config?.time) {
+					_ns = `[${iso.slice("YYYY-MM-DDT".length)}] ${_ns}`;
+				}
+			}
+
+			args = _ns ? [_ns, ...args] : [...args];
+
+			// browser style colored?
+			const colorMark = "%c";
+			if (
+				typeof args[1] === "string" &&
+				args[1]?.startsWith(colorMark) &&
+				args[2]
+			) {
+				args[0] = colorMark + args[0];
+				args[1] = args[1].slice(colorMark.length);
+				args = _moveArrayElement(args, 2, 1);
+			}
+
+			// w[k].apply(w, ns ? [ns, ...args] : [...args]);
+			w[k].apply(w, [...args]);
 		}
 	};
 
-	const clog = (...args) => apply('log', args);
-	clog.debug = (...args) => apply('debug', args);
-	clog.info = (...args) => apply('info', args);
-	clog.warn = (...args) => apply('warn', args);
-	clog.error = (...args) => apply('error', args);
+	const clog = (...args) => apply("log", args);
+	clog.debug = (...args) => apply("debug", args);
+	clog.info = (...args) => apply("info", args);
+	clog.warn = (...args) => apply("warn", args);
+	clog.error = (...args) => apply("error", args);
 	clog.log = clog;
+
+	clog.ns = ns;
 
 	return clog;
 }
 
 export const clogFilterStringifier = (args) =>
 	args.map((a) => {
-		if (typeof a === 'string' || a?.toString?.() !== '[object Object]') return a;
+		if (typeof a === "string" || a?.toString?.() !== "[object Object]") return a;
 		return JSON.stringify(a, null, 4);
 	});
 
@@ -73,7 +121,7 @@ export const clogFilterStringifier = (args) =>
 export const createClogStr = (
 	ns,
 	config: boolean | ConfigFlags = null,
-	writer: Writer = null
+	writer: Writer = null,
 ) => createClog(ns, config, writer, clogFilterStringifier);
 
 createClog.CONFIG = {
@@ -82,6 +130,9 @@ createClog.CONFIG = {
 	info: true,
 	warn: true,
 	error: true,
+	//
+	dateTime: false,
+	time: false,
 
 	// highest priority master switch, only if defined as boolean
 	// will be ignored if null/undef
