@@ -81,25 +81,23 @@ export function createClog(
 
 		// console color formatting experimental support dance, but only if we have not specified color yet
 		const colorMark = "%c";
-		if (!_color) {
-			if (
-				// if first (after ns) arg starts with color marker
-				typeof args[1] === "string" &&
-				args[1]?.startsWith(colorMark) &&
-				// and second (after ns) arg exists and is string
-				args[2] &&
-				typeof args[2] === "string"
-			) {
-				// extract the color mark and put if first (doesn't work otherwise)
-				// NOTE: only the first arg will be colored (which is the namespace label)... which is OK
-				args[0] = colorMark + args[0];
-				args[1] = args[1].slice(colorMark.length);
-				args = _moveArrayElement(args, 2, 1);
-			}
-		} else {
-			// we have a "global" color, so need to adjust args
+		// we have a "global" color, so need to adjust args
+		if (_color) {
 			args[0] = colorMark + args[0];
 			args.splice(1, 0, `color:${_color}`);
+		} else if (
+			// if first (after ns) arg starts with color marker
+			typeof args[1] === "string" &&
+			args[1]?.startsWith(colorMark) &&
+			// and second (after ns) arg exists and is string
+			args[2] &&
+			typeof args[2] === "string"
+		) {
+			// extract the color mark and put if first (doesn't work otherwise)
+			// NOTE: only the first arg will be colored (which is the namespace label)... which is OK
+			args[0] = colorMark + args[0];
+			args[1] = args[1].slice(colorMark.length);
+			args = _moveArrayElement(args, 2, 1);
 		}
 
 		// actual log finally...
