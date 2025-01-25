@@ -14,6 +14,7 @@ export interface Writer {
 
 /** Factory configuration */
 export interface ClogConfigFlags extends Record<keyof Writer, boolean> {
+	all?: boolean;
 	dateTime: boolean;
 	time: boolean;
 }
@@ -44,6 +45,14 @@ export function createClog(
 
 	// default is global, also support for boolean shortcuts
 	config ??= createClog.CONFIG;
+
+	// special case "all" key shortcut
+	if (typeof config !== "boolean" && config.all !== undefined) {
+		const all = _confObj(!!config.all);
+		delete config.all;
+		config = { ...all, ...config };
+	}
+
 	if (config === true) config = _confObj(true);
 	if (config === false) config = _confObj(false);
 

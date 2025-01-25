@@ -72,14 +72,14 @@ Deno.test("no namespace", () => {
 	assertEquals(output.log, "bar");
 });
 
-Deno.test("time test", () => {
+Deno.test("time", () => {
 	reset();
 	const clog = createClog("foo", { log: true, time: true }, writer());
 	clog("bar");
 	assertMatch(output.log, /^\[\d{2}:\d{2}:\d{2}\.\d{3}\] \[foo\]bar$/);
 });
 
-Deno.test("datetime test", () => {
+Deno.test("datetime", () => {
 	reset();
 	const clog = createClog("foo", { log: true, dateTime: true }, writer());
 	clog("bar");
@@ -97,7 +97,7 @@ Deno.test("colors", () => {
 	assertEquals(output.log, "%c[foo]color:redbarbaz");
 });
 
-Deno.test.only("colors 2", () => {
+Deno.test("colors 2", () => {
 	reset();
 	const clog = createClogStr("foo", null, writer()).color("red");
 	// const clog = createClog("foo").color("red");
