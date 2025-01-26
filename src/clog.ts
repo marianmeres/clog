@@ -3,6 +3,9 @@
 /** Log function type */
 export type LogFn = (...args: any[]) => void;
 
+/** CLog function type */
+export type CLogFn = (...args: any[]) => Clog;
+
 /** Writer interface */
 export interface Writer {
 	debug: LogFn;
@@ -13,18 +16,52 @@ export interface Writer {
 }
 
 /** Factory configuration */
-export interface ClogConfigFlags extends Record<keyof Writer, boolean> {
+export interface ClogConfigFlags
+	extends Record<ClogColorConfigKey, string | null>,
+		Record<keyof Writer, boolean> {
 	all?: boolean;
 	dateTime: boolean;
 	time: boolean;
+	colors: boolean;
 }
 
 /** createClog return type */
-export type Clog = LogFn &
-	Writer & { ns: string | false; color: (color: string | null) => Clog };
+export type Clog = CLogFn &
+	Writer & {
+		ns: string | false;
+		color: (color: string | null) => Clog;
+		colors: boolean;
+	};
+
+export type ClogColorConfigKey =
+	| "debugColor"
+	| "logColor"
+	| "infoColor"
+	| "warnColor"
+	| "errorColor";
+
+/** Default "debug" color */
+const _COLOR_DEBUG = "gray";
+
+/** Default "log" color */
+const _COLOR_LOG = null;
+
+/** Default "info" color */
+const _COLOR_INFO = "cyan";
+
+/** Default "warn" color */
+const _COLOR_WARN = "orange";
+
+/** Default "error" color */
+const _COLOR_ERROR = "red";
+
+/** colors are enabled by default in "browser" and in "deno", NOT in "node" (as it does
+ * not support the %c format). Note that this flags only effects the "%c" formatting, not
+ * terminal string colors */
+const _COLORS = ["browser", "deno"].includes(_detectRuntime());
 
 // default globals
-const _CONFIG = {
+const _CONFIG: ClogConfigFlags = {
 	debug: true,
 	log: true,
 	info: true,
@@ -33,6 +70,14 @@ const _CONFIG = {
 	//
 	dateTime: false,
 	time: false,
+	//
+	colors: _COLORS,
+	//
+	debugColor: _COLOR_DEBUG,
+	logColor: _COLOR_LOG,
+	infoColor: _COLOR_INFO,
+	warnColor: _COLOR_WARN,
+	errorColor: _COLOR_ERROR,
 };
 
 const _DISABLED = false;
@@ -46,12 +91,18 @@ export function createClog(
 	writer?: Partial<Writer> | null,
 	argsFilter?: null | ((clogArgs: any[]) => any[])
 ): Clog {
+	const _logFn =
+		(k: keyof Writer) =>
+		(...args: any[]): Clog => {
+			console[k](...args);
+			return clog;
+		};
 	writer ??= {
-		debug: console.debug,
-		log: console.log,
-		info: console.info,
-		warn: console.warn,
-		error: console.error,
+		debug: _logFn("debug"),
+		log: _logFn("log"),
+		info: _logFn("info"),
+		warn: _logFn("warn"),
+		error: _logFn("error"),
 	};
 
 	const _rawNsBkp = ns;
@@ -81,17 +132,17 @@ export function createClog(
 
 	const _apply = (k: keyof Writer, args: any[]) => {
 		// maybe master flag disabled
-		if (createClog.DISABLED) return;
+		if (createClog.DISABLED) return clog;
 
 		// maybe local instance config disabled
-		if (!config[k]) return;
+		if (!config[k]) return clog;
 
 		// acquire writer (global has priority)
 		let w = writer;
 		if (createClog.WRITER) w = createClog.WRITER;
 
 		// maybe writer does not support current log method
-		if (!w[k]) return;
+		if (!w[k]) return clog;
 
 		// keep original ns intact
 		let _ns = ns;
@@ -113,12 +164,18 @@ export function createClog(
 		// console color formatting experimental dance
 		const colorMark = "%c";
 
+		// let's see if we have a config color for current k
+		const colorKey: ClogColorConfigKey = `${k}Color`;
+		let __color = _color ?? config[colorKey];
+
+		// maybe colors are disabled
+		if (!config.colors || !createClog.COLORS) __color = null;
+
 		// we have a "global" color, so need to adjust args
-		if (_color) {
+		if (__color) {
 			args[0] = colorMark + args[0];
-			args.splice(1, 0, `color:${_color}`);
-		}
-		// we do not have a "global" color, let's see if:
+			args.splice(1, 0, `color:${__color}`);
+		} // we do not have a "global" color, let's see if:
 		else if (
 			// if first (after ns) arg starts with color marker
 			typeof args[1] === "string" &&
@@ -140,6 +197,8 @@ export function createClog(
 
 		// actual log finally...
 		w[k]?.(...args);
+
+		return clog;
 	};
 
 	const clog = (...args: any[]) => _apply("log", args);
@@ -148,12 +207,19 @@ export function createClog(
 	clog.warn = (...args: any[]) => _apply("warn", args);
 	clog.error = (...args: any[]) => _apply("error", args);
 	clog.log = clog;
-	clog.ns = _rawNsBkp;
 
 	clog.color = (color: string | null) => {
 		_color = color;
 		return clog;
 	};
+
+	clog.ns = _rawNsBkp;
+	clog.colors = !!config.colors;
+
+	// make sure these are readonly (to avoid potential confusion)
+	["color", "ns", "colors"].forEach((k) => {
+		Object.defineProperty(clog, k, { writable: false });
+	});
 
 	return clog;
 }
@@ -167,11 +233,15 @@ createClog.DISABLED = _DISABLED as boolean;
 /** Master global Writer */
 createClog.WRITER = _WRITER as Partial<Writer> | null;
 
+/** Master dis/enabler of colored output */
+createClog.COLORS = _COLORS as boolean;
+
 /** Resets globals to default, out-of-the-box state. Needed for tests. */
 createClog.reset = (): void => {
 	createClog.CONFIG = _CONFIG;
 	createClog.DISABLED = _DISABLED;
 	createClog.WRITER = _WRITER;
+	createClog.COLORS = _COLORS;
 };
 
 /** createClog with pretty JSON.stringify-ied output. */
@@ -191,14 +261,12 @@ export const createClogStr = (
 /** Internal DRY util - creates prefilled config object */
 function _confObj(v = true): ClogConfigFlags {
 	return {
+		..._CONFIG,
 		debug: v,
 		log: v,
 		info: v,
 		warn: v,
 		error: v,
-		// these are by default always false
-		dateTime: false,
-		time: false,
 	};
 }
 
@@ -243,4 +311,14 @@ function _isPlainObject(v: any): boolean {
 		typeof v === "object" &&
 		[undefined, Object].includes(v.constructor)
 	);
+}
+
+/** Will try to detect current runtime. */
+function _detectRuntime(): "browser" | "node" | "deno" | "unknown" {
+	if (typeof window !== "undefined" && (window as any)?.document) {
+		return "browser";
+	}
+	if (globalThis.Deno?.version?.deno) return "deno"; // deno must come above node
+	if ((globalThis as any).process?.versions?.node) return "node";
+	return "unknown";
 }

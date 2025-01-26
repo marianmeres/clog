@@ -7,7 +7,6 @@ And with custom writer support.
 
 ## Installation
 
-
 ### Deno
 
 ```bash
@@ -53,16 +52,16 @@ createClog(false)("foo", "bar");
 // to color the namespace label use `color` or the %c modifier
 // these examples work in browser or deno (not in node)
 clog("%cbar", "color:red");
-clog.color('red')("bar");
+clog.color("red")("bar");
 // outputs "[foo] bar" where "[foo]" is in red (but not bar)
 
 // you can automatically prepend time or dateTime
 const clog = createClog("foo", { time: true });
-clog("bar")
+clog("bar");
 // outputs: [HH:MM:SS.mmm] [foo] bar
 
 const clog = createClog("foo", { dateTime: true });
-clog("bar")
+clog("bar");
 // outputs: [YYYY-MM-DD HH:MM:SS.mmm] [foo] bar
 ```
 

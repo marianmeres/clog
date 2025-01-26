@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 
-import { assert, assertEquals, assertMatch } from "@std/assert";
+import { assert, assertEquals, assertMatch, assertThrows } from "@std/assert";
 import { createClog, createClogStr, type Writer } from "../clog.ts";
 
 let output: Record<string, any> = {};
@@ -38,11 +38,15 @@ Deno.test("it works", () => {
 	(["info", "debug", "log", "error", "warn"] as (keyof Writer)[]).forEach(
 		(k) => {
 			reset();
-			const clog = createClog("foo", null, writer());
+			// for simplicity case here disabling colors...
+			const clog = createClog("foo", { colors: false }, writer());
 			clog[k]("bar", "baz");
 			assertEquals(output[k], "[foo]barbaz");
 			assertEquals(Object.keys(output).length, 1);
 			assertEquals(clog.ns, "foo");
+
+			// ns is readonly
+			assertThrows(() => (clog.ns = "asdf"));
 		}
 	);
 });
@@ -111,6 +115,11 @@ Deno.test("colors via %c", () => {
 	// console.log(output2);
 	// check if empty string artifact was removed
 	assert(!output2.log.some((v) => v === ""));
+
+	// default colors
+	reset();
+	clog.warn("warn");
+	assertEquals(output.warn, "%c[foo]color:orangewarn");
 });
 
 Deno.test("colors via color()", () => {
@@ -124,6 +133,22 @@ Deno.test("colors via color()", () => {
 		output.log,
 		'%c[foo]color:red{\n    "bar": 123\n}[foo]hey%c[foo]color:pinkho'
 	);
+
+	// instance provided color has priority over system one
+	reset();
+	clog.warn("warn"); // pink, not orange
+	assertEquals(output.warn, "%c[foo]color:pinkwarn");
+
+	// when we reset the instance color, must fall back to system orange
+	reset();
+	clog.color(null).warn("warn");
+	assertEquals(output.warn, "%c[foo]color:orangewarn");
+
+	// global no colors
+	reset();
+	createClog.COLORS = false;
+	clog.warn("warn");
+	assertEquals(output.warn, "[foo]warn");
 });
 
 Deno.test("createClogStr", () => {
@@ -148,4 +173,11 @@ Deno.test("all config", () => {
 	const clog2 = createClog(false, { time: true }, writer());
 	clog2("bar");
 	assert(output.log.endsWith("]bar"));
+});
+
+Deno.test("chain api", () => {
+	reset();
+	const clog = createClog(false, null, writer());
+	clog.color("red")("bar").color(null).log("baz");
+	assertEquals(output.log, "%cbarcolor:redbaz");
 });
