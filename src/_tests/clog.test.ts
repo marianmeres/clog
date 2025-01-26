@@ -11,11 +11,13 @@ const reset = () => {
 
 const _init =
 	(k: keyof Writer) =>
-	(...args: any[]) =>
+	(...args: any[]) => {
 		args.forEach((v) => {
 			output[k] ||= "";
 			output[k] += v;
 		});
+		return writer;
+	};
 
 const writer = () => ({
 	info: _init("info"),

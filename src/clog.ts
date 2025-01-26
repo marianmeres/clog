@@ -111,13 +111,16 @@ export function createClog(
 		}
 		args = _ns ? [_ns, ...args] : [...args];
 
-		// console color formatting experimental support dance, but only if we have not specified color yet
+		// console color formatting experimental dance
 		const colorMark = "%c";
+
 		// we have a "global" color, so need to adjust args
 		if (_color) {
 			args[0] = colorMark + args[0];
 			args.splice(1, 0, `color:${_color}`);
-		} else if (
+		}
+		// we do not have a "global" color, let's see if:
+		else if (
 			// if first (after ns) arg starts with color marker
 			typeof args[1] === "string" &&
 			args[1]?.startsWith(colorMark) &&
@@ -182,7 +185,7 @@ export const createClogStr = (
 		});
 	});
 
-/** Internal DRY util */
+/** Internal DRY util - creates prefilled config object */
 function _confObj(v = true): ClogConfigFlags {
 	return {
 		debug: v,
@@ -190,8 +193,9 @@ function _confObj(v = true): ClogConfigFlags {
 		info: v,
 		warn: v,
 		error: v,
-		dateTime: v,
-		time: v,
+		// these are by default always false
+		dateTime: false,
+		time: false,
 	};
 }
 
@@ -229,7 +233,7 @@ function _moveArrayElement(
 	return arr;
 }
 
-/** Internal helper */
+/** Will check if value is a plain object */
 function _isPlainObject(v: any): boolean {
 	return (
 		v !== null &&
