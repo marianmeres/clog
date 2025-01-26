@@ -27,7 +27,7 @@ export interface ClogConfigFlags
 
 /** createClog return type */
 export type Clog = CLogFn &
-	Writer & {
+	Record<keyof Writer, CLogFn> & {
 		ns: string | false;
 		color: (color: string | null) => Clog;
 		colors: boolean;

@@ -22,7 +22,6 @@ const _init =
 			output2[k] ||= [];
 			output2[k].push(v);
 		});
-		return writer;
 	};
 
 const writer = () => ({
@@ -178,6 +177,6 @@ Deno.test("all config", () => {
 Deno.test("chain api", () => {
 	reset();
 	const clog = createClog(false, null, writer());
-	clog.color("red")("bar").color(null).log("baz");
+	clog.color("red").log("bar").color(null).log("baz");
 	assertEquals(output.log, "%cbarcolor:redbaz");
 });
