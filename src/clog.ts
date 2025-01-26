@@ -61,19 +61,18 @@ export function createClog(
 
 	// if we're passing in some object configuration, make sure it inherits the defaults
 	if (config && typeof config !== "boolean") {
-		config = { ..._CONFIG, ...config };
+		// we may have used the special case "all" key shortcut
+		const all = config.all !== undefined ? _confObj(!!config.all) : {};
+		delete config.all;
+
+		// start with defaults, may merge with "all", and finally merge with locals
+		config = { ..._CONFIG, ...all, ...config };
 	}
 
 	// if undef, use global config
 	config ??= Object.assign({}, createClog.CONFIG);
 
-	// we may have used the special case "all" key shortcut
-	if (typeof config !== "boolean" && config.all !== undefined) {
-		const all = _confObj(!!config.all);
-		delete config.all;
-		config = { ...all, ...config };
-	}
-
+	// if boolean was provided
 	if (config === true) config = _confObj(true);
 	if (config === false) config = _confObj(false);
 

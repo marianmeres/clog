@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 
-import { assertEquals, assertMatch } from "@std/assert";
+import { assert, assertEquals, assertMatch } from "@std/assert";
 import { createClog, createClogStr, type Writer } from "../clog.ts";
 
 let output: Record<string, any> = {};
@@ -122,4 +122,16 @@ Deno.test("createClogStr", () => {
 	const clog2 = createClogStr("foo", null, writer());
 	clog2({ a: 123 }, 456, new Response());
 	assertEquals(output.log, '[foo]{\n    "a": 123\n}456[object Response]');
+});
+
+Deno.test("all config", () => {
+	reset();
+	const clog = createClog(false, { all: false, time: true }, writer());
+	clog("bar");
+	assertEquals(output.log, undefined); // no-op
+
+	reset();
+	const clog2 = createClog(false, { time: true }, writer());
+	clog2("bar");
+	assert(output.log.endsWith("]bar"));
 });
