@@ -132,6 +132,10 @@ export function createClog(
 			args[0] = colorMark + args[0];
 			args[1] = args[1].slice(colorMark.length);
 			args = _moveArrayElement(args, 2, 1);
+
+			// if we have passed exactly "%c" as the actual arg (legit) need to clean up
+			// the empty string fragment
+			if (args[2] === "") args.splice(2, 1);
 		}
 
 		// actual log finally...

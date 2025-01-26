@@ -4,8 +4,11 @@ import { assert, assertEquals, assertMatch } from "@std/assert";
 import { createClog, createClogStr, type Writer } from "../clog.ts";
 
 let output: Record<string, any> = {};
+let output2: Record<string, any[]> = {};
+
 const reset = () => {
 	output = {};
+	output2 = {};
 	createClog.reset();
 };
 
@@ -15,6 +18,9 @@ const _init =
 		args.forEach((v) => {
 			output[k] ||= "";
 			output[k] += v;
+
+			output2[k] ||= [];
+			output2[k].push(v);
 		});
 		return writer;
 	};
@@ -91,15 +97,23 @@ Deno.test("datetime", () => {
 	);
 });
 
-Deno.test("colors", () => {
+Deno.test("colors via %c", () => {
 	reset();
 	const clog = createClog("foo", null, writer());
 	// const clog = createClog("foo");
 	clog("%cbar", "color:red", "baz");
 	assertEquals(output.log, "%c[foo]color:redbarbaz");
+
+	reset();
+	clog("%c", "color:red", {});
+	assertEquals(output.log, "%c[foo]color:red[object Object]");
+
+	// console.log(output2);
+	// check if empty string artifact was removed
+	assert(!output2.log.some((v) => v === ""));
 });
 
-Deno.test("colors 2", () => {
+Deno.test("colors via color()", () => {
 	reset();
 	const clog = createClogStr("foo", null, writer()).color("red");
 	// const clog = createClog("foo").color("red");
