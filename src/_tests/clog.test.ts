@@ -118,7 +118,7 @@ Deno.test("colors via %c", () => {
 	// default colors
 	reset();
 	clog.warn("warn");
-	assertEquals(output.warn, "%c[foo]color:orangewarn");
+	assertEquals(output.warn, "%c[foo]color:darkorangewarn");
 });
 
 Deno.test("colors via color()", () => {
@@ -141,7 +141,7 @@ Deno.test("colors via color()", () => {
 	// when we reset the instance color, must fall back to system orange
 	reset();
 	clog.color(null).warn("warn");
-	assertEquals(output.warn, "%c[foo]color:orangewarn");
+	assertEquals(output.warn, "%c[foo]color:darkorangewarn");
 
 	// global no colors
 	reset();

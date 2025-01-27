@@ -40,6 +40,8 @@ export type ClogColorConfigKey =
 	| "warnColor"
 	| "errorColor";
 
+// picking colors by hand which looks reasonable (with sufficient contrast) in both light/dark browser modes
+
 /** Default "debug" color */
 const _COLOR_DEBUG = "gray";
 
@@ -47,10 +49,10 @@ const _COLOR_DEBUG = "gray";
 const _COLOR_LOG = null;
 
 /** Default "info" color */
-const _COLOR_INFO = "cyan";
+const _COLOR_INFO = "dodgerblue";
 
 /** Default "warn" color */
-const _COLOR_WARN = "orange";
+const _COLOR_WARN = "darkorange";
 
 /** Default "error" color */
 const _COLOR_ERROR = "red";
