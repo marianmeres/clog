@@ -30,6 +30,7 @@ export type Clog = CLogFn &
 	Record<keyof Writer, CLogFn> & {
 		ns: string | false;
 		color: (color: string | null) => Clog;
+		disabled: (flag: boolean) => Clog;
 		colors: boolean;
 	};
 
@@ -132,9 +133,12 @@ export function createClog(
 	//
 	let _color: string | null = null;
 
+	// local disabled flag
+	let _disabled: boolean = false;
+
 	const _apply = (k: keyof Writer, args: any[]) => {
-		// maybe master flag disabled
-		if (createClog.DISABLED) return clog;
+		// maybe global or local flag disabled
+		if (createClog.DISABLED || _disabled) return clog;
 
 		// maybe local instance config disabled
 		if (!config[k]) return clog;
@@ -212,6 +216,11 @@ export function createClog(
 
 	clog.color = (color: string | null) => {
 		_color = color;
+		return clog;
+	};
+
+	clog.disabled = (flag: boolean) => {
+		_disabled = !!flag;
 		return clog;
 	};
 

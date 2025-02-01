@@ -180,3 +180,11 @@ Deno.test("chain api", () => {
 	clog.color("red").log("bar").color(null).log("baz");
 	assertEquals(output.log, "%cbarcolor:redbaz");
 });
+
+Deno.test("local disabled", () => {
+	reset();
+	const clog = createClog(false, null, writer());
+	clog("foo").disabled(true).log("bar").disabled(false)("baz");
+	// bar must not be logged as it was disabled
+	assertEquals(output.log, "foobaz");
+});
