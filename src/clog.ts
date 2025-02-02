@@ -219,7 +219,7 @@ export function createClog(
 		return clog;
 	};
 
-	clog.disabled = (flag: boolean) => {
+	clog.disabled = (flag: boolean = true) => {
 		_disabled = !!flag;
 		return clog;
 	};
