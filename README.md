@@ -13,16 +13,11 @@ And with custom writer support.
 deno add jsr:@marianmeres/clog
 ```
 
-### Node (npm, pnpm)
+### Node
 
 ```bash
-npx jsr add @marianmeres/clog
+npm i @marianmeres/clog
 ```
-
-```bash
-pnpm dlx jsr add @marianmeres/clog
-```
-
 
 ## Usage
 
