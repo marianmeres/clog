@@ -16,6 +16,15 @@ deno add jsr:@marianmeres/clog
 ### Node
 
 ```bash
+npx jsr add @marianmeres/clog
+```
+
+```bash
+pnpm dlx jsr add @marianmeres/clog
+```
+
+Experimental:
+```bash
 npm i @marianmeres/clog
 ```
 

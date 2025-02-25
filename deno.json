@@ -4,6 +4,7 @@
 	"exports": "./src/mod.ts",
 	"tasks": {
 		"test": "deno test --watch",
+		"dnt": "deno run -A scripts/build-npm.ts && cd ./.npm-dist",
 		"npm:publish": "deno run -A scripts/build-npm.ts && cd ./.npm-dist && npm publish --access=public"
 	},
 	"imports": {
