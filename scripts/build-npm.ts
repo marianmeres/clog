@@ -67,3 +67,8 @@ Deno.writeTextFileSync(
 	join(outDir, "package.json"),
 	JSON.stringify(packageJson, null, "\t")
 );
+
+// cleanup
+['index.ts', 'tsconfig.json'].forEach((f) => {
+	Deno.removeSync(join(outDir, f))
+});
