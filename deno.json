@@ -1,9 +1,10 @@
 {
 	"name": "@marianmeres/clog",
-	"version": "2.3.0",
+	"version": "2.3.1",
 	"exports": "./src/mod.ts",
 	"tasks": {
 		"test": "deno test --watch",
+		"npm:build": "deno run -A scripts/build-npm.ts",
 		"npm:publish": "deno run -A scripts/build-npm.ts && cd ./.npm-dist && npm publish --access=public"
 	},
 	"imports": {
