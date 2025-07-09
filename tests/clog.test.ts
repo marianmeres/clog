@@ -1,7 +1,5 @@
-// deno-lint-ignore-file no-explicit-any
-
 import { assert, assertEquals, assertMatch, assertThrows } from "@std/assert";
-import { createClog, createClogStr, type Writer } from "../clog.ts";
+import { createClog, createClogStr, type Writer } from "../src/clog.ts";
 
 let output: Record<string, any> = {};
 let output2: Record<string, any[]> = {};

@@ -7,23 +7,15 @@ And with custom writer support.
 
 ## Installation
 
-### Deno
-
+```bash
+npm i @marianmeres/clog
+```
+or
 ```bash
 deno add jsr:@marianmeres/clog
 ```
 
-### Node
-
-```bash
-npm i @marianmeres/clog
-```
-
-```bash
-pnpm add @marianmeres/clog
-```
-
-## Usage
+## Usage (clog)
 
 ```typescript
 // create logger
@@ -92,3 +84,30 @@ clog("foo"); // output "[my-module] foo" in gray
 clog.info("success"); // output "[my-module] success" in green
 clog.error("alert!"); // output "[my-module] alert!" in red
 ```
+
+## Usage (logger)
+
+This package also comes with a less fancy but more "server conventional" logger. Using 
+console, but is more stdout-consume friendly as it outputs the data in 
+a machine friendlier format.
+
+Supported levels labes are only standard `DEBUG`, `INFO`, `WARNING`, `ERROR` (which are
+auto mapped from console's `debug`/`log`/`warn`/`error`).
+
+Output:
+```
+[timestamp] [level] [namespace] My message
+```
+or, in json output:
+```
+{ timestamp, level, namespace, message, arg_1, arg_2, ..., arg_n }
+```
+
+```typescript
+const logger = createLogger("foo", jsonOutput = false);
+logger.log('My message', other, args, are, supported);
+```
+
+## clog or logger?
+
+Use `createClog` in the browser and `createLogger` on the server.

@@ -60,7 +60,7 @@ const packageJson = {
 		url: "git+https://github.com/marianmeres/clog.git",
 	},
 	bugs: {
-		url: "https://github.com/marianmeres/repo/issues",
+		url: "https://github.com/marianmeres/clog/issues",
 	},
 };
 Deno.writeTextFileSync(

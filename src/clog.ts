@@ -1,5 +1,3 @@
-// deno-lint-ignore-file no-explicit-any
-
 /** Log function type */
 export type LogFn = (...args: any[]) => void;
 
