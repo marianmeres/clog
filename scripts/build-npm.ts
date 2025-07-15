@@ -73,9 +73,6 @@ const packageJson = {
 	type: "module",
 	main: "dist/mod.js",
 	types: "dist/mod.d.ts",
-	publishConfig: {
-		registry: "https://dev.nettle.ai/registry"
-	},
 	devDependencies: {
 		"@types/node": "latest",
 	}

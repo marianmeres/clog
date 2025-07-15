@@ -87,9 +87,8 @@ clog.error("alert!"); // output "[my-module] alert!" in red
 
 ## Usage (logger)
 
-This package also comes with a less fancy but more "server conventional" logger. Using 
-console, but is more stdout-consume friendly as it outputs the data in 
-a machine friendlier format.
+This package also comes with a less fancy but more "server conventional" logger. It is 
+still using console, but the output in more stdout-consume friendly.
 
 Supported levels labes are only standard `DEBUG`, `INFO`, `WARNING`, `ERROR` (which are
 auto mapped from console's `debug`/`log`/`warn`/`error`).
