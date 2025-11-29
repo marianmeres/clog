@@ -29,6 +29,11 @@ export interface Logger {
 	log: (...args: any[]) => string;
 	warn: (...args: any[]) => string;
 	error: (...args: any[]) => string;
+}
+
+/** Clog interface - callable Logger with namespace */
+export interface Clog extends Logger {
+	(...args: any[]): string; // callable, proxies to log
 	ns: string | false;
 }
 
@@ -142,7 +147,7 @@ const colorWriter =
 export function createClog(
 	namespace?: string | false,
 	config?: ClogConfig
-): Logger {
+): Clog {
 	// Default to no namespace if not provided
 	const ns = namespace ?? false;
 
@@ -175,16 +180,17 @@ export function createClog(
 		return message;
 	};
 
-	const logger: Logger = {
-		debug: (...args: any[]) => _apply("debug", args),
-		log: (...args: any[]) => _apply("log", args),
-		warn: (...args: any[]) => _apply("warn", args),
-		error: (...args: any[]) => _apply("error", args),
-		ns,
-	};
+	// Create callable function that proxies to log
+	const logger = ((...args: any[]) => _apply("log", args)) as Clog;
 
-	// Make ns readonly
-	Object.defineProperty(logger, "ns", { writable: false });
+	// Attach methods
+	logger.debug = (...args: any[]) => _apply("debug", args);
+	logger.log = (...args: any[]) => _apply("log", args);
+	logger.warn = (...args: any[]) => _apply("warn", args);
+	logger.error = (...args: any[]) => _apply("error", args);
+
+	// Attach ns as readonly
+	Object.defineProperty(logger, "ns", { value: ns, writable: false });
 
 	return logger;
 }

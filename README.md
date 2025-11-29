@@ -36,6 +36,9 @@ clog.debug("Debug info");          // [my-app] Debug info
 clog.warn("Warning message");      // [my-app] Warning message
 clog.error("Error occurred");      // [my-app] Error occurred
 
+// Or call directly (proxies to .log)
+clog("Hello", "world");            // [my-app] Hello world
+
 // Without namespace
 const logger = createClog();
 logger.log("No namespace");        // No namespace
@@ -209,14 +212,20 @@ Creates a logger instance.
 - `namespace?: string | false` - Namespace for the logger (default: `false`)
 - `config?: ClogConfig` - Optional configuration
 
-**Returns:** `Logger`
+**Returns:** `Clog`
 
 ```typescript
+// Console-compatible interface
 interface Logger {
   debug: (...args: any[]) => string;
   log: (...args: any[]) => string;
   warn: (...args: any[]) => string;
   error: (...args: any[]) => string;
+}
+
+// Callable Logger with namespace (returned by createClog)
+interface Clog extends Logger {
+  (...args: any[]): string;          // callable, proxies to log
   ns: string | false;  // readonly
 }
 

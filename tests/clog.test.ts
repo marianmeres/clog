@@ -28,6 +28,21 @@ function reset() {
 	setupMockConsole();
 }
 
+Deno.test("callable - proxies to log", () => {
+	reset();
+	const clog = createClog("test");
+
+	// Direct call should be same as .log()
+	const result = clog("hello", "world");
+
+	assertEquals(result, "hello");
+	assertEquals(consoleOutput.log.length, 1);
+	assert(consoleOutput.log[0].includes("[test]"));
+	assert(consoleOutput.log[0].includes("hello"));
+
+	restoreConsole();
+});
+
 Deno.test("basic - with namespace", () => {
 	reset();
 	const clog = createClog("test");
