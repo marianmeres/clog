@@ -112,15 +112,15 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	}
 };
 
-/** Default writer with color support (browser only) */
+/** Default writer with color support (browser and deno) */
 const colorWriter =
 	(color: string): WriterFn =>
 	(data: LogData) => {
-		const { level, namespace, args } = data;
+		const { level, namespace, args, timestamp } = data;
 		const runtime = _detectRuntime();
 
-		// Only apply color in browser
-		if (runtime !== "browser" || !namespace) {
+		// Only apply %c color in browser and deno
+		if ((runtime !== "browser" && runtime !== "deno") || !namespace) {
 			return defaultWriter(data);
 		}
 
@@ -134,7 +134,14 @@ const colorWriter =
 		)[level];
 
 		const ns = `[${namespace}]`;
-		console[consoleMethod](`%c${ns}`, `color:${color}`, ...args);
+
+		if (runtime === "browser") {
+			console[consoleMethod](`%c${ns}`, `color:${color}`, ...args);
+		} else {
+			// Deno: include timestamp and level like server mode
+			const prefix = `[${timestamp}] [${level}]`;
+			console[consoleMethod](prefix, `%c${ns}`, `color:${color}`, ...args);
+		}
 	};
 
 /**

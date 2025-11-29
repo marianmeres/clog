@@ -186,9 +186,9 @@ const clog = createClog("test", {
 });
 ```
 
-### Browser Colors
+### Colored Namespace
 
-Add color to namespace labels in browser console:
+Add color to namespace labels in browser and Deno console:
 
 ```typescript
 const clog = createClog("ui", { color: "blue" });
@@ -200,7 +200,7 @@ errorLog.error("Failed to load");
 // Output: [errors] Failed to load  (namespace in red)
 ```
 
-Colors only work in browser environments (uses `%c` formatting).
+Colors work in browser and Deno environments (uses `%c` formatting).
 
 ## API Reference
 
