@@ -1,188 +1,432 @@
-import { assert, assertEquals, assertMatch, assertThrows } from "@std/assert";
-import { createClog, createClogStr, type Writer } from "../src/clog.ts";
+import { assert, assertEquals, assertMatch } from "@std/assert";
+import { createClog, LEVEL_MAP, type LogData } from "../src/clog.ts";
 
-let output: Record<string, any> = {};
-let output2: Record<string, any[]> = {};
+// Test output collectors
+let capturedData: LogData[] = [];
+let consoleOutput: Record<string, string[]> = {};
 
-const reset = () => {
-	output = {};
-	output2 = {};
+// Mock console for testing
+const originalConsole = { ...console };
+
+function setupMockConsole() {
+	consoleOutput = { debug: [], log: [], warn: [], error: [] };
+	["debug", "log", "warn", "error"].forEach((method) => {
+		(console as any)[method] = (...args: any[]) => {
+			consoleOutput[method].push(args.join(" "));
+		};
+	});
+}
+
+function restoreConsole() {
+	Object.assign(console, originalConsole);
+}
+
+function reset() {
+	capturedData = [];
+	consoleOutput = {};
 	createClog.reset();
-};
+	setupMockConsole();
+}
 
-const _init =
-	(k: keyof Writer) =>
-	(...args: any[]) => {
-		args.forEach((v) => {
-			output[k] ||= "";
-			output[k] += v;
+Deno.test("basic - with namespace", () => {
+	reset();
+	const clog = createClog("test");
 
-			output2[k] ||= [];
-			output2[k].push(v);
-		});
+	clog.log("hello", "world");
+
+	assertEquals(clog.ns, "test");
+	assertEquals(consoleOutput.log.length, 1);
+	assert(consoleOutput.log[0].includes("[test]"));
+	assert(consoleOutput.log[0].includes("hello"));
+	assert(consoleOutput.log[0].includes("world"));
+
+	restoreConsole();
+});
+
+Deno.test("basic - without namespace", () => {
+	reset();
+	const clog = createClog();
+
+	clog.log("hello", "world");
+
+	assertEquals(clog.ns, false);
+	assertEquals(consoleOutput.log.length, 1);
+	// In server mode, there will be [timestamp] and [LEVEL] but no [namespace]
+	assert(consoleOutput.log[0].includes("hello"));
+	assert(consoleOutput.log[0].includes("world"));
+
+	restoreConsole();
+});
+
+Deno.test("basic - explicit false namespace", () => {
+	reset();
+	const clog = createClog(false);
+
+	clog.log("hello");
+
+	assertEquals(clog.ns, false);
+	assertEquals(consoleOutput.log.length, 1);
+
+	restoreConsole();
+});
+
+Deno.test("all log levels work", () => {
+	reset();
+	const clog = createClog("test");
+
+	clog.debug("debug msg");
+	clog.log("log msg");
+	clog.warn("warn msg");
+	clog.error("error msg");
+
+	assertEquals(consoleOutput.debug.length, 1);
+	assertEquals(consoleOutput.log.length, 1);
+	assertEquals(consoleOutput.warn.length, 1);
+	assertEquals(consoleOutput.error.length, 1);
+
+	assert(consoleOutput.debug[0].includes("debug msg"));
+	assert(consoleOutput.log[0].includes("log msg"));
+	assert(consoleOutput.warn[0].includes("warn msg"));
+	assert(consoleOutput.error[0].includes("error msg"));
+
+	restoreConsole();
+});
+
+Deno.test("returns first argument as string", () => {
+	reset();
+	const clog = createClog("test");
+
+	assertEquals(clog.log("hello"), "hello");
+	assertEquals(clog.debug("debug"), "debug");
+	assertEquals(clog.warn(123), "123");
+	assertEquals(clog.error({ msg: "err" }), "[object Object]");
+	assertEquals(clog.log(), "");
+
+	restoreConsole();
+});
+
+Deno.test("return value useful for throw pattern", () => {
+	reset();
+	const clog = createClog("test");
+
+	try {
+		throw new Error(clog.error("Something failed"));
+	} catch (e: any) {
+		assertEquals(e.message, "Something failed");
+	}
+
+	assertEquals(consoleOutput.error.length, 1);
+	assert(consoleOutput.error[0].includes("Something failed"));
+
+	restoreConsole();
+});
+
+Deno.test("global hook captures all logs", () => {
+	reset();
+	createClog.global.hook = (data: LogData) => {
+		capturedData.push(data);
 	};
 
-const writer = () => ({
-	info: _init("info"),
-	debug: _init("debug"),
-	log: _init("log"),
-	error: _init("error"),
-	warn: _init("warn"),
+	const clog1 = createClog("module1");
+	const clog2 = createClog("module2");
+
+	clog1.log("msg1");
+	clog2.warn("msg2");
+
+	assertEquals(capturedData.length, 2);
+	assertEquals(capturedData[0].level, "INFO");
+	assertEquals(capturedData[0].namespace, "module1");
+	assertEquals(capturedData[0].args[0], "msg1");
+
+	assertEquals(capturedData[1].level, "WARNING");
+	assertEquals(capturedData[1].namespace, "module2");
+	assertEquals(capturedData[1].args[0], "msg2");
+
+	restoreConsole();
 });
 
-Deno.test("it works", () => {
+Deno.test("global writer overrides default", () => {
 	reset();
-	(["info", "debug", "log", "error", "warn"] as (keyof Writer)[]).forEach(
-		(k) => {
-			reset();
-			// for simplicity case here disabling colors...
-			const clog = createClog("foo", { colors: false }, writer());
-			clog[k]("bar", "baz");
-			assertEquals(output[k], "[foo]barbaz");
-			assertEquals(Object.keys(output).length, 1);
-			assertEquals(clog.ns, "foo");
+	const customOutput: string[] = [];
 
-			// ns is readonly
-			assertThrows(() => (clog.ns = "asdf"));
+	createClog.global.writer = (data: LogData) => {
+		customOutput.push(`${data.level}:${data.namespace}:${data.args[0]}`);
+	};
+
+	const clog = createClog("test");
+	clog.log("hello");
+
+	assertEquals(consoleOutput.log.length, 0); // default not called
+	assertEquals(customOutput.length, 1);
+	assertEquals(customOutput[0], "INFO:test:hello");
+
+	restoreConsole();
+});
+
+Deno.test("instance writer overrides default", () => {
+	reset();
+	const customOutput: string[] = [];
+
+	const clog = createClog("test", {
+		writer: (data: LogData) => {
+			customOutput.push(`${data.level}:${data.args[0]}`);
+		},
+	});
+
+	clog.warn("warning");
+
+	assertEquals(consoleOutput.warn.length, 0); // default not called
+	assertEquals(customOutput.length, 1);
+	assertEquals(customOutput[0], "WARNING:warning");
+
+	restoreConsole();
+});
+
+Deno.test("global writer takes precedence over instance writer", () => {
+	reset();
+	const globalOutput: string[] = [];
+	const instanceOutput: string[] = [];
+
+	createClog.global.writer = (data: LogData) => {
+		globalOutput.push("global");
+	};
+
+	const clog = createClog("test", {
+		writer: (data: LogData) => {
+			instanceOutput.push("instance");
+		},
+	});
+
+	clog.log("test");
+
+	assertEquals(globalOutput.length, 1);
+	assertEquals(instanceOutput.length, 0); // instance writer not called
+
+	restoreConsole();
+});
+
+Deno.test("hook is called before writer", () => {
+	reset();
+	const callOrder: string[] = [];
+
+	createClog.global.hook = () => {
+		callOrder.push("hook");
+	};
+
+	const clog = createClog("test", {
+		writer: () => {
+			callOrder.push("writer");
+		},
+	});
+
+	clog.log("test");
+
+	assertEquals(callOrder, ["hook", "writer"]);
+
+	restoreConsole();
+});
+
+Deno.test("level mapping is correct", () => {
+	assertEquals(LEVEL_MAP.debug, "DEBUG");
+	assertEquals(LEVEL_MAP.log, "INFO");
+	assertEquals(LEVEL_MAP.warn, "WARNING");
+	assertEquals(LEVEL_MAP.error, "ERROR");
+});
+
+Deno.test("log data includes timestamp", () => {
+	reset();
+	createClog.global.hook = (data: LogData) => {
+		capturedData.push(data);
+	};
+
+	const clog = createClog("test");
+	clog.log("test");
+
+	assertEquals(capturedData.length, 1);
+	assert(capturedData[0].timestamp);
+	// Check it's ISO format
+	assertMatch(capturedData[0].timestamp, /^\d{4}-\d{2}-\d{2}T/);
+
+	restoreConsole();
+});
+
+Deno.test("log data includes all arguments", () => {
+	reset();
+	createClog.global.hook = (data: LogData) => {
+		capturedData.push(data);
+	};
+
+	const clog = createClog("test");
+	clog.log("msg", 123, { key: "value" }, true);
+
+	assertEquals(capturedData.length, 1);
+	assertEquals(capturedData[0].args.length, 4);
+	assertEquals(capturedData[0].args[0], "msg");
+	assertEquals(capturedData[0].args[1], 123);
+	assertEquals(capturedData[0].args[2], { key: "value" });
+	assertEquals(capturedData[0].args[3], true);
+
+	restoreConsole();
+});
+
+Deno.test("ns property is readonly", () => {
+	reset();
+	const clog = createClog("test");
+
+	try {
+		(clog as any).ns = "changed";
+		assert(false, "Should have thrown");
+	} catch (e) {
+		// Expected
+		assertEquals(clog.ns, "test");
+	}
+
+	restoreConsole();
+});
+
+Deno.test("reset() clears global configuration", () => {
+	createClog.global.hook = () => {};
+	createClog.global.writer = () => {};
+	createClog.global.jsonOutput = true;
+
+	createClog.reset();
+
+	assertEquals(createClog.global.hook, undefined);
+	assertEquals(createClog.global.writer, undefined);
+	assertEquals(createClog.global.jsonOutput, false);
+});
+
+Deno.test("multiple instances with different namespaces", () => {
+	reset();
+	createClog.global.hook = (data: LogData) => {
+		capturedData.push(data);
+	};
+
+	const auth = createClog("auth");
+	const api = createClog("api");
+	const db = createClog("db");
+
+	auth.log("user login");
+	api.warn("slow request");
+	db.error("connection failed");
+
+	assertEquals(capturedData.length, 3);
+	assertEquals(capturedData[0].namespace, "auth");
+	assertEquals(capturedData[1].namespace, "api");
+	assertEquals(capturedData[2].namespace, "db");
+
+	restoreConsole();
+});
+
+Deno.test("batching pattern example", () => {
+	reset();
+	const batch: LogData[] = [];
+
+	// Setup batching hook
+	createClog.global.hook = (data: LogData) => {
+		batch.push(data);
+		if (batch.length >= 3) {
+			// Flush batch
+			const copy = [...batch];
+			batch.length = 0;
+			// In real scenario, would send to server/file
 		}
-	);
+	};
+
+	const clog = createClog("app");
+	clog.log("msg1");
+	clog.log("msg2");
+	assertEquals(batch.length, 2);
+
+	clog.log("msg3"); // triggers flush
+	assertEquals(batch.length, 0); // batch was flushed
+
+	restoreConsole();
 });
 
-Deno.test("global config", () => {
+Deno.test("color config sets instance writer", () => {
 	reset();
-	const clog = createClog("foo", null, writer());
-	clog("bar");
-	assertEquals(output.log, "[foo]bar");
-	createClog.WRITER = {}; // empty
-	clog("baz");
-	assertEquals(output.log, "[foo]bar"); // no change
-	createClog.WRITER = { log: writer().log };
-	clog("bat");
-	assertEquals(output.log, "[foo]bar[foo]bat");
+
+	// Color should only work in browser, but we can test it creates custom writer
+	const clog = createClog("test", { color: "red" });
+	clog.log("colored");
+
+	// In non-browser environment, should still log
+	assertEquals(consoleOutput.log.length, 1);
+
+	restoreConsole();
 });
 
-Deno.test("local vs global config", () => {
+Deno.test("JSON output format in server mode", () => {
 	reset();
-	const clog = createClog("foo", { log: true }, writer());
-	// will be ignored since local has higher importance
-	createClog.CONFIG = {};
-	clog("bar");
-	assertEquals(output.log, "[foo]bar");
-	// except for master switch
-	createClog.DISABLED = true;
-	clog("baz");
-	assertEquals(output.log, "[foo]bar"); // no baz
+	createClog.global.jsonOutput = true;
+
+	const clog = createClog("api");
+	clog.log("Request received", { method: "GET" });
+
+	assertEquals(consoleOutput.log.length, 1);
+
+	// Parse JSON output
+	const output = JSON.parse(consoleOutput.log[0]);
+	assertEquals(output.level, "INFO");
+	assertEquals(output.namespace, "api");
+	assertEquals(output.message, "Request received");
+	assertEquals(output.arg_0, { method: "GET" });
+	assert(output.timestamp);
+
+	restoreConsole();
 });
 
-Deno.test("no namespace", () => {
+Deno.test("JSON output preserves Error stacks", () => {
 	reset();
-	const clog = createClog(false, null, writer());
-	clog("bar");
-	assertEquals(output.log, "bar");
+	createClog.global.jsonOutput = true;
+
+	const clog = createClog("test");
+	const err = new Error("Test error");
+	clog.error("Failed", err);
+
+	assertEquals(consoleOutput.error.length, 1);
+
+	const output = JSON.parse(consoleOutput.error[0]);
+	assertEquals(output.message, "Failed");
+	assert(output.arg_0.includes("Error: Test error"));
+	assert(output.arg_0.includes("at ")); // stack trace
+
+	restoreConsole();
 });
 
-Deno.test("time", () => {
+Deno.test("text output format in server mode", () => {
 	reset();
-	const clog = createClog("foo", { log: true, time: true }, writer());
-	clog("bar");
-	assertMatch(output.log, /^\[\d{2}:\d{2}:\d{2}\.\d{3}\] \[foo\]bar$/);
-});
+	createClog.global.jsonOutput = false;
 
-Deno.test("datetime", () => {
-	reset();
-	const clog = createClog("foo", { log: true, dateTime: true }, writer());
-	clog("bar");
+	const clog = createClog("api");
+	clog.warn("Slow query");
+
+	assertEquals(consoleOutput.warn.length, 1);
+
+	const output = consoleOutput.warn[0];
+	// Format: [timestamp] [LEVEL] [namespace] message
 	assertMatch(
-		output.log,
-		/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\] \[foo\]bar$/
-	);
-});
-
-Deno.test("colors via %c", () => {
-	reset();
-	const clog = createClog("foo", null, writer());
-	// const clog = createClog("foo");
-	clog("%cbar", "color:red", "baz");
-	assertEquals(output.log, "%c[foo]color:redbarbaz");
-
-	reset();
-	clog("%c", "color:red", {});
-	assertEquals(output.log, "%c[foo]color:red[object Object]");
-
-	// console.log(output2);
-	// check if empty string artifact was removed
-	assert(!output2.log.some((v) => v === ""));
-
-	// default colors
-	reset();
-	clog.warn("warn");
-	assertEquals(output.warn, "%c[foo]color:darkorangewarn");
-});
-
-Deno.test("colors via color()", () => {
-	reset();
-	const clog = createClogStr("foo", null, writer()).color("red");
-	// const clog = createClog("foo").color("red");
-	clog({ bar: 123 });
-	clog.color(null)("hey");
-	clog.color("pink")("ho");
-	assertEquals(
-		output.log,
-		'%c[foo]color:red{\n    "bar": 123\n}[foo]hey%c[foo]color:pinkho'
+		output,
+		/^\[\d{4}-\d{2}-\d{2}T.*\] \[WARNING\] \[api\] Slow query/
 	);
 
-	// instance provided color has priority over system one
-	reset();
-	clog.warn("warn"); // pink, not orange
-	assertEquals(output.warn, "%c[foo]color:pinkwarn");
-
-	// when we reset the instance color, must fall back to system orange
-	reset();
-	clog.color(null).warn("warn");
-	assertEquals(output.warn, "%c[foo]color:darkorangewarn");
-
-	// global no colors
-	reset();
-	createClog.COLORS = false;
-	clog.warn("warn");
-	assertEquals(output.warn, "[foo]warn");
+	restoreConsole();
 });
 
-Deno.test("createClogStr", () => {
+Deno.test("no namespace in output when namespace is false", () => {
 	reset();
-	const clog = createClog("foo", null, writer());
-	clog({ a: 123 }, 456, new Response());
-	assertEquals(output.log, "[foo][object Object]456[object Response]");
+	createClog.global.jsonOutput = false;
 
-	reset();
-	const clog2 = createClogStr("foo", null, writer());
-	clog2({ a: 123 }, 456, new Response());
-	assertEquals(output.log, '[foo]{\n    "a": 123\n}456[object Response]');
-});
+	const clog = createClog(false);
+	clog.log("message");
 
-Deno.test("all config", () => {
-	reset();
-	const clog = createClog(false, { all: false, time: true }, writer());
-	clog("bar");
-	assertEquals(output.log, undefined); // no-op
+	assertEquals(consoleOutput.log.length, 1);
 
-	reset();
-	const clog2 = createClog(false, { time: true }, writer());
-	clog2("bar");
-	assert(output.log.endsWith("]bar"));
-});
+	const output = consoleOutput.log[0];
+	// Should not have [namespace] part
+	assertMatch(output, /^\[\d{4}-\d{2}-\d{2}T.*\] \[INFO\] message/);
+	assert(!output.includes("[]"));
 
-Deno.test("chain api", () => {
-	reset();
-	const clog = createClog(false, null, writer());
-	clog.color("red").log("bar").color(null).log("baz");
-	assertEquals(output.log, "%cbarcolor:redbaz");
-});
-
-Deno.test("local disabled", () => {
-	reset();
-	const clog = createClog(false, null, writer());
-	clog("foo").disabled(true).log("bar").disabled(false)("baz");
-	// bar must not be logged as it was disabled
-	assertEquals(output.log, "foobaz");
+	restoreConsole();
 });
