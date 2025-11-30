@@ -1,5 +1,8 @@
 # @marianmeres/clog
 
+[![NPM version](https://img.shields.io/npm/v/@marianmeres/clog.svg)](https://www.npmjs.com/package/@marianmeres/clog)
+[![JSR version](https://jsr.io/badges/@marianmeres/clog)](https://jsr.io/@marianmeres/clog)
+
 Simple, universal logger with namespace support that works everywhere - browser, Node.js, and Deno.
 
 ## Why clog?
