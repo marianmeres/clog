@@ -409,6 +409,9 @@ createClog.DISABLED = true;
 createClog.global.writer = () => {};
 ```
 
-## License
+## Package Identity
 
-MIT
+- **Name:** @marianmeres/clog
+- **Author:** Marian Meres
+- **Repository:** https://github.com/marianmeres/clog
+- **License:** MIT

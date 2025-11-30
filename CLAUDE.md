@@ -1,0 +1,254 @@
+# CLAUDE.md - Project Knowledge Base
+
+## Package Identity
+
+- **Name:** @marianmeres/clog
+- **Version:** 3.2.0
+- **License:** MIT
+- **Author:** Marian Meres
+- **Repository:** https://github.com/marianmeres/clog
+
+## Purpose
+
+Universal logger (~200 lines) with namespace support for browser, Node.js, and Deno. Console-compatible API with structured logging for log aggregation tools.
+
+## File Structure
+
+```
+src/
+├── mod.ts          # Entry point, re-exports from clog.ts
+└── clog.ts         # Main implementation (213 lines)
+tests/
+└── clog.test.ts    # Test suite (447 lines, 31+ tests)
+scripts/
+└── build-npm.ts    # npm build script (103 lines)
+.npm-dist/          # Generated npm distribution
+deno.json           # Deno configuration and version
+README.md           # Documentation
+LICENSE             # MIT license
+```
+
+## Architecture
+
+### Runtime Detection
+
+```typescript
+function _detectRuntime(): "browser" | "node" | "deno" | "unknown"
+```
+
+Checks: `window.document` (browser), `Deno.version.deno` (deno), `process.versions.node` (node)
+
+### Core Types
+
+```typescript
+type LogLevel = "debug" | "log" | "warn" | "error";
+
+interface LogData {
+  level: LogLevel;
+  ns: string | false;
+  args: any[];
+  ts: Date;
+}
+
+interface ClogConfig {
+  writer?: WriterFn;
+  color?: string | null;
+}
+
+interface GlobalConfig {
+  hook?: HookFn;
+  writer?: WriterFn;
+  jsonOutput?: boolean;
+}
+
+interface Clog extends Logger {
+  (...args: any[]): string;  // Callable
+  readonly ns: string | false;
+}
+```
+
+### Log Level Mapping (RFC 5424)
+
+```typescript
+const LEVEL_MAP = {
+  debug: "DEBUG",
+  log: "INFO",
+  warn: "WARNING",
+  error: "ERROR"
+};
+```
+
+## API
+
+### Main Export
+
+```typescript
+function createClog(namespace?: string | false, config?: ClogConfig): Clog
+```
+
+### Logger Methods
+
+All methods return first argument as string (enables `throw new Error(clog.error("msg"))`):
+
+- `debug(...args): string` - DEBUG level
+- `log(...args): string` - INFO level
+- `warn(...args): string` - WARNING level
+- `error(...args): string` - ERROR level
+- `(...args): string` - Callable, proxies to log()
+
+### Global Configuration
+
+```typescript
+createClog.global.hook = (data: LogData) => void;     // Runs before writer
+createClog.global.writer = (data: LogData) => void;   // Overrides default
+createClog.global.jsonOutput = boolean;               // JSON output mode
+createClog.reset();                                   // Reset to defaults
+```
+
+### Writer Precedence (highest to lowest)
+
+1. `createClog.global.writer`
+2. Instance `config.writer`
+3. Color writer (if `config.color` set, browser/deno only)
+4. Default writer
+
+## Output Formats
+
+### Browser
+
+```
+[namespace] arg0 arg1 ...
+```
+
+With color: Uses `%c` CSS styling
+
+### Server (Node.js/Deno) - Text
+
+```
+[ISO-timestamp] [LEVEL] [namespace] arg0 arg1 ...
+```
+
+### Server - JSON (`jsonOutput: true`)
+
+```json
+{
+  "ts": "ISO-timestamp",
+  "level": "LEVEL",
+  "ns": "namespace",
+  "arg_0": "value",
+  "arg_1": "value"
+}
+```
+
+Error stacks preserved as `arg_N_stack` properties.
+
+## Commands
+
+| Task | Command |
+|------|---------|
+| Test (watch) | `deno test --watch` |
+| Build npm | `deno run -A scripts/build-npm.ts` |
+| Publish | `deno task npm:publish` |
+
+## Dependencies
+
+### Production
+None (zero dependencies)
+
+### Development (deno.json imports)
+- `@deno/dnt@^0.41.3` - Deno to npm transpiler
+- `@std/assert@^1.0.13` - Testing assertions
+- `@std/fs@^1.0.19` - File system utilities
+- `@std/path@^1.1.1` - Path utilities
+
+## Build Process
+
+1. Creates `.npm-dist` directory
+2. Copies src/, README.md, LICENSE
+3. Generates tsconfig.json (ESNext, declarations)
+4. Transforms `.ts` imports to `.js`
+5. Compiles with tsc
+6. Generates package.json with exports
+7. Cleans up temporary files
+
+## Code Patterns
+
+### Error Throwing Pattern
+```typescript
+throw new Error(clog.error("Something failed"));
+```
+
+### Callable Logger
+```typescript
+clog("message");  // Same as clog.log("message")
+```
+
+### Log Batching via Hook
+```typescript
+const batch: LogData[] = [];
+createClog.global.hook = (data) => batch.push(data);
+```
+
+### Custom Output
+```typescript
+createClog.global.writer = (data) => sendToServer(data);
+```
+
+## Design Principles
+
+1. No log level filtering - control at source
+2. No enable/disable switches
+3. Console-compatible drop-in replacement
+4. One API for all environments
+5. Simplicity over features
+
+## Version History
+
+| Version | Changes |
+|---------|---------|
+| 3.2.0 | Color support for Deno |
+| 3.1.0 | Callable support, type improvements |
+| 3.0.0 | Major refactor, simplified API |
+
+### Breaking Changes in v3.0
+
+- Removed: `createLogger()`, `createClogStr()`, `info()`, `DISABLED` flag
+- Simplified: `CONFIG` to just `jsonOutput`
+- Changed: Color API to simple per-instance config
+- Removed: time/dateTime options (timestamps always in server mode)
+- Added: Callable function
+
+## Test Coverage
+
+Tests verify:
+- All log levels and methods
+- Callable interface
+- Namespace handling (string, false, undefined)
+- Return value pattern
+- Global hooks and writers
+- Writer precedence
+- JSON and text output formats
+- Error stack preservation
+- Color configuration
+- Configuration reset
+- Readonly namespace property
+- Multiple instances
+- Hook execution order
+
+## Common Tasks
+
+### Add new log level
+1. Add to `LEVEL_MAP` in clog.ts
+2. Add to `LogLevel` type
+3. Add to `Logger` interface
+4. Add method in `createClog` factory
+5. Add tests
+
+### Modify output format
+- Text format: `defaultWriter` function
+- JSON format: `defaultWriter` function (jsonOutput branch)
+- Color format: `colorWriter` function
+
+### Add new runtime support
+1. Update `_detectRuntime()` detection logic
+2. Update `defaultWriter` and `colorWriter` for runtime-specific behavior
