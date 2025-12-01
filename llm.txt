@@ -156,7 +156,6 @@ Error stacks preserved as `arg_N_stack` properties.
 None (zero dependencies)
 
 ### Development (deno.json imports)
-- `@deno/dnt@^0.41.3` - Deno to npm transpiler
 - `@std/assert@^1.0.13` - Testing assertions
 - `@std/fs@^1.0.19` - File system utilities
 - `@std/path@^1.1.1` - Path utilities

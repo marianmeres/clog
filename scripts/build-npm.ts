@@ -70,8 +70,16 @@ const packageJson = {
 	type: "module",
 	main: "dist/mod.js",
 	types: "dist/mod.d.ts",
-	devDependencies: {
-	}
+	author: "Marian Meres",
+	license: "MIT",
+	repository: {
+		type: "git",
+		url: "git+https://github.com/marianmeres/clog.git",
+	},
+	bugs: {
+		url: "https://github.com/marianmeres/clog/issues",
+	},
+	dependencies: {},
 };
 // "pg": "^8.16.2",
 Deno.writeTextFileSync(
