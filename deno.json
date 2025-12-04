@@ -5,7 +5,9 @@
 	"tasks": {
 		"test": "deno test --watch",
 		"npm:build": "deno run -A scripts/build-npm.ts",
-		"npm:publish": "deno run -A scripts/build-npm.ts && cd ./.npm-dist && npm publish --access=public"
+		"npm:publish": "deno run -A scripts/build-npm.ts && cd ./.npm-dist && npm publish --access=public",
+		"release": "deno run -A jsr:@marianmeres/deno-release",
+		"publish": "deno publish && deno task npm:publish"
 	},
 	"imports": {
 		"@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.6.1",
