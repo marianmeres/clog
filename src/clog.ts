@@ -1,4 +1,19 @@
-/** Standard log levels mapping (based on syslog/RFC 5424) */
+/**
+ * Standard log levels mapping based on syslog/RFC 5424.
+ *
+ * Maps console-style method names to RFC 5424 severity level names:
+ * - `debug` → `"DEBUG"`
+ * - `log` → `"INFO"`
+ * - `warn` → `"WARNING"`
+ * - `error` → `"ERROR"`
+ *
+ * @example
+ * ```typescript
+ * import { LEVEL_MAP } from "@marianmeres/clog";
+ * console.log(LEVEL_MAP.debug); // "DEBUG"
+ * console.log(LEVEL_MAP.log);   // "INFO"
+ * ```
+ */
 export const LEVEL_MAP = {
 	debug: "DEBUG",
 	log: "INFO",
@@ -6,10 +21,20 @@ export const LEVEL_MAP = {
 	error: "ERROR",
 } as const;
 
-/** Log level type */
+/**
+ * Log level type representing the available console-style log methods.
+ * One of: `"debug"` | `"log"` | `"warn"` | `"error"`
+ */
 export type LogLevel = keyof typeof LEVEL_MAP;
 
-/** Normalized log data passed to writers and hooks */
+/**
+ * Normalized log data structure passed to writers and hooks.
+ *
+ * @property level - RFC 5424 level name: `"DEBUG"` | `"INFO"` | `"WARNING"` | `"ERROR"`
+ * @property namespace - The logger namespace, or `false` if no namespace
+ * @property args - Array of all arguments passed to the log method
+ * @property timestamp - ISO 8601 formatted timestamp string
+ */
 export type LogData = {
 	level: (typeof LEVEL_MAP)[LogLevel];
 	namespace: string | false;
@@ -17,36 +42,143 @@ export type LogData = {
 	timestamp: string;
 };
 
-/** Writer function - receives normalized log data */
+/**
+ * Writer function signature for custom log output handlers.
+ * Receives normalized {@link LogData} and handles the actual output.
+ *
+ * @param data - Normalized log data to be written
+ *
+ * @example
+ * ```typescript
+ * const myWriter: WriterFn = (data) => {
+ *   console.log(`[${data.level}] ${data.args.join(" ")}`);
+ * };
+ * ```
+ */
 export type WriterFn = (data: LogData) => void;
 
-/** Hook function - same signature as writer, for collecting/batching */
+/**
+ * Hook function signature for intercepting log calls.
+ * Same signature as {@link WriterFn}, used for collecting, batching, or analytics.
+ * Hooks are called before writers.
+ *
+ * @param data - Normalized log data being logged
+ *
+ * @example
+ * ```typescript
+ * const batch: LogData[] = [];
+ * createClog.global.hook = (data) => batch.push(data);
+ * ```
+ */
 export type HookFn = WriterFn;
 
-/** Logger interface - compatible with console API */
+/**
+ * Logger interface compatible with the console API.
+ * All methods return the first argument as a string for convenience patterns.
+ */
 export interface Logger {
+	/**
+	 * Logs a debug message (DEBUG level).
+	 * @param args - Arguments to log
+	 * @returns The first argument as a string
+	 */
 	debug: (...args: any[]) => string;
+
+	/**
+	 * Logs an info message (INFO level).
+	 * @param args - Arguments to log
+	 * @returns The first argument as a string
+	 */
 	log: (...args: any[]) => string;
+
+	/**
+	 * Logs a warning message (WARNING level).
+	 * @param args - Arguments to log
+	 * @returns The first argument as a string
+	 */
 	warn: (...args: any[]) => string;
+
+	/**
+	 * Logs an error message (ERROR level).
+	 * @param args - Arguments to log
+	 * @returns The first argument as a string
+	 */
 	error: (...args: any[]) => string;
 }
 
-/** Clog interface - callable Logger with namespace */
+/**
+ * Clog interface - a callable Logger with namespace support.
+ * Can be invoked directly as a function (proxies to `log()`) or via methods.
+ *
+ * @example
+ * ```typescript
+ * const clog = createClog("app");
+ * clog("message");       // Same as clog.log("message")
+ * clog.debug("debug");
+ * clog.ns;               // "app" (readonly)
+ * ```
+ */
 export interface Clog extends Logger {
-	(...args: any[]): string; // callable, proxies to log
-	ns: string | false;
+	/**
+	 * Callable signature - proxies to `log()` method.
+	 * @param args - Arguments to log
+	 * @returns The first argument as a string
+	 */
+	(...args: any[]): string;
+
+	/**
+	 * The namespace of this logger instance.
+	 * Readonly property set at creation time.
+	 */
+	readonly ns: string | false;
 }
 
-/** Instance-level configuration */
+/**
+ * Instance-level configuration options for a Clog logger.
+ *
+ * @property writer - Custom writer function for this instance only
+ * @property color - CSS color string for namespace styling (browser/Deno only)
+ */
 export interface ClogConfig {
+	/**
+	 * Custom writer function for this logger instance.
+	 * Overridden by global writer if set.
+	 */
 	writer?: WriterFn;
+
+	/**
+	 * CSS color string for namespace styling.
+	 * Only works in browser and Deno environments (uses `%c` formatting).
+	 * @example "red", "blue", "#ff0000"
+	 */
 	color?: string | null;
 }
 
-/** Global configuration */
+/**
+ * Global configuration options affecting all Clog logger instances.
+ *
+ * @property hook - Hook function called before every log (for batching/analytics)
+ * @property writer - Global writer that overrides all instance writers
+ * @property jsonOutput - Enable JSON output format for server environments
+ */
 export interface GlobalConfig {
+	/**
+	 * Global hook function called before every log operation.
+	 * Useful for batching, analytics, or collecting logs.
+	 */
 	hook?: HookFn;
+
+	/**
+	 * Global writer that overrides all instance-level writers.
+	 * Takes highest precedence in writer selection.
+	 */
 	writer?: WriterFn;
+
+	/**
+	 * Enable structured JSON output for server environments.
+	 * When true, outputs single-line JSON objects instead of text.
+	 * @default false
+	 */
 	jsonOutput?: boolean;
 }
 
@@ -145,11 +277,35 @@ const colorWriter =
 	};
 
 /**
- * Creates a logger instance with optional namespace.
+ * Creates a Clog logger instance with optional namespace and configuration.
  *
- * @param namespace - Logger namespace (or false for no namespace)
- * @param config - Optional instance configuration
- * @returns Logger instance
+ * The returned logger is callable (proxies to `log()`) and provides
+ * console-compatible methods: `debug()`, `log()`, `warn()`, `error()`.
+ * All methods return the first argument as a string, enabling patterns like
+ * `throw new Error(clog.error("message"))`.
+ *
+ * @param namespace - Logger namespace string, or `false` for no namespace.
+ *                    Defaults to `false` if not provided.
+ * @param config - Optional instance-level configuration
+ * @returns A callable {@link Clog} logger instance
+ *
+ * @example
+ * ```typescript
+ * // Basic usage with namespace
+ * const clog = createClog("my-app");
+ * clog.log("Hello");           // [my-app] Hello
+ * clog("Hello");               // Same as above (callable)
+ *
+ * // Without namespace
+ * const logger = createClog();
+ * logger.warn("Warning!");     // Warning!
+ *
+ * // With color (browser/Deno only)
+ * const colored = createClog("ui", { color: "blue" });
+ *
+ * // Error throwing pattern
+ * throw new Error(clog.error("Failed"));
+ * ```
  */
 export function createClog(
 	namespace?: string | false,
@@ -202,10 +358,40 @@ export function createClog(
 	return logger;
 }
 
-/** Global configuration access */
+/**
+ * Global configuration object for all Clog instances.
+ *
+ * Properties:
+ * - `hook` - Function called before every log (for batching/analytics)
+ * - `writer` - Global writer that overrides all instance writers
+ * - `jsonOutput` - Enable JSON output format for server environments
+ *
+ * @example
+ * ```typescript
+ * // Enable JSON output
+ * createClog.global.jsonOutput = true;
+ *
+ * // Set up log batching
+ * const batch: LogData[] = [];
+ * createClog.global.hook = (data) => batch.push(data);
+ *
+ * // Custom global writer
+ * createClog.global.writer = (data) => sendToServer(data);
+ * ```
+ */
 createClog.global = GLOBAL;
 
-/** Resets global configuration to defaults (useful for testing) */
+/**
+ * Resets global configuration to default values.
+ * Clears `hook`, `writer`, and sets `jsonOutput` to `false`.
+ * Useful for testing to ensure clean state between tests.
+ *
+ * @example
+ * ```typescript
+ * // In test teardown
+ * createClog.reset();
+ * ```
+ */
 createClog.reset = (): void => {
 	createClog.global.hook = undefined;
 	createClog.global.writer = undefined;

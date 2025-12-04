@@ -207,61 +207,47 @@ Colors work in browser and Deno environments (uses `%c` formatting).
 
 ## API Reference
 
-### `createClog(namespace?, config?)`
+For complete API documentation, see [API.md](API.md).
 
-Creates a logger instance.
-
-**Parameters:**
-- `namespace?: string | false` - Namespace for the logger (default: `false`)
-- `config?: ClogConfig` - Optional configuration
-
-**Returns:** `Clog`
+### Quick Reference
 
 ```typescript
-// Console-compatible interface
-interface Logger {
-  debug: (...args: any[]) => string;
-  log: (...args: any[]) => string;
-  warn: (...args: any[]) => string;
-  error: (...args: any[]) => string;
-}
+// Create a logger
+const clog = createClog(namespace?, config?);
 
-// Callable Logger with namespace (returned by createClog)
-interface Clog extends Logger {
-  (...args: any[]): string;          // callable, proxies to log
-  ns: string | false;  // readonly
-}
+// Log methods (all return first arg as string)
+clog.debug(...args);   // DEBUG level
+clog.log(...args);     // INFO level
+clog.warn(...args);    // WARNING level
+clog.error(...args);   // ERROR level
+clog(...args);         // Callable, same as clog.log()
 
-interface ClogConfig {
-  writer?: WriterFn;
-  color?: string | null;
-}
-```
+// Instance properties
+clog.ns;               // readonly namespace
 
-### Global Configuration
-
-```typescript
-// Access global config
+// Global configuration
 createClog.global.hook = (data: LogData) => { /* ... */ };
 createClog.global.writer = (data: LogData) => { /* ... */ };
 createClog.global.jsonOutput = true;
 
-// Reset to defaults (useful for testing)
+// Reset global config
 createClog.reset();
 ```
 
-### Level Mapping
+### Types
 
 ```typescript
-import { LEVEL_MAP } from "@marianmares/clog";
+interface ClogConfig {
+  writer?: WriterFn;
+  color?: string | null;
+}
 
-console.log(LEVEL_MAP);
-// {
-//   debug: "DEBUG",
-//   log: "INFO",
-//   warn: "WARNING",
-//   error: "ERROR"
-// }
+type LogData = {
+  level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
+  namespace: string | false;
+  args: any[];
+  timestamp: string;
+};
 ```
 
 ## Examples
@@ -412,9 +398,3 @@ createClog.DISABLED = true;
 createClog.global.writer = () => {};
 ```
 
-## Package Identity
-
-- **Name:** @marianmeres/clog
-- **Author:** Marian Meres
-- **Repository:** https://github.com/marianmeres/clog
-- **License:** MIT
