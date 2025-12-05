@@ -523,6 +523,35 @@ const unsubscribe = logBatcher.subscribe((state) => {
 
 For more details check the [@marianmeres/batch](https://github.com/marianmeres/batch) documentation.
 
+## Global Configuration Across Bundled Dependencies
+
+When using `@marianmeres/clog` in an application with multiple dependencies that each bundle their own copy of the library, the global configuration (`createClog.global`) is **truly shared** across all instances.
+
+This works because the global state uses `Symbol.for()` + `globalThis`:
+
+```typescript
+// Internally, clog stores global config like this:
+const GLOBAL_KEY = Symbol.for("@marianmeres/clog");
+const GLOBAL = (globalThis as any)[GLOBAL_KEY] ??= { /* defaults */ };
+```
+
+This means:
+
+- ✅ Set `createClog.global.jsonOutput = true` once at app bootstrap
+- ✅ All components (even deeply nested dependencies) see that config
+- ✅ A global hook captures logs from every clog instance in your app
+- ✅ Works regardless of how many copies of clog exist in `node_modules`
+
+```typescript
+// app.ts - set once at startup
+import { createClog } from "@marianmeres/clog";
+createClog.global.jsonOutput = true;
+createClog.global.hook = (data) => sendToAnalytics(data);
+
+// Any dependency using @marianmeres/clog will automatically
+// use JSON output and trigger your hook
+```
+
 ## Migrating from v2.x
 
 The v3.0 refactor simplified the API significantly:

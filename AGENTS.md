@@ -38,7 +38,7 @@ deno.json               # Deno configuration, version, tasks
 2. **LEVEL_MAP**: RFC 5424 level mapping (debug→DEBUG, log→INFO, warn→WARNING, error→ERROR)
 3. **createClog Factory**: Creates callable logger instances with namespace support
 4. **Writers**: defaultWriter (environment-aware), colorWriter (browser/Deno %c styling)
-5. **Global Config**: Singleton for hook/writer/jsonOutput settings
+5. **Global Config**: Truly global singleton using `Symbol.for()` + `globalThis` pattern (shared across multiple module instances)
 
 ### Data Flow
 
@@ -195,6 +195,7 @@ None (zero dependencies)
 4. **Environment-agnostic** - One API for browser/Node/Deno
 5. **Return value pattern** - All methods return first arg as string for `throw new Error(clog.error("msg"))`
 6. **Zero dependencies** - No runtime dependencies
+7. **Truly global config** - Uses `Symbol.for()` + `globalThis` to ensure global config is shared across multiple bundled copies
 
 ## Common Patterns
 

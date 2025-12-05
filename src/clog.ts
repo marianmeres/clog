@@ -192,12 +192,17 @@ function _detectRuntime(): "browser" | "node" | "deno" | "unknown" {
 	return "unknown";
 }
 
-/** Global configuration state */
-const GLOBAL: GlobalConfig = {
+/**
+ * Global configuration state.
+ * Uses Symbol.for + globalThis to ensure truly global state across multiple
+ * module instances (e.g., when different packages bundle their own copy).
+ */
+const GLOBAL_KEY = Symbol.for("@marianmeres/clog");
+const GLOBAL: GlobalConfig = ((globalThis as any)[GLOBAL_KEY] ??= {
 	hook: undefined,
 	writer: undefined,
 	jsonOutput: false,
-};
+});
 
 /** Default writer implementation - handles browser vs server output */
 const defaultWriter: WriterFn = (data: LogData) => {

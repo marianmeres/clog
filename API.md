@@ -75,6 +75,8 @@ Global configuration object affecting all Clog instances.
 createClog.global: GlobalConfig
 ```
 
+**Note:** The global config uses `Symbol.for("@marianmeres/clog")` + `globalThis` internally, ensuring it is truly shared across multiple bundled copies of the library. This means setting `createClog.global.jsonOutput = true` in your app will affect all dependencies that use `@marianmeres/clog`, even if they bundle their own copy.
+
 ### Properties
 
 | Property | Type | Default | Description |
