@@ -50,6 +50,16 @@ logger.log("No namespace");        // No namespace
 throw new Error(clog.error("Something failed"));
 ```
 
+## Design Philosophy
+
+**No filtering by log level** - This library intentionally does not include `LOG_LEVEL` filtering. If you don't want certain logs, don't write them. Use your hook to filter if really needed.
+
+**No enable/disable switches** -  Control what you log at the source.
+
+**Console-compatible** - You can replace `console.log` with `clog.log` without changing anything else.
+
+**One API for all environments** - Auto-detection means you write code once, it works everywhere.
+
 ## Features
 
 ### Namespace Support
@@ -328,7 +338,7 @@ clog2.log("Request received", { userId: 123 });
 
 ```typescript
 // test.ts
-import { createClog } from "@marianmares/clog";
+import { createClog } from "@marianmeres/clog";
 import { assertEquals } from "@std/assert";
 
 Deno.test("logs correct message", () => {
@@ -347,15 +357,252 @@ Deno.test("logs correct message", () => {
 });
 ```
 
-## Design Philosophy
+### Server-Side Log Batching with @marianmeres/batch
 
-**No filtering by log level** - This library intentionally does not include `LOG_LEVEL` filtering. If you don't want certain logs, don't write them. Use your hook to filter if needed.
+For production server applications, you'll want to batch logs and send them to a remote
+logging service efficiently. The [@marianmeres/batch](https://github.com/marianmeres/batch)
+library provides a robust batch processor that pairs perfectly with clog's hook system.
 
-**No enable/disable switches** - Removed in favor of simplicity. Control what you log at the source.
+This example demonstrates a complete server-side logging setup with:
+- Automatic time-based flushing (every 5 seconds)
+- Threshold-based flushing (when buffer reaches 50 items)
+- Buffer overflow protection (max 1000 items)
+- Graceful shutdown handling
+- Error resilience
 
-**Console-compatible** - You can replace `console.log` with `clog.log` without changing anything else.
+```typescript
+import { createClog, type LogData } from "@marianmeres/clog";
+import { BatchFlusher } from "@marianmeres/batch";
 
-**One API for all environments** - Auto-detection means you write code once, it works everywhere.
+// ============================================================================
+// Step 1: Define the flush function that sends logs to your logging service
+// ============================================================================
+
+// This function is called by BatchFlusher whenever flush conditions are met.
+// It receives an array of LogData items and should return true on success.
+async function sendLogsToService(logs: LogData[]): Promise<boolean> {
+  try {
+    const response = await fetch("https://your-logging-service.com/api/logs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.LOG_SERVICE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        source: "my-server-app",
+        environment: process.env.NODE_ENV,
+        logs: logs.map((log) => ({
+          timestamp: log.timestamp,
+          level: log.level,
+          namespace: log.namespace || "default",
+          message: log.args[0],
+          metadata: log.args.slice(1),
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      // Log locally but don't throw - we don't want logging failures
+      // to crash our app. The BatchFlusher will retry on next flush.
+      console.error(`Failed to send logs: ${response.status}`);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    // Network errors, timeouts, etc.
+    console.error("Log service error:", error);
+    return false;
+  }
+}
+
+// ============================================================================
+// Step 2: Create and configure the BatchFlusher instance
+// ============================================================================
+
+// The BatchFlusher manages buffering and triggers flushes based on your config.
+// It operates in three modes depending on configuration:
+//
+// 1. Interval Mode: Flushes every N milliseconds (flushIntervalMs > 0)
+// 2. Amount Mode: Flushes when buffer reaches N items (flushThreshold > 0)
+// 3. Combined Mode: Flushes on whichever condition fires first (both set)
+//
+// We'll use Combined Mode for optimal behavior - regular intervals for
+// consistent delivery, plus threshold triggers for high-traffic bursts.
+
+const logBatcher = new BatchFlusher<LogData>(
+  // First argument: the async flusher function that processes batched items
+  sendLogsToService,
+
+  // Second argument: configuration options
+  {
+    // Flush every 5 seconds regardless of buffer size.
+    // This ensures logs are delivered even during low-traffic periods.
+    flushIntervalMs: 5000,
+
+    // Also flush immediately when buffer reaches 50 items.
+    // This prevents delays during high-traffic bursts.
+    flushThreshold: 50,
+
+    // Safety cap: if buffer grows beyond this, oldest items are discarded.
+    // This protects memory during extreme scenarios (e.g., logging service down).
+    // Note: reaching maxBatchSize does NOT trigger a flush - items are just dropped.
+    maxBatchSize: 1000,
+
+    // When true, errors from the flusher function will be thrown.
+    // When false (default), errors are silently suppressed.
+    // For logging, we typically want false to avoid cascading failures.
+    strictFlush: false,
+
+    // Enable debug output for troubleshooting (uses console by default)
+    debug: process.env.NODE_ENV === "development",
+  }
+
+  // Third argument (optional): autostart, defaults to true.
+  // When true, interval-based flushing begins immediately.
+  // Set to false if you need to call logBatcher.start() manually later.
+);
+
+// ============================================================================
+// Step 3: Connect clog to the BatchFlusher via the global hook
+// ============================================================================
+
+// The global hook is called for EVERY log from ANY clog instance.
+// This is the integration point between clog and your batching system.
+
+createClog.global.hook = (data: LogData) => {
+  // Simply add each log entry to the batcher.
+  // The BatchFlusher handles all the timing and threshold logic.
+  logBatcher.add(data);
+};
+
+// Optional: Enable JSON output for structured logging on the server
+createClog.global.jsonOutput = true;
+
+// ============================================================================
+// Step 4: Use clog throughout your application
+// ============================================================================
+
+// Create loggers for different modules/components
+const httpLog = createClog("http");
+const dbLog = createClog("database");
+const authLog = createClog("auth");
+
+// Example: HTTP request logging
+function handleRequest(req: Request) {
+  httpLog.log("Request received", {
+    method: req.method,
+    url: req.url,
+    userAgent: req.headers.get("user-agent"),
+  });
+
+  // ... handle request ...
+
+  httpLog.debug("Request processed", { durationMs: 42 });
+}
+
+// Example: Database operation logging
+async function queryUsers() {
+  dbLog.debug("Executing query", { table: "users" });
+
+  try {
+    // ... database query ...
+    dbLog.log("Query successful", { rowCount: 100 });
+  } catch (error) {
+    dbLog.error("Query failed", { error: String(error) });
+    throw error;
+  }
+}
+
+// Example: Authentication logging
+function authenticate(userId: string) {
+  authLog.log("Authentication attempt", { userId });
+
+  // ... auth logic ...
+
+  authLog.warn("Failed login attempt", { userId, reason: "invalid_password" });
+}
+
+// ============================================================================
+// Step 5: Graceful shutdown handling
+// ============================================================================
+
+// CRITICAL: Always drain the batcher before shutting down your server.
+// drain() flushes any remaining buffered logs, then stops the interval timer.
+// Without this, you may lose logs that haven't been flushed yet.
+
+async function gracefulShutdown() {
+  console.log("Shutting down, flushing remaining logs...");
+
+  // drain() returns a Promise that resolves when the final flush completes
+  const success = await logBatcher.drain();
+
+  if (success) {
+    console.log("All logs flushed successfully");
+  } else {
+    console.warn("Some logs may not have been sent");
+  }
+
+  process.exit(0);
+}
+
+// Handle common shutdown signals
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
+
+// ============================================================================
+// Step 6: Monitoring (optional but recommended)
+// ============================================================================
+
+// Subscribe to state changes for monitoring/alerting
+const unsubscribe = logBatcher.subscribe((state) => {
+  // state.size: current number of items in buffer
+  // state.isRunning: whether interval-based flushing is active
+  // state.isFlushing: whether a flush operation is currently in progress
+
+  // Alert if buffer is getting full (approaching maxBatchSize)
+  if (state.size > 800) {
+    console.warn(`Log buffer high: ${state.size}/1000 items`);
+  }
+});
+
+// Call unsubscribe() when you no longer need monitoring
+// unsubscribe();
+```
+
+#### Configuration Quick Reference
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `flushIntervalMs` | 1000 | Time between automatic flushes (0 to disable) |
+| `flushThreshold` | undefined | Flush when buffer reaches this count |
+| `maxBatchSize` | 100 | Maximum buffer size (oldest items dropped when exceeded) |
+| `strictFlush` | false | Whether to throw on flush errors |
+| `debug` | false | Enable debug logging |
+| `logger` | console | Custom logger for debug output |
+
+#### BatchFlusher Methods
+
+| Method | Description |
+|--------|-------------|
+| `add(item)` | Add an item to the buffer |
+| `flush()` | Immediately flush all buffered items |
+| `drain()` | Flush remaining items, then stop interval processing |
+| `start()` | Begin interval-based flushing |
+| `stop()` | Halt interval-based flushing |
+| `reset()` | Clear the buffer without flushing |
+| `dump()` | Retrieve current buffer contents |
+| `configure(options)` | Update configuration at runtime |
+| `subscribe(callback)` | Monitor state changes |
+
+#### Flush Mode Behavior
+
+| flushIntervalMs | flushThreshold | Behavior |
+|-----------------|----------------|----------|
+| > 0 | undefined | Interval mode: flushes at fixed time intervals |
+| 0 | > 0 | Amount mode: flushes when count is reached |
+| > 0 | > 0 | Combined mode: flushes on whichever fires first |
+
 
 ## Migrating from v2.x
 
