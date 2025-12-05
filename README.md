@@ -357,7 +357,7 @@ Deno.test("logs correct message", () => {
 });
 ```
 
-### Server-Side Log Batching with @marianmeres/batch
+### Real World Server-Side Log Batching Example
 
 For production server applications, you'll want to batch logs and send them to a remote
 logging service efficiently. The [@marianmeres/batch](https://github.com/marianmeres/batch)
