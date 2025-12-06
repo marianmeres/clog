@@ -38,6 +38,7 @@ export type LogLevel = keyof typeof LEVEL_MAP;
 export type LogData = {
 	level: (typeof LEVEL_MAP)[LogLevel];
 	namespace: string | false;
+	// deno-lint-ignore no-explicit-any
 	args: any[];
 	timestamp: string;
 };
@@ -75,35 +76,43 @@ export type HookFn = WriterFn;
 /**
  * Logger interface compatible with the console API.
  * All methods return the first argument as a string for convenience patterns.
+ *
+ * Note: Return type is `any` to ensure true compatibility with `console`.
+ * Console methods return `void`, but clog returns the first argument as string.
+ * Using `any` allows both `console` and clog to satisfy this interface.
  */
 export interface Logger {
 	/**
 	 * Logs a debug message (DEBUG level).
 	 * @param args - Arguments to log
-	 * @returns The first argument as a string
+	 * @returns The first argument as a string (clog) or void (console)
 	 */
-	debug: (...args: any[]) => string;
+	// deno-lint-ignore no-explicit-any
+	debug: (...args: any[]) => any;
 
 	/**
 	 * Logs an info message (INFO level).
 	 * @param args - Arguments to log
-	 * @returns The first argument as a string
+	 * @returns The first argument as a string (clog) or void (console)
 	 */
-	log: (...args: any[]) => string;
+	// deno-lint-ignore no-explicit-any
+	log: (...args: any[]) => any;
 
 	/**
 	 * Logs a warning message (WARNING level).
 	 * @param args - Arguments to log
-	 * @returns The first argument as a string
+	 * @returns The first argument as a string (clog) or void (console)
 	 */
-	warn: (...args: any[]) => string;
+	// deno-lint-ignore no-explicit-any
+	warn: (...args: any[]) => any;
 
 	/**
 	 * Logs an error message (ERROR level).
 	 * @param args - Arguments to log
-	 * @returns The first argument as a string
+	 * @returns The first argument as a string (clog) or void (console)
 	 */
-	error: (...args: any[]) => string;
+	// deno-lint-ignore no-explicit-any
+	error: (...args: any[]) => any;
 }
 
 /**
@@ -124,7 +133,8 @@ export interface Clog extends Logger {
 	 * @param args - Arguments to log
 	 * @returns The first argument as a string
 	 */
-	(...args: any[]): string;
+	// deno-lint-ignore no-explicit-any
+	(...args: any[]): any;
 
 	/**
 	 * The namespace of this logger instance.
@@ -184,10 +194,12 @@ export interface GlobalConfig {
 
 /** Detects current runtime environment */
 function _detectRuntime(): "browser" | "node" | "deno" | "unknown" {
+	// deno-lint-ignore no-explicit-any
 	if (typeof window !== "undefined" && (window as any)?.document) {
 		return "browser";
 	}
 	if (globalThis.Deno?.version?.deno) return "deno";
+	// deno-lint-ignore no-explicit-any
 	if ((globalThis as any).process?.versions?.node) return "node";
 	return "unknown";
 }
@@ -198,6 +210,7 @@ function _detectRuntime(): "browser" | "node" | "deno" | "unknown" {
  * module instances (e.g., when different packages bundle their own copy).
  */
 const GLOBAL_KEY = Symbol.for("@marianmeres/clog");
+// deno-lint-ignore no-explicit-any
 const GLOBAL: GlobalConfig = ((globalThis as any)[GLOBAL_KEY] ??= {
 	hook: undefined,
 	writer: undefined,
@@ -226,6 +239,7 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	} else {
 		// Server: structured output
 		if (GLOBAL.jsonOutput) {
+			// deno-lint-ignore no-explicit-any
 			const output: Record<string, any> = {
 				timestamp,
 				level,
@@ -319,6 +333,7 @@ export function createClog(
 	// Default to no namespace if not provided
 	const ns = namespace ?? false;
 
+	// deno-lint-ignore no-explicit-any
 	const _apply = (level: LogLevel, args: any[]): string => {
 		const message = String(args[0] ?? "");
 
@@ -349,12 +364,17 @@ export function createClog(
 	};
 
 	// Create callable function that proxies to log
+	// deno-lint-ignore no-explicit-any
 	const logger = ((...args: any[]) => _apply("log", args)) as Clog;
 
 	// Attach methods
+	// deno-lint-ignore no-explicit-any
 	logger.debug = (...args: any[]) => _apply("debug", args);
+	// deno-lint-ignore no-explicit-any
 	logger.log = (...args: any[]) => _apply("log", args);
+	// deno-lint-ignore no-explicit-any
 	logger.warn = (...args: any[]) => _apply("warn", args);
+	// deno-lint-ignore no-explicit-any
 	logger.error = (...args: any[]) => _apply("error", args);
 
 	// Attach ns as readonly

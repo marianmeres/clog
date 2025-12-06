@@ -11,6 +11,7 @@ const originalConsole = { ...console };
 function setupMockConsole() {
 	consoleOutput = { debug: [], log: [], warn: [], error: [] };
 	["debug", "log", "warn", "error"].forEach((method) => {
+		// deno-lint-ignore no-explicit-any
 		(console as any)[method] = (...args: any[]) => {
 			consoleOutput[method].push(args.join(" "));
 		};
@@ -126,6 +127,7 @@ Deno.test("return value useful for throw pattern", () => {
 
 	try {
 		throw new Error(clog.error("Something failed"));
+		// deno-lint-ignore no-explicit-any
 	} catch (e: any) {
 		assertEquals(e.message, "Something failed");
 	}
@@ -202,12 +204,12 @@ Deno.test("global writer takes precedence over instance writer", () => {
 	const globalOutput: string[] = [];
 	const instanceOutput: string[] = [];
 
-	createClog.global.writer = (data: LogData) => {
+	createClog.global.writer = (_data: LogData) => {
 		globalOutput.push("global");
 	};
 
 	const clog = createClog("test", {
-		writer: (data: LogData) => {
+		writer: (_data: LogData) => {
 			instanceOutput.push("instance");
 		},
 	});
@@ -289,9 +291,10 @@ Deno.test("ns property is readonly", () => {
 	const clog = createClog("test");
 
 	try {
+		// deno-lint-ignore no-explicit-any
 		(clog as any).ns = "changed";
 		assert(false, "Should have thrown");
-	} catch (e) {
+	} catch (_e) {
 		// Expected
 		assertEquals(clog.ns, "test");
 	}
@@ -342,7 +345,7 @@ Deno.test("batching pattern example", () => {
 		batch.push(data);
 		if (batch.length >= 3) {
 			// Flush batch
-			const copy = [...batch];
+			const _copy = [...batch];
 			batch.length = 0;
 			// In real scenario, would send to server/file
 		}

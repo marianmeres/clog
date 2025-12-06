@@ -56,9 +56,21 @@ throw new Error(clog.error("Something failed"));
 
 **No enable/disable switches** -  Control what you log at the source.
 
-**Console-compatible** - You can replace `console.log` with `clog.log` without changing anything else.
+**Console-compatible** - You can replace `console.log` with `clog.log` without changing anything else. The `Logger` interface is designed so that `console` itself satisfies it.
 
 **One API for all environments** - Auto-detection means you write code once, it works everywhere.
+
+## Why `any` Return Type?
+
+The `Logger` interface methods return `any` instead of `string` to ensure true compatibility with `console`:
+
+```typescript
+// This works because Logger uses `any` return type
+const logger: Logger = console;  // ✓ console methods return void
+const clog: Logger = createClog("app");  // ✓ clog methods return string
+```
+
+Console methods return `void`, but clog returns the first argument as a string (useful for patterns like `throw new Error(clog.error("msg"))`). Using `any` as the return type allows both implementations to satisfy the same interface, enabling polymorphic use of loggers throughout your codebase.
 
 ## Features
 
@@ -126,7 +138,7 @@ clog.error("Error");  // ERROR
 
 ### Return Value Pattern
 
-All log methods return the first argument as a string, useful for error handling:
+All log methods return the first argument as a string (typed as `any` for console compatibility), useful for error handling:
 
 ```typescript
 const clog = createClog("auth");
@@ -225,7 +237,7 @@ For complete API documentation, see [API.md](API.md).
 // Create a logger
 const clog = createClog(namespace?, config?);
 
-// Log methods (all return first arg as string)
+// Log methods (return first arg as string, typed as `any`)
 clog.debug(...args);   // DEBUG level
 clog.log(...args);     // INFO level
 clog.warn(...args);    // WARNING level
