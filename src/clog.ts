@@ -275,9 +275,9 @@ const colorWriter =
 		if (runtime === "browser") {
 			console[consoleMethod](`%c${ns}`, `color:${color}`, ...args);
 		} else {
-			// Deno: include timestamp and level like server mode
-			const prefix = `[${timestamp}] [${level}]`;
-			console[consoleMethod](prefix, `%c${ns}`, `color:${color}`, ...args);
+			// Deno: include timestamp and level like server mode, %c must be in first arg
+			const prefix = `[${timestamp}] [${level}] %c${ns}`;
+			console[consoleMethod](prefix, `color:${color}`, ...args);
 		}
 	};
 
