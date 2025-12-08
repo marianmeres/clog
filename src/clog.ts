@@ -162,6 +162,13 @@ export interface ClogConfig {
 	 * @example "red", "blue", "#ff0000"
 	 */
 	color?: string | null;
+
+	/**
+	 * When `false`, `.debug()` calls become no-ops (output is suppressed).
+	 * All other log levels (`.log()`, `.warn()`, `.error()`) work normally.
+	 * @default true (debug output enabled)
+	 */
+	debug?: boolean;
 }
 
 /**
@@ -170,6 +177,7 @@ export interface ClogConfig {
  * @property hook - Hook function called before every log (for batching/analytics)
  * @property writer - Global writer that overrides all instance writers
  * @property jsonOutput - Enable JSON output format for server environments
+ * @property debug - Global debug mode (can be overridden per-instance)
  */
 export interface GlobalConfig {
 	/**
@@ -190,6 +198,13 @@ export interface GlobalConfig {
 	 * @default false
 	 */
 	jsonOutput?: boolean;
+
+	/**
+	 * Global debug mode. When `false`, `.debug()` calls become no-ops.
+	 * Can be overridden per-instance via `ClogConfig.debug`.
+	 * @default undefined (debug enabled)
+	 */
+	debug?: boolean;
 }
 
 /** Detects current runtime environment */
@@ -215,6 +230,7 @@ const GLOBAL: GlobalConfig = ((globalThis as any)[GLOBAL_KEY] ??= {
 	hook: undefined,
 	writer: undefined,
 	jsonOutput: false,
+	debug: undefined,
 });
 
 /** Default writer implementation - handles browser vs server output */
@@ -367,9 +383,13 @@ export function createClog(
 	// deno-lint-ignore no-explicit-any
 	const logger = ((...args: any[]) => _apply("log", args)) as Clog;
 
-	// Attach methods
-	// deno-lint-ignore no-explicit-any
-	logger.debug = (...args: any[]) => _apply("debug", args);
+	// Attach methods (debug respects instance config, then global config)
+	logger.debug =
+		(config?.debug ?? GLOBAL.debug) === false
+			? // deno-lint-ignore no-explicit-any
+				(...args: any[]) => String(args[0] ?? "")
+			: // deno-lint-ignore no-explicit-any
+				(...args: any[]) => _apply("debug", args);
 	// deno-lint-ignore no-explicit-any
 	logger.log = (...args: any[]) => _apply("log", args);
 	// deno-lint-ignore no-explicit-any
@@ -390,6 +410,7 @@ export function createClog(
  * - `hook` - Function called before every log (for batching/analytics)
  * - `writer` - Global writer that overrides all instance writers
  * - `jsonOutput` - Enable JSON output format for server environments
+ * - `debug` - Global debug mode (can be overridden per-instance)
  *
  * @example
  * ```typescript
@@ -402,13 +423,16 @@ export function createClog(
  *
  * // Custom global writer
  * createClog.global.writer = (data) => sendToServer(data);
+ *
+ * // Disable debug globally (can be overridden per-instance)
+ * createClog.global.debug = false;
  * ```
  */
 createClog.global = GLOBAL;
 
 /**
  * Resets global configuration to default values.
- * Clears `hook`, `writer`, and sets `jsonOutput` to `false`.
+ * Clears `hook`, `writer`, `debug`, and sets `jsonOutput` to `false`.
  * Useful for testing to ensure clean state between tests.
  *
  * @example
@@ -421,4 +445,5 @@ createClog.reset = (): void => {
 	createClog.global.hook = undefined;
 	createClog.global.writer = undefined;
 	createClog.global.jsonOutput = false;
+	createClog.global.debug = undefined;
 };

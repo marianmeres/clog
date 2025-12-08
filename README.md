@@ -227,6 +227,33 @@ errorLog.error("Failed to load");
 
 Colors work in browser and Deno environments (uses `%c` formatting).
 
+### Debug Mode
+
+Control whether `.debug()` calls produce output globally or per-instance:
+
+```typescript
+// Global: disable debug for all loggers
+createClog.global.debug = process.env.NODE_ENV !== "development";
+
+const apiLog = createClog("api");
+const dbLog = createClog("db");
+
+apiLog.debug("skipped in production");  // Respects global setting
+dbLog.debug("also skipped");            // Respects global setting
+
+// Per-instance: override global setting
+const verboseLog = createClog("verbose", { debug: true });
+verboseLog.debug("always outputs");     // Overrides global
+
+// Or disable for specific logger
+const quietLog = createClog("quiet", { debug: false });
+quietLog.debug("never outputs");        // Overrides global
+```
+
+**Precedence:** Instance `config.debug` → Global `createClog.global.debug` → Default (`true`)
+
+When `debug: false`, the `.debug()` method becomes a no-op (but still returns the first argument as a string for API consistency). All other log levels work normally regardless of this setting.
+
 ## API Reference
 
 For complete API documentation, see [API.md](API.md).
@@ -251,6 +278,7 @@ clog.ns;               // readonly namespace
 createClog.global.hook = (data: LogData) => { /* ... */ };
 createClog.global.writer = (data: LogData) => { /* ... */ };
 createClog.global.jsonOutput = true;
+createClog.global.debug = false;  // disable debug globally
 
 // Reset global config
 createClog.reset();
@@ -262,6 +290,14 @@ createClog.reset();
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
+  debug?: boolean;  // when false, .debug() is a no-op (overrides global)
+}
+
+interface GlobalConfig {
+  hook?: HookFn;
+  writer?: WriterFn;
+  jsonOutput?: boolean;
+  debug?: boolean;  // when false, .debug() is a no-op (can be overridden per-instance)
 }
 
 type LogData = {

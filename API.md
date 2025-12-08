@@ -84,6 +84,7 @@ createClog.global: GlobalConfig
 | `hook` | `HookFn \| undefined` | `undefined` | Function called before every log (for batching/analytics) |
 | `writer` | `WriterFn \| undefined` | `undefined` | Global writer that overrides all instance writers |
 | `jsonOutput` | `boolean` | `false` | Enable JSON output format for server environments |
+| `debug` | `boolean \| undefined` | `undefined` | Global debug mode (can be overridden per-instance) |
 
 ### Examples
 
@@ -97,6 +98,9 @@ createClog.global.hook = (data) => batch.push(data);
 
 // Custom global writer
 createClog.global.writer = (data) => sendToServer(data);
+
+// Disable debug globally (instances can override)
+createClog.global.debug = false;
 ```
 
 ### Writer Precedence
@@ -118,7 +122,7 @@ Resets global configuration to default values.
 createClog.reset(): void
 ```
 
-Clears `hook`, `writer`, and sets `jsonOutput` to `false`. Useful for testing to ensure clean state between tests.
+Clears `hook`, `writer`, `debug`, and sets `jsonOutput` to `false`. Useful for testing to ensure clean state between tests.
 
 ### Example
 
@@ -262,6 +266,7 @@ Instance-level configuration options.
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
+  debug?: boolean;
 }
 ```
 
@@ -269,6 +274,7 @@ interface ClogConfig {
 |----------|------|-------------|
 | `writer` | `WriterFn` | Custom writer for this instance (overridden by global writer) |
 | `color` | `string \| null` | CSS color for namespace styling (browser/Deno only) |
+| `debug` | `boolean` | When `false`, `.debug()` is a no-op (overrides global setting) |
 
 ### GlobalConfig
 
@@ -279,6 +285,7 @@ interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
+  debug?: boolean;
 }
 ```
 
@@ -287,6 +294,15 @@ interface GlobalConfig {
 | `hook` | `HookFn` | `undefined` | Global hook called before every log |
 | `writer` | `WriterFn` | `undefined` | Global writer overriding all instances |
 | `jsonOutput` | `boolean` | `false` | Enable JSON output for server environments |
+| `debug` | `boolean` | `undefined` | Global debug mode (can be overridden per-instance) |
+
+### Debug Precedence
+
+Debug mode is determined in this order (highest to lowest precedence):
+
+1. `config.debug` - Instance-level setting (if explicitly set)
+2. `createClog.global.debug` - Global setting
+3. Default - `true` (debug enabled)
 
 ---
 

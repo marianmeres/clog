@@ -25,7 +25,7 @@ src/
 ├── mod.ts              # Entry point (re-exports from clog.ts)
 └── clog.ts             # Main implementation
 tests/
-└── clog.test.ts        # Test suite (24 tests)
+└── clog.test.ts        # Test suite (31 tests)
 scripts/
 └── build-npm.ts        # npm build script
 .npm-dist/              # Generated npm distribution
@@ -117,12 +117,14 @@ interface Clog extends Logger {
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
+  debug?: boolean;  // when false, .debug() is a no-op (overrides global)
 }
 
 interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
+  debug?: boolean;  // when false, .debug() is a no-op (can be overridden per-instance)
 }
 ```
 
@@ -170,7 +172,7 @@ None (zero dependencies)
 
 ## Test Coverage
 
-24 tests covering:
+31 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -186,6 +188,8 @@ None (zero dependencies)
 - Readonly namespace property
 - Multiple instances
 - Batching pattern
+- Debug mode (instance and global)
+- Debug precedence (instance > global > default)
 
 ## Design Principles
 
@@ -230,6 +234,17 @@ createClog.global.writer = (data) => sendToExternalService(data);
 const authLog = createClog("auth");
 const apiLog = createClog("api");
 const dbLog = createClog("db");
+```
+
+### Debug Mode
+
+```typescript
+// Global: disable debug in production
+createClog.global.debug = process.env.NODE_ENV !== "production";
+
+// Per-instance: override global setting
+const verboseLog = createClog("verbose", { debug: true }); // always debug
+const quietLog = createClog("quiet", { debug: false });    // never debug
 ```
 
 ### Testing
