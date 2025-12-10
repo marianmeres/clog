@@ -1,5 +1,9 @@
 import { createClog } from "../src/clog.ts";
 
-const clog = createClog("deno-test", { color: "red" });
+const clog = createClog("deno-test", { color: "auto" });
 
-clog.log("hey");
+clog("direct");
+clog.log("log");
+clog.debug("debug");
+clog.warn("warn");
+clog.error("error");
