@@ -225,7 +225,7 @@ errorLog.error("Failed to load");
 // Output: [errors] Failed to load  (namespace in red)
 ```
 
-Colors work in browser and Deno environments (uses `%c` formatting).
+Colors work in browser and Deno environments (uses `%c` formatting). Use `color: "auto"` to automatically assign a consistent color based on the namespace.
 
 ### Debug Mode
 

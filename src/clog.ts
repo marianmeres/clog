@@ -1,3 +1,5 @@
+import { autoColor } from "./auto-color.ts";
+
 /**
  * Standard log levels mapping based on syslog/RFC 5424.
  *
@@ -302,6 +304,10 @@ const colorWriter =
 
 		const ns = `[${namespace}]`;
 
+		if (color === "auto") {
+			color = autoColor(namespace);
+		}
+
 		if (runtime === "browser") {
 			console[consoleMethod](`%c${ns}`, `color:${color}`, ...args);
 		} else {
@@ -387,9 +393,9 @@ export function createClog(
 	logger.debug =
 		(config?.debug ?? GLOBAL.debug) === false
 			? // deno-lint-ignore no-explicit-any
-				(...args: any[]) => String(args[0] ?? "")
+			  (...args: any[]) => String(args[0] ?? "")
 			: // deno-lint-ignore no-explicit-any
-				(...args: any[]) => _apply("debug", args);
+			  (...args: any[]) => _apply("debug", args);
 	// deno-lint-ignore no-explicit-any
 	logger.log = (...args: any[]) => _apply("log", args);
 	// deno-lint-ignore no-explicit-any
