@@ -1,14 +1,14 @@
 /**
  * List of css named colors which should look good (enough contrast) on both light and dark
- * backgrounds.
+ * backgrounds. Hand picked/filtered.
  */
 const COLORS = [
 	// Reds / Pinks
 	"crimson",
 	"indianred",
 	"tomato",
-	"coral",
-	"palevioletred",
+	// "coral", similar with tomato
+	// "palevioletred",
 	// "mediumvioletred",
 	"hotpink",
 	"deeppink",
@@ -18,8 +18,8 @@ const COLORS = [
 	"sienna",
 	"chocolate",
 	"darkorange",
-	"orange",
-	"goldenrod",
+	// "orange",
+	// "goldenrod",
 	"darkgoldenrod",
 
 	// Greens
@@ -30,7 +30,7 @@ const COLORS = [
 	"mediumseagreen",
 	// "seagreen",
 	"teal",
-	"darkcyan",
+	// "darkcyan", similar to teal
 
 	// Blues
 	"cadetblue",
@@ -39,7 +39,7 @@ const COLORS = [
 	"dodgerblue",
 	"royalblue",
 	// "slateblue",
-	"mediumslateblue",
+	// "mediumslateblue",
 
 	// Purples
 	// "blueviolet",
