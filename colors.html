@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Distinct Color Generator</title>
+		<style>
+			* {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				font-family: system-ui, sans-serif;
+				padding: 2rem;
+				background: #f5f5f5;
+			}
+			h1 {
+				margin-bottom: 1rem;
+				color: #333;
+			}
+
+			.controls {
+				margin-bottom: 2rem;
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 1.5rem;
+			}
+			.control-group {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+			}
+			.controls label {
+				font-weight: 500;
+			}
+			.controls input[type="number"] {
+				width: 80px;
+				padding: 0.5rem;
+				font-size: 1rem;
+				border: 1px solid #ccc;
+				border-radius: 4px;
+			}
+			.controls select {
+				padding: 0.5rem;
+				font-size: 1rem;
+				border: 1px solid #ccc;
+				border-radius: 4px;
+			}
+			.copy-btn {
+				padding: 0.5rem 1rem;
+				font-size: 1rem;
+				background: #4a90a4;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+				transition: background 0.2s;
+			}
+			.copy-btn:hover {
+				background: #3a7a8a;
+			}
+			.copy-btn.copied {
+				background: #5a9a5a;
+			}
+
+			.info {
+				margin-bottom: 1.5rem;
+				padding: 1rem;
+				background: #e8f4fc;
+				border-radius: 6px;
+				font-size: 0.9rem;
+				color: #1a5a7a;
+			}
+			.info.warning {
+				background: #fef3cd;
+				color: #856404;
+			}
+
+			.backgrounds {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 2rem;
+			}
+
+			.panel {
+				padding: 1.5rem;
+				border-radius: 8px;
+			}
+			.panel h2 {
+				margin-bottom: 1rem;
+				font-size: 1rem;
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+			}
+			.panel.light {
+				background: #ffffff;
+				border: 1px solid #ddd;
+			}
+			.panel.light h2 {
+				color: #666;
+			}
+
+			.panel.dark {
+				background: #1a1a1a;
+			}
+			.panel.dark h2 {
+				color: #888;
+			}
+
+			.color-list {
+				display: flex;
+				flex-direction: column;
+				gap: 0.5rem;
+			}
+			.color-item {
+				display: flex;
+				align-items: center;
+				gap: 1rem;
+				padding: 0.5rem;
+				border-radius: 4px;
+				cursor: pointer;
+				transition: opacity 0.15s;
+			}
+			.color-item:hover {
+				opacity: 0.75;
+			}
+			.color-item.copied {
+				outline: 2px solid currentColor;
+				outline-offset: 2px;
+			}
+			.color-swatch {
+				width: 24px;
+				height: 24px;
+				border-radius: 4px;
+				flex-shrink: 0;
+			}
+			.color-text {
+				font-weight: 600;
+				font-size: 1rem;
+			}
+			.color-hex {
+				font-family: monospace;
+				font-size: 0.85rem;
+				opacity: 0.7;
+			}
+
+			@media (max-width: 700px) {
+				.backgrounds {
+					grid-template-columns: 1fr;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Distinct Color Generator</h1>
+
+		<div class="controls">
+			<div class="control-group">
+				<label for="count">Colors:</label>
+				<input type="number" id="count" value="9" min="1" max="50" />
+			</div>
+			<div class="control-group">
+				<label for="method">Distribution:</label>
+				<select id="method">
+					<option value="even">Even (max separation)</option>
+					<option value="golden">Golden Angle (stable)</option>
+				</select>
+			</div>
+			<button class="copy-btn" id="copyBtn">Copy All</button>
+		</div>
+
+		<div class="info" id="info"></div>
+
+		<div class="backgrounds">
+			<div class="panel light">
+				<h2>Light Background</h2>
+				<div class="color-list" id="light-list"></div>
+			</div>
+			<div class="panel dark">
+				<h2>Dark Background</h2>
+				<div class="color-list" id="dark-list"></div>
+			</div>
+		</div>
+
+		<script>
+			// Maximum colors we can generate with good contrast on both backgrounds
+			// 1 gray + 12 chromatic = 13 total
+			const MAX_CHROMATIC = 12;
+			const MAX_COLORS = MAX_CHROMATIC + 1;
+
+			// Lighter gray (~59% lightness) - good contrast on both backgrounds
+			const GRAY = "#969696";
+
+			// Store current colors for copy functionality
+			let currentColors = [];
+
+			function generateDistinctColors(count, method = "even") {
+				if (count <= 0) return [];
+
+				const colors = [];
+
+				// First color is always gray (perfect neutral)
+				colors.push(GRAY);
+
+				if (count === 1) return colors;
+
+				// Remaining slots are chromatic colors
+				const chromaticCount = Math.min(count - 1, MAX_CHROMATIC);
+				const goldenAngle = 137.508;
+
+				for (let i = 0; i < chromaticCount; i++) {
+					const hue =
+						method === "golden"
+							? (i * goldenAngle) % 360
+							: (i / chromaticCount) * 360;
+
+					const { saturation, lightness } =
+						getPerceptualAdjustments(hue);
+					colors.push(hslToHex(hue, saturation, lightness));
+				}
+
+				return colors;
+			}
+
+			// Returns both saturation and lightness adjustments per hue
+			// to maximize readability on both light and dark backgrounds
+			function getPerceptualAdjustments(hue) {
+				const h = hue % 360;
+
+				let baseLightness = 55;
+				let baseSaturation = 55;
+				let lightnessBoost = 0;
+				let saturationAdjust = 0;
+
+				// Blue region (210-255): very hard to read on dark
+				if (h >= 210 && h <= 255) {
+					const peak = 232;
+					const distance = 1 - Math.abs(h - peak) / 23;
+					lightnessBoost = distance * 22;
+					saturationAdjust = -10;
+				}
+				// Violet region (255-285): hardest to read on dark
+				else if (h > 255 && h <= 285) {
+					const peak = 270;
+					const distance = 1 - Math.abs(h - peak) / 15;
+					lightnessBoost = distance * 28;
+					saturationAdjust = -15;
+				}
+				// Magenta region (285-320): also very problematic
+				else if (h > 285 && h <= 320) {
+					const peak = 300;
+					const distance = 1 - Math.abs(h - peak) / 20;
+					lightnessBoost = distance * 24;
+					saturationAdjust = -12;
+				}
+				// Pink/red-magenta (320-345)
+				else if (h > 320 && h <= 345) {
+					const distance = 1 - Math.abs(h - 332) / 13;
+					lightnessBoost = distance * 15;
+					saturationAdjust = -5;
+				}
+				// Cyan region (175-210): can be hard on dark
+				else if (h >= 175 && h < 210) {
+					const distance = 1 - Math.abs(h - 192) / 18;
+					lightnessBoost = distance * 12;
+				}
+				// Red region (345-360, 0-25): slight boost
+				else if (h > 345 || h <= 25) {
+					lightnessBoost = 6;
+				}
+				// Yellow region (50-70): reduce to maintain light-bg contrast
+				else if (h >= 50 && h <= 70) {
+					const distance = 1 - Math.abs(h - 60) / 10;
+					lightnessBoost = distance * -14;
+				}
+				// Yellow-green (70-95): also reduce
+				else if (h > 70 && h <= 95) {
+					lightnessBoost = -8;
+				}
+				// Green (95-145): slight reduction
+				else if (h > 95 && h <= 145) {
+					lightnessBoost = -4;
+				}
+
+				return {
+					saturation: baseSaturation + saturationAdjust,
+					lightness: baseLightness + lightnessBoost,
+				};
+			}
+
+			function hslToHex(h, s, l) {
+				s /= 100;
+				l /= 100;
+
+				const c = (1 - Math.abs(2 * l - 1)) * s;
+				const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+				const m = l - c / 2;
+
+				let r, g, b;
+
+				if (h < 60) {
+					r = c;
+					g = x;
+					b = 0;
+				} else if (h < 120) {
+					r = x;
+					g = c;
+					b = 0;
+				} else if (h < 180) {
+					r = 0;
+					g = c;
+					b = x;
+				} else if (h < 240) {
+					r = 0;
+					g = x;
+					b = c;
+				} else if (h < 300) {
+					r = x;
+					g = 0;
+					b = c;
+				} else {
+					r = c;
+					g = 0;
+					b = x;
+				}
+
+				const toHex = (n) =>
+					Math.round((n + m) * 255)
+						.toString(16)
+						.padStart(2, "0");
+
+				return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+			}
+
+			async function copySingleColor(color, index) {
+				try {
+					await navigator.clipboard.writeText(color);
+
+					// Highlight both rows (light and dark panels)
+					const rows = document.querySelectorAll(
+						`[data-index="${index}"]`
+					);
+					rows.forEach((row) => row.classList.add("copied"));
+
+					setTimeout(() => {
+						rows.forEach((row) => row.classList.remove("copied"));
+					}, 600);
+				} catch (err) {
+					console.error("Failed to copy:", err);
+				}
+			}
+
+			function renderColors() {
+				const count =
+					parseInt(document.getElementById("count").value) || 0;
+				const method = document.getElementById("method").value;
+				const capped = count > MAX_COLORS;
+				currentColors = generateDistinctColors(
+					Math.min(count, MAX_COLORS),
+					method
+				);
+
+				// Update info text
+				const infoEl = document.getElementById("info");
+				if (capped) {
+					infoEl.className = "info warning";
+					infoEl.textContent = `Capped at ${MAX_COLORS} colors (1 gray + ${MAX_CHROMATIC} chromatic). Beyond this, colors become too similar or fail contrast requirements.`;
+				} else if (method === "even") {
+					infoEl.className = "info";
+					const chromaticCount = Math.max(0, count - 1);
+					infoEl.textContent = `1 gray + ${chromaticCount} chromatic colors with hues spaced ${
+						chromaticCount > 0
+							? Math.round(360 / chromaticCount)
+							: 0
+					}° apart. Click a row to copy.`;
+				} else {
+					infoEl.className = "info";
+					infoEl.textContent = `1 gray + chromatic colors using golden angle (137.5°). Color positions are stable regardless of total count. Click a row to copy.`;
+				}
+
+				const lightList = document.getElementById("light-list");
+				const darkList = document.getElementById("dark-list");
+
+				const createItems = (container) => {
+					container.innerHTML = currentColors
+						.map(
+							(color, i) => `
+          <div class="color-item" data-index="${i}" data-color="${color}">
+            <div class="color-swatch" style="background: ${color}"></div>
+            <span class="color-text" style="color: ${color}">Sample Text ${
+								i + 1
+							}${i === 0 ? " (gray)" : ""}</span>
+            <span class="color-hex" style="color: ${color}">${color}</span>
+          </div>
+        `
+						)
+						.join("");
+
+					// Add click handlers
+					container
+						.querySelectorAll(".color-item")
+						.forEach((item) => {
+							item.addEventListener("click", () => {
+								const color = item.dataset.color;
+								const index = item.dataset.index;
+								copySingleColor(color, index);
+							});
+						});
+				};
+
+				createItems(lightList);
+				createItems(darkList);
+			}
+
+			async function copyAllColors() {
+				const text = currentColors.join("\n");
+				const btn = document.getElementById("copyBtn");
+
+				try {
+					await navigator.clipboard.writeText(text);
+					btn.textContent = "Copied!";
+					btn.classList.add("copied");
+					setTimeout(() => {
+						btn.textContent = "Copy All";
+						btn.classList.remove("copied");
+					}, 1500);
+				} catch (err) {
+					btn.textContent = "Failed to copy";
+					setTimeout(() => {
+						btn.textContent = "Copy All";
+					}, 1500);
+				}
+			}
+
+			document
+				.getElementById("count")
+				.addEventListener("input", renderColors);
+			document
+				.getElementById("method")
+				.addEventListener("change", renderColors);
+			document
+				.getElementById("copyBtn")
+				.addEventListener("click", copyAllColors);
+			renderColors();
+		</script>
+	</body>
+</html>

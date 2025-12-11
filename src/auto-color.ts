@@ -1,56 +1,19 @@
 /**
- * List of css named colors which should look good (enough contrast) on both light and dark
+ * List of css colors which should looks good (enough contrast) on both light and dark
  * backgrounds. Hand picked/filtered.
+ *
+ * @see colors.html
  */
 const COLORS = [
-	// Reds / Pinks
-	"crimson",
-	"indianred",
-	"tomato",
-	// "coral", similar with tomato
-	// "palevioletred",
-	// "mediumvioletred",
-	"hotpink",
-	"deeppink",
-
-	// Oranges / Browns
-	"peru",
-	"sienna",
-	"chocolate",
-	"darkorange",
-	// "orange",
-	// "goldenrod",
-	"darkgoldenrod",
-
-	// Greens
-	"olivedrab",
-	"olive",
-	// "yellowgreen",
-	// "limegreen",
-	"mediumseagreen",
-	// "seagreen",
-	"teal",
-	// "darkcyan", similar to teal
-
-	// Blues
-	"cadetblue",
-	"steelblue",
-	"cornflowerblue",
-	"dodgerblue",
-	"royalblue",
-	// "slateblue",
-	// "mediumslateblue",
-
-	// Purples
-	// "blueviolet",
-	// "darkorchid",
-	"mediumorchid",
-	"orchid",
-	"mediumpurple",
-
-	// Neutrals
-	"slategray",
-	"rosybrown",
+	"#969696",
+	"#d26565",
+	"#cbac4d",
+	"#78ba36",
+	"#3dc760",
+	"#5dd0d0",
+	"#91a2d5",
+	"#d4c2e5",
+	"#c671b1",
 ];
 
 /**
@@ -80,4 +43,66 @@ function strHash(str: string): number {
 		hash = hash & hash; // Convert to 32bit integer
 	}
 	return hash >>> 0; // Convert to unsigned 32-bit integer
+}
+
+function generateDistinctColors(count: number) {
+	if (count <= 0) return [];
+
+	const colors = [];
+	// Golden angle gives better perceptual distribution than even spacing
+	const goldenAngle = 137.508;
+
+	for (let i = 0; i < count; i++) {
+		const hue = (i * goldenAngle) % 360;
+		const saturation = 65; // High enough for vivid colors
+		const lightness = 45; // Sweet spot for contrast on light & dark
+
+		colors.push(hslToHex(hue, saturation, lightness));
+	}
+
+	return colors;
+}
+
+function hslToHex(h, s, l) {
+	s /= 100;
+	l /= 100;
+
+	const c = (1 - Math.abs(2 * l - 1)) * s;
+	const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+	const m = l - c / 2;
+
+	let r, g, b;
+
+	if (h < 60) {
+		r = c;
+		g = x;
+		b = 0;
+	} else if (h < 120) {
+		r = x;
+		g = c;
+		b = 0;
+	} else if (h < 180) {
+		r = 0;
+		g = c;
+		b = x;
+	} else if (h < 240) {
+		r = 0;
+		g = x;
+		b = c;
+	} else if (h < 300) {
+		r = x;
+		g = 0;
+		b = c;
+	} else {
+		r = c;
+		g = 0;
+		b = x;
+	}
+
+	const toHex = (n) =>
+		Math.round((n + m) * 255)
+			.toString(16)
+			.padStart(2, "0");
+
+	return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
