@@ -12,8 +12,9 @@ Simple, universal logger with namespace support that works everywhere - browser,
 - **Auto-adapts** - Detects environment and outputs appropriately
 - **Namespace support** - Organize logs by module/component
 - **Structured logging** - JSON output for log aggregation tools
+- **Colored output** - Color shortcuts for readable logs
 - **Extensible** - Hook into logs for batching/collection
-- **Tiny** - ~200 lines, zero dependencies
+- **Tiny** - Zero dependencies
 
 ## Installation
 
@@ -213,7 +214,7 @@ const clog = createClog("test", {
 
 ### Colored Namespace
 
-Add color to namespace labels in browser and Deno console:
+Add color to **namespace labels** in browser and Deno console:
 
 ```typescript
 const clog = createClog("ui", { color: "blue" });
@@ -226,6 +227,26 @@ errorLog.error("Failed to load");
 ```
 
 Colors work in browser and Deno environments (uses `%c` formatting). Use `color: "auto"` to automatically assign a consistent color based on the namespace.
+
+#### Color Shortcuts
+
+For **inline colored text** within log messages, use the color shortcut functions:
+
+```typescript
+import { createClog, red, green, blue, yellow } from "@marianmeres/clog";
+
+// namespace "app" will be auto-colored
+const clog = createClog("app", { color: "auto" });
+
+// make some of the log messages colored
+clog("Status:", green("OK"));
+clog("Error:", red("Connection failed"));
+clog(blue("Info:"), "Processed in", yellow("42ms"));
+```
+
+Available colors: `gray`, `grey`, `red`, `orange`, `yellow`, `green`, `teal`, `cyan`, `blue`, `purple`, `magenta`, `pink`. All colors are optimized for readability on both light and dark backgrounds. In environments that don't support `%c` formatting (like Node.js), colored text is output as plain strings with no artifacts.
+
+String concatenation also works safely: `"Status:" + green("OK")` outputs `"Status:OK"` (color is lost, but no `[object Object]` artifacts). For colored output, use comma-separated arguments instead.
 
 ### Debug Mode
 

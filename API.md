@@ -8,6 +8,11 @@ Complete API documentation for `@marianmeres/clog`.
 - [createClog.global](#createclogglobal)
 - [createClog.reset()](#createclogreset)
 - [LEVEL_MAP](#level_map)
+- [Color Functions](#color-functions)
+  - [colored()](#colored)
+  - [Color Shortcuts](#color-shortcuts)
+  - [SAFE_COLORS](#safe_colors)
+  - [autoColor()](#autocolor)
 - [Types](#types)
   - [Clog](#clog)
   - [Logger](#logger)
@@ -17,6 +22,8 @@ Complete API documentation for `@marianmeres/clog`.
   - [HookFn](#hookfn)
   - [ClogConfig](#clogconfig)
   - [GlobalConfig](#globalconfig)
+  - [StyledText](#styledtext)
+  - [ColorName](#colorname)
 
 ---
 
@@ -168,6 +175,149 @@ console.log(LEVEL_MAP.log);   // "INFO"
 
 ---
 
+## Color Functions
+
+### colored()
+
+Creates a styled text object that works with both `console.log` and `clog`.
+
+```typescript
+function colored(str: string, color?: string): StyledText
+```
+
+#### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `str` | `string` | - | The text to style |
+| `color` | `string` | `"auto"` | CSS color string or `"auto"` for hash-based color |
+
+#### Returns
+
+A `StyledText` object that can be spread into `console.log` or passed directly to `clog`.
+
+#### Examples
+
+```typescript
+import { colored } from "@marianmeres/clog";
+
+// With console.log (spread syntax required)
+console.log(...colored("hello", "red"));
+console.log(...colored("auto colored", "auto"));
+
+// With clog (direct pass - no spread needed)
+const clog = createClog("app");
+clog(colored("styled text", "blue"));
+
+// Mixed with other arguments
+clog("prefix", colored("styled", "green"), "suffix");
+
+// Safe string concatenation (returns plain text)
+console.log("Status: " + colored("OK", "green")); // "Status: OK"
+```
+
+---
+
+### Color Shortcuts
+
+Shorthand functions that return `StyledText` objects using safe hex colors optimized for both light and dark backgrounds.
+
+```typescript
+red(text: string): StyledText
+green(text: string): StyledText
+blue(text: string): StyledText
+yellow(text: string): StyledText
+orange(text: string): StyledText
+pink(text: string): StyledText
+purple(text: string): StyledText
+magenta(text: string): StyledText
+cyan(text: string): StyledText
+teal(text: string): StyledText
+gray(text: string): StyledText
+grey(text: string): StyledText  // alias for gray
+```
+
+#### Examples
+
+```typescript
+import { createClog, red, green, blue, yellow } from "@marianmeres/clog";
+
+const clog = createClog("app", { color: "auto" });
+
+clog("Status:", green("OK"));
+clog("Error:", red("Failed to connect"));
+clog(blue("Info:"), "Processing complete in", yellow("12ms"));
+
+// Works with console.log (spread syntax)
+console.log(...pink("styled message"));
+```
+
+---
+
+### SAFE_COLORS
+
+Object containing safe hex color values optimized for readability on both light and dark backgrounds.
+
+```typescript
+const SAFE_COLORS: {
+  readonly gray: "#969696";
+  readonly grey: "#969696";
+  readonly red: "#d26565";
+  readonly orange: "#cba14d";
+  readonly yellow: "#cba14d";
+  readonly green: "#3dc73d";
+  readonly teal: "#4dcba1";
+  readonly cyan: "#4dcba1";
+  readonly blue: "#67afd3";
+  readonly purple: "#8e8ed4";
+  readonly magenta: "#b080c8";
+  readonly pink: "#be5b9d";
+}
+```
+
+| Name | Hex | Notes |
+|------|-----|-------|
+| gray/grey | `#969696` | Neutral gray |
+| red | `#d26565` | Muted red |
+| orange | `#cba14d` | Warm orange |
+| yellow | `#cba14d` | Same as orange (pure yellow too bright on light bg) |
+| green | `#3dc73d` | Bright green |
+| teal/cyan | `#4dcba1` | Blue-green |
+| blue | `#67afd3` | Light blue |
+| purple | `#8e8ed4` | Blue-purple |
+| magenta | `#b080c8` | Pink-purple |
+| pink | `#be5b9d` | Bright pink |
+
+---
+
+### autoColor()
+
+Auto-picks a consistent color for a given string using a hash function. The same string always produces the same color.
+
+```typescript
+function autoColor(str: string): string
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `str` | `string` | The string to generate a color for (typically a namespace) |
+
+#### Returns
+
+A CSS hex color from the predefined palette.
+
+#### Example
+
+```typescript
+import { autoColor } from "@marianmeres/clog";
+
+const color = autoColor("my-namespace"); // Returns consistent hex color
+```
+
+---
+
 ## Types
 
 ### Clog
@@ -295,6 +445,47 @@ interface GlobalConfig {
 | `writer` | `WriterFn` | `undefined` | Global writer overriding all instances |
 | `jsonOutput` | `boolean` | `false` | Enable JSON output for server environments |
 | `debug` | `boolean` | `undefined` | Global debug mode (can be overridden per-instance) |
+
+### StyledText
+
+Styled text object that works with both `console.log(...obj)` and `clog(obj)`.
+
+```typescript
+interface StyledText extends Iterable<string> {
+  [CLOG_STYLED]: true;
+  text: string;
+  style: string;
+  toString(): string;
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `[CLOG_STYLED]` | `true` | Symbol marker for identifying styled text objects |
+| `text` | `string` | The plain text content |
+| `style` | `string` | CSS style string (e.g., `"color:#d26565"`) |
+| `toString()` | `() => string` | Returns plain text for safe string concatenation |
+
+The `Iterable<string>` implementation yields `["%ctext", "style"]` for spread syntax compatibility with `console.log`.
+
+### ColorName
+
+Union type of available color names in `SAFE_COLORS`.
+
+```typescript
+type ColorName = "gray" | "grey" | "red" | "orange" | "yellow" | "green"
+               | "teal" | "cyan" | "blue" | "purple" | "magenta" | "pink"
+```
+
+### CLOG_STYLED
+
+Symbol used to identify styled text objects created by `colored()`.
+
+```typescript
+const CLOG_STYLED: symbol = Symbol.for("@marianmeres/clog-styled")
+```
+
+Using `Symbol.for()` ensures the same symbol across module instances.
 
 ### Debug Precedence
 

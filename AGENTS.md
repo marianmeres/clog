@@ -22,10 +22,12 @@ Universal console-compatible logger (~400 lines including JSDoc) with namespace 
 
 ```
 src/
-├── mod.ts              # Entry point (re-exports from clog.ts)
-└── clog.ts             # Main implementation
+├── mod.ts              # Entry point (re-exports from clog.ts and colors.ts)
+├── clog.ts             # Main logger implementation
+└── colors.ts           # Color utilities (colored, shortcuts, SAFE_COLORS)
 tests/
-└── clog.test.ts        # Test suite (31 tests)
+├── clog.test.ts        # Test suite (31 tests)
+└── deno-raw.ts         # Manual color examples
 scripts/
 └── build-npm.ts        # npm build script
 .npm-dist/              # Generated npm distribution
@@ -39,6 +41,7 @@ deno.json               # Deno configuration, version, tasks
 3. **createClog Factory**: Creates callable logger instances with namespace support
 4. **Writers**: defaultWriter (environment-aware), colorWriter (browser/Deno %c styling)
 5. **Global Config**: Truly global singleton using `Symbol.for()` + `globalThis` pattern (shared across multiple module instances)
+6. **Color Utilities** (colors.ts): `colored()` function, color shortcuts (red, green, etc.), `SAFE_COLORS` hex palette, `StyledText` interface with Symbol-tagged objects for clog integration
 
 ### Data Flow
 
@@ -61,7 +64,9 @@ clog.log("msg")
 
 ## Public API
 
-### Exports (from src/mod.ts → src/clog.ts)
+### Exports (from src/mod.ts)
+
+**From clog.ts:**
 
 | Export | Type | Description |
 |--------|------|-------------|
@@ -77,6 +82,18 @@ clog.log("msg")
 | `Clog` | Interface | Callable Logger with namespace |
 | `ClogConfig` | Interface | Instance configuration options |
 | `GlobalConfig` | Interface | Global configuration options |
+
+**From colors.ts:**
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `colored` | Function | Creates StyledText object for console styling |
+| `autoColor` | Function | Hash-based color picker for consistent coloring |
+| `CLOG_STYLED` | Symbol | Marker symbol for StyledText identification |
+| `StyledText` | Interface | Styled text object (iterable, toString) |
+| `SAFE_COLORS` | Const Object | Safe hex color palette for light/dark backgrounds |
+| `ColorName` | Type | Union of SAFE_COLORS keys |
+| `red`, `green`, `blue`, `yellow`, `orange`, `pink`, `purple`, `magenta`, `cyan`, `teal`, `gray`, `grey` | Functions | Color shortcut functions returning StyledText |
 
 ### Function Signatures
 
@@ -126,6 +143,19 @@ interface GlobalConfig {
   jsonOutput?: boolean;
   debug?: boolean;  // when false, .debug() is a no-op (can be overridden per-instance)
 }
+
+// From colors.ts
+const CLOG_STYLED: unique symbol = Symbol.for("@marianmeres/clog-styled");
+
+interface StyledText extends Iterable<string> {
+  [CLOG_STYLED]: true;
+  text: string;
+  style: string;
+  toString(): string;
+}
+
+type ColorName = keyof typeof SAFE_COLORS;
+// "gray" | "grey" | "red" | "orange" | "yellow" | "green" | "teal" | "cyan" | "blue" | "purple" | "magenta" | "pink"
 ```
 
 ## Output Formats
@@ -258,6 +288,28 @@ const captured: LogData[] = [];
 createClog.global.hook = (data) => captured.push(data);
 ```
 
+### Colored Output
+
+```typescript
+import { createClog, red, green, blue, yellow, colored } from "@marianmeres/clog";
+
+const clog = createClog("app", { color: "auto" });
+
+// Color shortcuts
+clog("Status:", green("OK"));
+clog("Error:", red("Failed"));
+clog(blue("Info:"), "Processing in", yellow("12ms"));
+
+// Custom colors
+clog(colored("Custom", "#ff6600"));
+
+// Works with console.log (spread syntax)
+console.log(...red("styled message"));
+
+// Safe string concatenation (returns plain text)
+const msg = "Status: " + green("OK"); // "Status: OK"
+```
+
 ## Modification Guide
 
 ### Add New Log Level
@@ -306,10 +358,14 @@ Removed:
 
 | Concern | File |
 |---------|------|
-| Main implementation | [src/clog.ts](src/clog.ts) |
+| Main logger implementation | [src/clog.ts](src/clog.ts) |
+| Color utilities | [src/colors.ts](src/colors.ts) |
 | Entry point | [src/mod.ts](src/mod.ts) |
 | Tests | [tests/clog.test.ts](tests/clog.test.ts) |
+| Color examples | [tests/deno-raw.ts](tests/deno-raw.ts) |
 | Build script | [scripts/build-npm.ts](scripts/build-npm.ts) |
 | Package config | [deno.json](deno.json) |
 | Human documentation | [README.md](README.md) |
 | API documentation | [API.md](API.md) |
+| Machine documentation | [AGENTS.md](AGENTS.md) |
+| AI assistant context | [CLAUDE.md](CLAUDE.md) |

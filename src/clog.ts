@@ -1,4 +1,4 @@
-import { autoColor } from "./auto-color.ts";
+import { autoColor, CLOG_STYLED } from "./colors.ts";
 
 /**
  * Standard log levels mapping based on syslog/RFC 5424.
@@ -235,6 +235,40 @@ const GLOBAL: GlobalConfig = ((globalThis as any)[GLOBAL_KEY] ??= {
 	debug: undefined,
 });
 
+/** Process args containing styled text objects, building %c format string */
+// deno-lint-ignore no-explicit-any
+function _processStyledArgs(args: any[]): [string, any[]] {
+	let format = "";
+	// deno-lint-ignore no-explicit-any
+	const values: any[] = [];
+
+	for (const arg of args) {
+		if (arg?.[CLOG_STYLED]) {
+			format += `%c${arg.text}%c `;
+			values.push(arg.style, "");
+		} else if (typeof arg === "string") {
+			format += `${arg} `;
+		} else {
+			format += "%o ";
+			values.push(arg);
+		}
+	}
+
+	return [format.trim(), values];
+}
+
+/** Check if any arg is a styled text object */
+// deno-lint-ignore no-explicit-any
+function _hasStyledArgs(args: any[]): boolean {
+	return args.some((arg) => arg?.[CLOG_STYLED]);
+}
+
+/** Clean styled args by extracting plain text (for non-%c environments) */
+// deno-lint-ignore no-explicit-any
+function _cleanStyledArgs(args: any[]): any[] {
+	return args.map((arg) => (arg?.[CLOG_STYLED] ? arg.text : arg));
+}
+
 /** Default writer implementation - handles browser vs server output */
 const defaultWriter: WriterFn = (data: LogData) => {
 	const { level, namespace, args, timestamp } = data;
@@ -250,10 +284,13 @@ const defaultWriter: WriterFn = (data: LogData) => {
 		} as const
 	)[level];
 
+	// Clean styled args (extract plain text) for non-%c environments
+	const cleanedArgs = _cleanStyledArgs(args);
+
 	if (runtime === "browser") {
 		// Browser: simple output, let browser console do its magic
 		const ns = namespace ? `[${namespace}]` : "";
-		console[consoleMethod](ns, ...args);
+		console[consoleMethod](ns, ...cleanedArgs);
 	} else {
 		// Server: structured output
 		if (GLOBAL.jsonOutput) {
@@ -262,11 +299,11 @@ const defaultWriter: WriterFn = (data: LogData) => {
 				timestamp,
 				level,
 				namespace,
-				message: args[0],
+				message: cleanedArgs[0],
 			};
 
 			// Include additional args as arg_0, arg_1, etc
-			args.slice(1).forEach((arg, i) => {
+			cleanedArgs.slice(1).forEach((arg, i) => {
 				// Preserve Error stacks
 				output[`arg_${i}`] = arg?.stack ?? arg;
 			});
@@ -276,7 +313,7 @@ const defaultWriter: WriterFn = (data: LogData) => {
 			// Text output: [timestamp] [LEVEL] [namespace] message ...args
 			const ns = namespace ? `[${namespace}]` : "";
 			const prefix = `[${timestamp}] [${level}] ${ns}`.trim();
-			console[consoleMethod](prefix, ...args);
+			console[consoleMethod](prefix, ...cleanedArgs);
 		}
 	}
 };
@@ -308,12 +345,35 @@ const colorWriter =
 			color = autoColor(namespace);
 		}
 
-		if (runtime === "browser") {
-			console[consoleMethod](`%c${ns}`, `color:${color}`, ...args);
+		// Check for styled args and process them
+		if (_hasStyledArgs(args)) {
+			const [content, contentValues] = _processStyledArgs(args);
+			if (runtime === "browser") {
+				console[consoleMethod](
+					`%c${ns}%c ${content}`,
+					`color:${color}`,
+					"",
+					...contentValues
+				);
+			} else {
+				// Deno: include timestamp and level
+				const prefix = `[${timestamp}] [${level}] %c${ns}%c`;
+				console[consoleMethod](
+					`${prefix} ${content}`,
+					`color:${color}`,
+					"",
+					...contentValues
+				);
+			}
 		} else {
-			// Deno: include timestamp and level like server mode, %c must be in first arg
-			const prefix = `[${timestamp}] [${level}] %c${ns}`;
-			console[consoleMethod](prefix, `color:${color}`, ...args);
+			// No styled args, use original behavior
+			if (runtime === "browser") {
+				console[consoleMethod](`%c${ns}`, `color:${color}`, ...args);
+			} else {
+				// Deno: include timestamp and level like server mode, %c must be in first arg
+				const prefix = `[${timestamp}] [${level}] %c${ns}`;
+				console[consoleMethod](prefix, `color:${color}`, ...args);
+			}
 		}
 	};
 
