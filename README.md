@@ -81,7 +81,7 @@ This library operates in **two fundamentally different modes** based on runtime 
 
 This is an **intentional, pragmatic design decision**. Server logs serve a different purpose than browser console output:
 
-- They're consumed by log aggregators (Datadog, Splunk, CloudWatch, ELK)
+- They're consumed by log aggregators
 - They're grepped, parsed, and filtered by automated tools
 - They need consistent, predictable structure
 - Timestamps are essential for debugging distributed systems
