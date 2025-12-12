@@ -61,6 +61,46 @@ throw new Error(clog.error("Something failed"));
 
 **One API for all environments** - Auto-detection means you write code once, it works everywhere.
 
+## Browser vs Server: Two Distinct Modes
+
+This library operates in **two fundamentally different modes** based on runtime detection:
+
+### Browser Mode
+- Rich, interactive output using native browser console features
+- Colored namespace labels via `%c` formatting
+- Inline colored text with color shortcuts
+- Objects displayed with expandable inspection
+
+### Server Mode (Node.js, Deno)
+- **Machine-friendly output by design**
+- ISO timestamps prepended to every line
+- Structured plain text: `[timestamp] [LEVEL] [namespace] message`
+- Optional JSON output for log aggregation tools
+
+### Why This Matters
+
+This is an **intentional, pragmatic design decision**. Server logs serve a different purpose than browser console output:
+
+- They're consumed by log aggregators (Datadog, Splunk, CloudWatch, ELK)
+- They're grepped, parsed, and filtered by automated tools
+- They need consistent, predictable structure
+- Timestamps are essential for debugging distributed systems
+
+Fancy colors, complex formatting, and visual embellishments on the server provide no value - they actually make logs *harder* to process and search.
+
+### Is This Library Right for You?
+
+✅ **Good fit if you want:**
+- Single API that works everywhere
+- Browser logs with colors and rich formatting
+- Server logs optimized for machine consumption
+- JSON output for log aggregation
+
+❌ **Not the best fit if you want:**
+- Colorful, visually styled output in server terminals
+- ASCII art, box drawing, or rich formatting in CLI tools
+- The same visual experience in both environments
+
 ## Why `any` Return Type?
 
 The `Logger` interface methods return `any` instead of `string` to ensure true compatibility with `console`:
