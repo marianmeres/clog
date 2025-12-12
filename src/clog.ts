@@ -163,7 +163,9 @@ export interface ClogConfig {
 	 * Only works in browser and Deno environments (uses `%c` formatting).
 	 * @example "red", "blue", "#ff0000"
 	 */
-	color?: "auto" | string | null;
+	// `string & {}` preserves "auto" literal in IntelliSense while allowing any string
+	// deno-lint-ignore ban-types
+	color?: "auto" | (string & {}) | null;
 
 	/**
 	 * When `false`, `.debug()` calls become no-ops (output is suppressed).
