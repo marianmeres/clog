@@ -163,7 +163,7 @@ export interface ClogConfig {
 	 * Only works in browser and Deno environments (uses `%c` formatting).
 	 * @example "red", "blue", "#ff0000"
 	 */
-	color?: string | null;
+	color?: "auto" | string | null;
 
 	/**
 	 * When `false`, `.debug()` calls become no-ops (output is suppressed).
@@ -284,12 +284,30 @@ const defaultWriter: WriterFn = (data: LogData) => {
 		} as const
 	)[level];
 
+	const ns = namespace ? `[${namespace}]` : "";
+	const hasStyled = _hasStyledArgs(args);
+
+	// Browser/Deno with styled args: use %c formatting
+	if ((runtime === "browser" || runtime === "deno") && hasStyled) {
+		const [content, contentValues] = _processStyledArgs(args);
+		if (runtime === "browser") {
+			console[consoleMethod](
+				ns ? `${ns} ${content}` : content,
+				...contentValues
+			);
+		} else {
+			// Deno: include timestamp and level
+			const prefix = `[${timestamp}] [${level}]${ns ? ` ${ns}` : ""}`;
+			console[consoleMethod](`${prefix} ${content}`, ...contentValues);
+		}
+		return;
+	}
+
 	// Clean styled args (extract plain text) for non-%c environments
 	const cleanedArgs = _cleanStyledArgs(args);
 
 	if (runtime === "browser") {
 		// Browser: simple output, let browser console do its magic
-		const ns = namespace ? `[${namespace}]` : "";
 		console[consoleMethod](ns, ...cleanedArgs);
 	} else {
 		// Server: structured output
@@ -311,8 +329,9 @@ const defaultWriter: WriterFn = (data: LogData) => {
 			console[consoleMethod](JSON.stringify(output));
 		} else {
 			// Text output: [timestamp] [LEVEL] [namespace] message ...args
-			const ns = namespace ? `[${namespace}]` : "";
-			const prefix = `[${timestamp}] [${level}] ${ns}`.trim();
+			const prefix = `[${timestamp}] [${level}]${
+				ns ? ` ${ns}` : ""
+			}`.trim();
 			console[consoleMethod](prefix, ...cleanedArgs);
 		}
 	}
