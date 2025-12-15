@@ -154,6 +154,8 @@ consoleLog.error("Something failed");  // [my-module] Something failed
 throw new Error(moduleLog.error("Authentication failed"));
 ```
 
+**Note:** When using `color` config, only the original logger's namespace is colored. Namespaces added via `withNamespace()` appear as plain text.
+
 ### Auto-Environment Detection
 
 **Browser**: Pretty console output with native browser features

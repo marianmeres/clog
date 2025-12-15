@@ -58,5 +58,9 @@ const nested = withNamespace(withNamespace(clog, "foo"), "bar");
 assertEquals(nested.log("baz"), "baz");
 
 //
+const clogx = withNamespace(createClog(false, { color: "red" }), "foo");
+clogx("Hey"); // not red (feature, not a bug)
+
+//
 createClog.global.debug = false;
 assertEquals(nested.debug("no output"), "no output"); // no console output
