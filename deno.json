@@ -1,6 +1,6 @@
 {
   "name": "@marianmeres/clog",
-  "version": "3.9.0",
+  "version": "3.10.0",
   "exports": "./src/mod.ts",
   "tasks": {
     "test": "deno test",
