@@ -534,3 +534,71 @@ createClog.reset = (): void => {
 	createClog.global.jsonOutput = false;
 	createClog.global.debug = undefined;
 };
+
+/**
+ * Wraps a console-compatible logger with an additional namespace prefix.
+ * Works with any logger (clog instances, native console, or custom loggers).
+ *
+ * The returned logger prepends `[namespace]` to all log calls, enabling
+ * hierarchical namespacing when passing loggers to modules.
+ *
+ * @param logger - Any console-compatible logger (clog, console, or custom)
+ * @param namespace - Namespace string to prepend to all log output
+ * @returns A wrapped logger with the same interface, plus callable signature
+ *
+ * @example
+ * ```typescript
+ * // With clog - creates nested namespaces
+ * const clog = createClog("app");
+ * const moduleLogger = withNamespace(clog, "module");
+ * moduleLogger.log("hello");  // [app] [module] hello
+ *
+ * // With native console
+ * const logger = withNamespace(console, "my-module");
+ * logger.warn("warning");     // [my-module] warning
+ *
+ * // Deep nesting
+ * const sub = withNamespace(moduleLogger, "sub");
+ * sub.error("fail");          // [app] [module] [sub] fail
+ *
+ * // Return value pattern works
+ * throw new Error(moduleLogger.error("Something failed"));
+ * ```
+ */
+export function withNamespace<T extends Logger>(
+	logger: T,
+	namespace: string
+	// deno-lint-ignore no-explicit-any
+): T & ((...args: any[]) => string) {
+	const prefix = `[${namespace}]`;
+
+	// deno-lint-ignore no-explicit-any
+	const wrapped = ((...args: any[]) => {
+		logger.log(prefix, ...args);
+		return String(args[0] ?? "");
+		// deno-lint-ignore no-explicit-any
+	}) as T & ((...args: any[]) => string);
+
+	// deno-lint-ignore no-explicit-any
+	wrapped.debug = (...args: any[]) => {
+		logger.debug(prefix, ...args);
+		return String(args[0] ?? "");
+	};
+	// deno-lint-ignore no-explicit-any
+	wrapped.log = (...args: any[]) => {
+		logger.log(prefix, ...args);
+		return String(args[0] ?? "");
+	};
+	// deno-lint-ignore no-explicit-any
+	wrapped.warn = (...args: any[]) => {
+		logger.warn(prefix, ...args);
+		return String(args[0] ?? "");
+	};
+	// deno-lint-ignore no-explicit-any
+	wrapped.error = (...args: any[]) => {
+		logger.error(prefix, ...args);
+		return String(args[0] ?? "");
+	};
+
+	return wrapped;
+}

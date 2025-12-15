@@ -7,6 +7,7 @@ Complete API documentation for `@marianmeres/clog`.
 - [createClog()](#createclog)
 - [createClog.global](#createclogglobal)
 - [createClog.reset()](#createclogreset)
+- [withNamespace()](#withnamespace)
 - [LEVEL_MAP](#level_map)
 - [Color Functions](#color-functions)
   - [colored()](#colored)
@@ -138,6 +139,72 @@ Clears `hook`, `writer`, `debug`, and sets `jsonOutput` to `false`. Useful for t
 afterEach(() => {
   createClog.reset();
 });
+```
+
+---
+
+## withNamespace()
+
+Wraps a console-compatible logger with an additional namespace prefix. Works with clog instances, native console, or any logger implementing the `Logger` interface.
+
+```typescript
+function withNamespace<T extends Logger>(logger: T, namespace: string): T & ((...args: any[]) => string)
+```
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `logger` | `Logger` | Any console-compatible logger (clog, console, or custom) |
+| `namespace` | `string` | Namespace string to prepend to all log output |
+
+### Returns
+
+A wrapped logger with the same interface as the input, plus a callable signature. All methods prepend `[namespace]` to arguments before delegating to the parent logger.
+
+### Examples
+
+```typescript
+import { createClog, withNamespace } from "@marianmeres/clog";
+
+// With clog - creates nested namespaces
+const clog = createClog("app");
+const moduleLogger = withNamespace(clog, "module");
+moduleLogger.log("hello");  // [app] [module] hello
+
+// With native console
+const logger = withNamespace(console, "my-module");
+logger.warn("warning");     // [my-module] warning
+
+// Deep nesting
+const sub = withNamespace(moduleLogger, "sub");
+sub.error("fail");          // [app] [module] [sub] fail
+
+// Callable interface
+moduleLogger("direct call");  // [app] [module] direct call
+
+// Return value pattern works at any depth
+throw new Error(moduleLogger.error("Something failed"));
+```
+
+### Use Case: Dependency Injection
+
+The primary use case is passing loggers to modules that want their own namespace while preserving the parent context:
+
+```typescript
+// app.ts
+const appLog = createClog("app");
+const authModule = new AuthModule(withNamespace(appLog, "auth"));
+const dbModule = new DbModule(withNamespace(appLog, "db"));
+
+// auth-module.ts
+class AuthModule {
+  constructor(private log: Logger) {}
+
+  login(user: string) {
+    this.log.log("Login attempt", { user });  // [app] [auth] Login attempt { user: "..." }
+  }
+}
 ```
 
 ---

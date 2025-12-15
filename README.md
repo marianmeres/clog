@@ -130,6 +130,30 @@ apiLog.warn("Slow request");       // [api] Slow request
 dbLog.error("Connection failed");  // [database] Connection failed
 ```
 
+### Nested Namespaces
+
+Use `withNamespace()` to wrap any console-compatible logger with an additional namespace. This is useful when passing loggers to modules that want their own namespace while preserving the parent context:
+
+```typescript
+import { createClog, withNamespace } from "@marianmeres/clog";
+
+const appLog = createClog("app");
+const moduleLog = withNamespace(appLog, "auth");
+
+moduleLog.log("User logged in");   // [app] [auth] User logged in
+
+// Deep nesting works too
+const subLog = withNamespace(moduleLog, "oauth");
+subLog.warn("Token expired");      // [app] [auth] [oauth] Token expired
+
+// Works with native console
+const consoleLog = withNamespace(console, "my-module");
+consoleLog.error("Something failed");  // [my-module] Something failed
+
+// Return value pattern works at any nesting depth
+throw new Error(moduleLog.error("Authentication failed"));
+```
+
 ### Auto-Environment Detection
 
 **Browser**: Pretty console output with native browser features
@@ -334,6 +358,10 @@ clog(...args);         // Callable, same as clog.log()
 
 // Instance properties
 clog.ns;               // readonly namespace
+
+// Nested namespaces (wrap any console-compatible logger)
+const nested = withNamespace(clog, "module");
+nested.log("msg");     // [original-ns] [module] msg
 
 // Global configuration
 createClog.global.hook = (data: LogData) => { /* ... */ };

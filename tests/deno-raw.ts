@@ -7,9 +7,11 @@ import {
 	pink,
 	SAFE_COLORS,
 } from "../src/colors.ts";
-import { createClog } from "../src/clog.ts";
+import { createClog, withNamespace } from "../src/clog.ts";
+import { assert } from "@std/assert/assert";
+import { assertEquals } from "@std/assert/equals";
 
-const clog = createClog("deno-raw");
+const clog = createClog("deno-raw", { color: "auto" });
 // const clog = createClog("deno-raw", { color: "auto" });
 
 clog("direct");
@@ -50,3 +52,7 @@ clog("Status:" + green("OK"));
 Object.entries(SAFE_COLORS).forEach(([name, color]) => {
 	clog(colored(name, color));
 });
+
+const nested = withNamespace(withNamespace(clog, "foo"), "bar");
+
+assertEquals(nested.log("baz"), "baz");

@@ -26,7 +26,7 @@ src/
 ├── clog.ts             # Main logger implementation
 └── colors.ts           # Color utilities (colored, shortcuts, SAFE_COLORS)
 tests/
-├── clog.test.ts        # Test suite (31 tests)
+├── clog.test.ts        # Test suite (40 tests)
 └── deno-raw.ts         # Manual color examples
 scripts/
 └── build-npm.ts        # npm build script
@@ -73,6 +73,7 @@ clog.log("msg")
 | `createClog` | Function | Factory for creating logger instances |
 | `createClog.global` | GlobalConfig | Global configuration object |
 | `createClog.reset` | Function | Reset global config to defaults |
+| `withNamespace` | Function | Wrap logger with additional namespace prefix |
 | `LEVEL_MAP` | Const Object | RFC 5424 level mapping |
 | `LogLevel` | Type | `"debug" \| "log" \| "warn" \| "error"` |
 | `LogData` | Type | Normalized log data structure |
@@ -102,6 +103,8 @@ function createClog(namespace?: string | false, config?: ClogConfig): Clog
 
 createClog.global: GlobalConfig
 createClog.reset: () => void
+
+function withNamespace<T extends Logger>(logger: T, namespace: string): T & ((...args: any[]) => string)
 ```
 
 ### Type Definitions
@@ -202,7 +205,7 @@ None (zero dependencies)
 
 ## Test Coverage
 
-31 tests covering:
+40 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -220,6 +223,7 @@ None (zero dependencies)
 - Batching pattern
 - Debug mode (instance and global)
 - Debug precedence (instance > global > default)
+- withNamespace wrapper (9 tests: basic wrapping, callable interface, all log levels, return values, throw pattern, deep nesting, console wrapping, debug inheritance)
 
 ## Design Principles
 
@@ -264,6 +268,29 @@ createClog.global.writer = (data) => sendToExternalService(data);
 const authLog = createClog("auth");
 const apiLog = createClog("api");
 const dbLog = createClog("db");
+```
+
+### Nested Namespaces
+
+```typescript
+// Wrap any console-compatible logger with additional namespace
+const appLog = createClog("app");
+const moduleLog = withNamespace(appLog, "module");
+moduleLog.log("hello");  // [app] [module] hello
+
+// Deep nesting
+const subLog = withNamespace(moduleLog, "sub");
+subLog.error("fail");    // [app] [module] [sub] fail
+
+// Works with native console
+const consoleLog = withNamespace(console, "my-module");
+
+// Dependency injection pattern
+class AuthService {
+  constructor(private log: Logger) {}
+  login() { this.log.log("Login"); }  // [app] [auth] Login
+}
+const authService = new AuthService(withNamespace(appLog, "auth"));
 ```
 
 ### Debug Mode
