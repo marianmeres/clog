@@ -35,11 +35,12 @@ deno run -A scripts/build-npm.ts
 ## Key Concepts
 
 1. **createClog(namespace, config)** - Factory for logger instances
-2. **Callable interface** - `clog("msg")` is same as `clog.log("msg")`
-3. **Return value pattern** - All methods return first arg as string: `throw new Error(clog.error("msg"))`
-4. **Global config** - `createClog.global` affects all instances (uses Symbol.for for true global state)
-5. **StyledText** - Symbol-tagged objects for colored output that work with both `clog()` and `console.log(...)`
-6. **withNamespace(logger, ns)** - Wraps any console-compatible logger with additional namespace prefix
+2. **createNoopClog(namespace)** - Factory for no-op logger instances (for testing, outputs nothing)
+3. **Callable interface** - `clog("msg")` is same as `clog.log("msg")`
+4. **Return value pattern** - All methods return first arg as string: `throw new Error(clog.error("msg"))`
+5. **Global config** - `createClog.global` affects all instances (uses Symbol.for for true global state)
+6. **StyledText** - Symbol-tagged objects for colored output that work with both `clog()` and `console.log(...)`
+7. **withNamespace(logger, ns)** - Wraps any console-compatible logger with additional namespace prefix
 
 ## Color System
 

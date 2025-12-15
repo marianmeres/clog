@@ -536,6 +536,40 @@ createClog.reset = (): void => {
 };
 
 /**
+ * Creates a no-op logger that satisfies the Clog interface but doesn't output anything.
+ * Useful for testing scenarios where console output is not desired.
+ * All methods return the first argument as a string (same as regular clog).
+ *
+ * @param namespace - Optional namespace for the logger (accessible via `.ns` property)
+ * @returns A no-op logger that satisfies the Clog interface
+ *
+ * @example
+ * ```typescript
+ * // In tests where you don't want console output
+ * const clog = createNoopClog("test");
+ * clog.log("silent"); // returns "silent", but doesn't output anything
+ * clog.error("fail"); // returns "fail", but doesn't output anything
+ *
+ * // Return value pattern still works
+ * throw new Error(clog.error("Something failed"));
+ * ```
+ */
+export function createNoopClog(namespace?: string | null): Clog {
+	// deno-lint-ignore no-explicit-any
+	const _return = (...args: any[]) => String(args[0] ?? "");
+	const clog = _return as Clog;
+	clog.debug = _return;
+	clog.log = _return;
+	clog.warn = _return;
+	clog.error = _return;
+	Object.defineProperty(clog, "ns", {
+		value: namespace || false,
+		writable: false,
+	});
+	return clog;
+}
+
+/**
  * Wraps a console-compatible logger with an additional namespace prefix.
  * Works with any logger (clog instances, native console, or custom loggers).
  *

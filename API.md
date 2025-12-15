@@ -7,6 +7,7 @@ Complete API documentation for `@marianmeres/clog`.
 - [createClog()](#createclog)
 - [createClog.global](#createclogglobal)
 - [createClog.reset()](#createclogreset)
+- [createNoopClog()](#createnoopclog)
 - [withNamespace()](#withnamespace)
 - [LEVEL_MAP](#level_map)
 - [Color Functions](#color-functions)
@@ -140,6 +141,62 @@ afterEach(() => {
   createClog.reset();
 });
 ```
+
+---
+
+## createNoopClog()
+
+Creates a no-op logger that satisfies the `Clog` interface but doesn't output anything. Useful for testing scenarios where console output is not desired.
+
+```typescript
+function createNoopClog(namespace?: string | null): Clog
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `namespace` | `string \| null` | `undefined` | Optional namespace (accessible via `.ns` property) |
+
+### Returns
+
+A callable `Clog` logger instance that outputs nothing.
+
+### Behavior
+
+- All methods (`debug`, `log`, `warn`, `error`) return the first argument as a string
+- The callable interface returns the first argument as a string
+- No output is produced (no console calls, no hooks triggered, no writers called)
+- The `.ns` property is readonly and returns the namespace or `false`
+
+### Examples
+
+```typescript
+import { createNoopClog } from "@marianmeres/clog";
+
+// Create a silent logger for testing
+const clog = createNoopClog("test");
+
+clog.log("silent");        // returns "silent", outputs nothing
+clog.error("fail");        // returns "fail", outputs nothing
+clog("callable");          // returns "callable", outputs nothing
+
+// Return value pattern works
+throw new Error(clog.error("Something failed"));
+
+// Namespace property
+console.log(clog.ns);      // "test"
+
+// Without namespace
+const noNs = createNoopClog();
+console.log(noNs.ns);      // false
+```
+
+### Use Cases
+
+- **Unit tests**: Suppress log output while testing functions that use logging
+- **Mock logger injection**: Pass to modules that expect a logger but shouldn't output during tests
+- **Benchmarking**: Measure performance without I/O overhead from logging
 
 ---
 

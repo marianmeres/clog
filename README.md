@@ -349,6 +349,9 @@ For complete API documentation, see [API.md](API.md).
 // Create a logger
 const clog = createClog(namespace?, config?);
 
+// Create a no-op logger (for testing)
+const noop = createNoopClog(namespace?);
+
 // Log methods (return first arg as string, typed as `any`)
 clog.debug(...args);   // DEBUG level
 clog.log(...args);     // INFO level
@@ -469,6 +472,23 @@ createClog.global.jsonOutput = true;
 const clog2 = createClog("api");
 clog2.log("Request received", { userId: 123 });
 // {"timestamp":"2025-11-29T10:30:45.123Z","level":"INFO","namespace":"api","message":"Request received","arg_0":{"userId":123}}
+```
+
+### Testing with No-Op Logger
+
+For tests where you want to suppress all console output, use `createNoopClog`:
+
+```typescript
+import { createNoopClog } from "@marianmeres/clog";
+
+// Create a silent logger - no output at all
+const clog = createNoopClog("test");
+
+clog.log("silent");        // returns "silent", outputs nothing
+clog.error("fail");        // returns "fail", outputs nothing
+
+// Return value pattern still works
+throw new Error(clog.error("Something failed"));
 ```
 
 ### Testing with Mock Writer

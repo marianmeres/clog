@@ -73,6 +73,7 @@ clog.log("msg")
 | `createClog` | Function | Factory for creating logger instances |
 | `createClog.global` | GlobalConfig | Global configuration object |
 | `createClog.reset` | Function | Reset global config to defaults |
+| `createNoopClog` | Function | Factory for no-op logger instances (for testing) |
 | `withNamespace` | Function | Wrap logger with additional namespace prefix |
 | `LEVEL_MAP` | Const Object | RFC 5424 level mapping |
 | `LogLevel` | Type | `"debug" \| "log" \| "warn" \| "error"` |
@@ -103,6 +104,8 @@ function createClog(namespace?: string | false, config?: ClogConfig): Clog
 
 createClog.global: GlobalConfig
 createClog.reset: () => void
+
+function createNoopClog(namespace?: string | null): Clog
 
 function withNamespace<T extends Logger>(logger: T, namespace: string): T & ((...args: any[]) => string)
 ```
@@ -205,7 +208,7 @@ None (zero dependencies)
 
 ## Test Coverage
 
-40 tests covering:
+47 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -224,6 +227,7 @@ None (zero dependencies)
 - Debug mode (instance and global)
 - Debug precedence (instance > global > default)
 - withNamespace wrapper (9 tests: basic wrapping, callable interface, all log levels, return values, throw pattern, deep nesting, console wrapping, debug inheritance)
+- createNoopClog (7 tests: return values, callable interface, no console output, no hook triggers, namespace property, readonly namespace, throw pattern)
 
 ## Design Principles
 
@@ -307,12 +311,18 @@ const quietLog = createClog("quiet", { debug: false });    // never debug
 ### Testing
 
 ```typescript
+// Clean state between tests
 beforeEach(() => {
-  createClog.reset(); // Clean state
+  createClog.reset();
 });
 
+// Capture logs for assertions
 const captured: LogData[] = [];
 createClog.global.hook = (data) => captured.push(data);
+
+// No-op logger for silent testing
+const clog = createNoopClog("test");
+clog.log("silent");  // returns "silent", outputs nothing
 ```
 
 ### Colored Output
