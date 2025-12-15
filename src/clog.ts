@@ -470,13 +470,14 @@ export function createClog(
 	// deno-lint-ignore no-explicit-any
 	const logger = ((...args: any[]) => _apply("log", args)) as Clog;
 
-	// Attach methods (debug respects instance config, then global config)
-	logger.debug =
-		(config?.debug ?? GLOBAL.debug) === false
-			? // deno-lint-ignore no-explicit-any
-			  (...args: any[]) => String(args[0] ?? "")
-			: // deno-lint-ignore no-explicit-any
-			  (...args: any[]) => _apply("debug", args);
+	// Attach methods (debug respects instance config, then global config at runtime)
+	// deno-lint-ignore no-explicit-any
+	logger.debug = (...args: any[]) => {
+		if ((config?.debug ?? GLOBAL.debug) === false) {
+			return String(args[0] ?? "");
+		}
+		return _apply("debug", args);
+	};
 	// deno-lint-ignore no-explicit-any
 	logger.log = (...args: any[]) => _apply("log", args);
 	// deno-lint-ignore no-explicit-any

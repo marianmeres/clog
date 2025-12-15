@@ -56,3 +56,7 @@ Object.entries(SAFE_COLORS).forEach(([name, color]) => {
 const nested = withNamespace(withNamespace(clog, "foo"), "bar");
 
 assertEquals(nested.log("baz"), "baz");
+
+//
+createClog.global.debug = false;
+assertEquals(nested.debug("no output"), "no output"); // no console output
