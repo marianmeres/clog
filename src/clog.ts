@@ -310,7 +310,11 @@ const defaultWriter: WriterFn = (data: LogData) => {
 
 	if (runtime === "browser") {
 		// Browser: simple output, let browser console do its magic
-		console[consoleMethod](ns, ...cleanedArgs);
+		if (ns) {
+			console[consoleMethod](ns, ...cleanedArgs);
+		} else {
+			console[consoleMethod](...cleanedArgs);
+		}
 	} else {
 		// Server: structured output
 		if (GLOBAL.jsonOutput) {

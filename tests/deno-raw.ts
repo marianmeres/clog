@@ -61,6 +61,9 @@ assertEquals(nested.log("baz"), "baz");
 const clogx = withNamespace(createClog(false, { color: "red" }), "foo");
 clogx("Hey"); // not red (feature, not a bug)
 
+const x = withNamespace(createClog(), "xxx");
+x.debug("yyy");
+
 //
 createClog.global.debug = false;
 assertEquals(nested.debug("no output"), "no output"); // no console output
