@@ -341,6 +341,52 @@ quietLog.debug("never outputs");        // Overrides global
 
 When `debug: false`, the `.debug()` method becomes a no-op (but still returns the first argument as a string for API consistency). All other log levels work normally regardless of this setting.
 
+### Stringify Mode
+
+Force non-primitive arguments to be JSON.stringified, making objects visible as strings:
+
+```typescript
+// Global
+createClog.global.stringify = true;
+
+// Per-instance
+const clog = createClog("api", { stringify: true });
+clog.log("data", { user: "john" }, [1, 2, 3]);
+// Output: [timestamp] [INFO] [api] data {"user":"john"} [1,2,3]
+```
+
+Without `stringify`, objects might appear as `[object Object]` in some contexts. With `stringify: true`, they're always JSON strings.
+
+**Precedence:** Instance `config.stringify` → Global `createClog.global.stringify` → Default (`false`)
+
+### Concat Mode
+
+Concatenate all arguments into a single string output. This also enables stringify behavior:
+
+```typescript
+// Global
+createClog.global.concat = true;
+
+// Per-instance
+const clog = createClog("x", { concat: true });
+clog(1, { hey: "ho" });
+// Output: [timestamp] [INFO] [x] 1 {"hey":"ho"}
+// Console receives exactly ONE string argument
+```
+
+This is useful when you need:
+- Single-line log output for easier parsing/grep
+- Guaranteed flat string output (no object expansion in console)
+- Integration with log systems expecting single-string messages
+
+**Precedence:** Instance `config.concat` → Global `createClog.global.concat` → Default (`false`)
+
+| Config | Objects | Console args |
+|--------|---------|--------------|
+| neither | as-is | multiple |
+| `stringify: true` | JSON.stringify | multiple |
+| `concat: true` | JSON.stringify | **single string** |
+
 ## API Reference
 
 For complete API documentation, see [API.md](API.md).
@@ -372,7 +418,9 @@ nested.log("msg");     // [original-ns] [module] msg
 createClog.global.hook = (data: LogData) => { /* ... */ };
 createClog.global.writer = (data: LogData) => { /* ... */ };
 createClog.global.jsonOutput = true;
-createClog.global.debug = false;  // disable debug globally
+createClog.global.debug = false;     // disable debug globally
+createClog.global.stringify = true;  // JSON.stringify objects
+createClog.global.concat = true;     // single string output
 
 // Reset global config
 createClog.reset();
@@ -384,14 +432,18 @@ createClog.reset();
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
-  debug?: boolean;  // when false, .debug() is a no-op (overrides global)
+  debug?: boolean;      // when false, .debug() is a no-op
+  stringify?: boolean;  // JSON.stringify non-primitive args
+  concat?: boolean;     // concatenate all args into single string
 }
 
 interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
-  debug?: boolean;  // when false, .debug() is a no-op (can be overridden per-instance)
+  debug?: boolean;      // can be overridden per-instance
+  stringify?: boolean;  // can be overridden per-instance
+  concat?: boolean;     // can be overridden per-instance
 }
 
 type LogData = {
@@ -399,6 +451,7 @@ type LogData = {
   namespace: string | false;
   args: any[];
   timestamp: string;
+  config?: ClogConfig;  // instance config (for custom writers)
 };
 ```
 

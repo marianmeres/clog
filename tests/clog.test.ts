@@ -1,5 +1,11 @@
 import { assert, assertEquals, assertMatch } from "@std/assert";
-import { createClog, createNoopClog, LEVEL_MAP, type LogData, withNamespace } from "../src/clog.ts";
+import {
+	createClog,
+	createNoopClog,
+	LEVEL_MAP,
+	type LogData,
+	withNamespace,
+} from "../src/clog.ts";
 
 // Test output collectors
 let capturedData: LogData[] = [];
@@ -798,4 +804,290 @@ Deno.test("createNoopClog - return value works for throw pattern", () => {
 	} catch (e: any) {
 		assertEquals(e.message, "Something failed");
 	}
+});
+
+// stringify tests
+
+Deno.test("stringify - global flag stringifies objects", () => {
+	reset();
+	createClog.global.stringify = true;
+
+	const clog = createClog("test");
+	clog.log("msg", { key: "value" }, [1, 2, 3]);
+
+	assertEquals(consoleOutput.log.length, 1);
+	// Objects should be JSON stringified
+	assert(consoleOutput.log[0].includes('{"key":"value"}'));
+	assert(consoleOutput.log[0].includes("[1,2,3]"));
+
+	restoreConsole();
+});
+
+Deno.test("stringify - primitives pass through unchanged", () => {
+	reset();
+	createClog.global.stringify = true;
+
+	const clog = createClog("test");
+	clog.log("string", 123, true, null, undefined);
+
+	assertEquals(consoleOutput.log.length, 1);
+	assert(consoleOutput.log[0].includes("string"));
+	assert(consoleOutput.log[0].includes("123"));
+	assert(consoleOutput.log[0].includes("true"));
+
+	restoreConsole();
+});
+
+Deno.test("stringify - per-instance config works", () => {
+	reset();
+
+	const clog = createClog("test", { stringify: true });
+	clog.log("msg", { key: "value" });
+
+	assertEquals(consoleOutput.log.length, 1);
+	assert(consoleOutput.log[0].includes('{"key":"value"}'));
+
+	restoreConsole();
+});
+
+Deno.test("stringify - instance true overrides global false", () => {
+	reset();
+	createClog.global.stringify = false;
+
+	const clog = createClog("test", { stringify: true });
+	clog.log("msg", { key: "value" });
+
+	assertEquals(consoleOutput.log.length, 1);
+	assert(consoleOutput.log[0].includes('{"key":"value"}'));
+
+	restoreConsole();
+});
+
+Deno.test("stringify - instance false overrides global true", () => {
+	reset();
+	createClog.global.stringify = true;
+
+	const clog = createClog("test", { stringify: false });
+	clog.log("msg", { key: "value" });
+
+	assertEquals(consoleOutput.log.length, 1);
+	// Object should NOT be stringified (will show as [object Object] in join)
+	assert(!consoleOutput.log[0].includes('{"key":"value"}'));
+
+	restoreConsole();
+});
+
+Deno.test("stringify - works with JSON output mode", () => {
+	reset();
+	createClog.global.jsonOutput = true;
+	createClog.global.stringify = true;
+
+	const clog = createClog("test");
+	clog.log("msg", { nested: { deep: "value" } });
+
+	assertEquals(consoleOutput.log.length, 1);
+
+	// Parse the JSON output
+	const output = JSON.parse(consoleOutput.log[0]);
+	// The arg_0 should be a string (stringified), not an object
+	assertEquals(typeof output.arg_0, "string");
+	assertEquals(output.arg_0, '{"nested":{"deep":"value"}}');
+
+	restoreConsole();
+});
+
+Deno.test("stringify - handles circular references gracefully", () => {
+	reset();
+	createClog.global.stringify = true;
+
+	const clog = createClog("test");
+	// deno-lint-ignore no-explicit-any
+	const circular: any = { a: 1 };
+	circular.self = circular;
+
+	// Should not throw
+	clog.log("msg", circular);
+
+	assertEquals(consoleOutput.log.length, 1);
+	// Should fall back to String() which gives [object Object]
+	assert(consoleOutput.log[0].includes("[object Object]"));
+
+	restoreConsole();
+});
+
+Deno.test("reset() clears global stringify", () => {
+	createClog.global.stringify = true;
+
+	createClog.reset();
+
+	assertEquals(createClog.global.stringify, undefined);
+});
+
+Deno.test("stringify - works with all log levels", () => {
+	reset();
+	createClog.global.stringify = true;
+
+	const clog = createClog("test");
+	const obj = { level: "test" };
+
+	clog.debug("debug", obj);
+	clog.log("log", obj);
+	clog.warn("warn", obj);
+	clog.error("error", obj);
+
+	assertEquals(consoleOutput.debug.length, 1);
+	assertEquals(consoleOutput.log.length, 1);
+	assertEquals(consoleOutput.warn.length, 1);
+	assertEquals(consoleOutput.error.length, 1);
+
+	assert(consoleOutput.debug[0].includes('{"level":"test"}'));
+	assert(consoleOutput.log[0].includes('{"level":"test"}'));
+	assert(consoleOutput.warn[0].includes('{"level":"test"}'));
+	assert(consoleOutput.error[0].includes('{"level":"test"}'));
+
+	restoreConsole();
+});
+
+// concat tests
+
+Deno.test("concat - global flag produces single string output", () => {
+	reset();
+	createClog.global.concat = true;
+
+	const clog = createClog("test");
+	clog.log("msg", { key: "value" }, [1, 2, 3]);
+
+	assertEquals(consoleOutput.log.length, 1);
+	// Should be a single concatenated string with namespace
+	const output = consoleOutput.log[0];
+	assert(output.includes("[test]"));
+	assert(output.includes("msg"));
+	assert(output.includes('{"key":"value"}'));
+	assert(output.includes("[1,2,3]"));
+	// Verify it's formatted as: [timestamp] [LEVEL] [ns] args
+	assertMatch(output, /^\[\d{4}-\d{2}-\d{2}T.*\] \[INFO\] \[test\] msg/);
+
+	restoreConsole();
+});
+
+Deno.test("concat - per-instance config works", () => {
+	reset();
+
+	const clog = createClog("test", { concat: true });
+	clog.log("hello", { foo: "bar" });
+
+	assertEquals(consoleOutput.log.length, 1);
+	const output = consoleOutput.log[0];
+	assert(output.includes("[test]"));
+	assert(output.includes("hello"));
+	assert(output.includes('{"foo":"bar"}'));
+
+	restoreConsole();
+});
+
+Deno.test("concat - instance true overrides global false", () => {
+	reset();
+	createClog.global.concat = false;
+
+	const clog = createClog("test", { concat: true });
+	clog.log("msg", { key: "value" });
+
+	assertEquals(consoleOutput.log.length, 1);
+	// Should still be concatenated
+	assert(consoleOutput.log[0].includes('{"key":"value"}'));
+	assert(consoleOutput.log[0].includes("[test]"));
+	assert(consoleOutput.log[0].includes("msg"));
+
+	restoreConsole();
+});
+
+Deno.test("concat - instance false overrides global true", () => {
+	reset();
+	createClog.global.concat = true;
+
+	const clog = createClog("test", { concat: false });
+	clog.log("msg", { key: "value" });
+
+	assertEquals(consoleOutput.log.length, 1);
+	// Should NOT be concatenated (multiple args joined by mock)
+	// The mock joins with space, but objects won't be stringified
+	assert(!consoleOutput.log[0].includes('{"key":"value"}'));
+
+	restoreConsole();
+});
+
+Deno.test("concat - all args joined with spaces", () => {
+	reset();
+	createClog.global.concat = true;
+
+	const clog = createClog("x");
+	clog.log(1, "two", { three: 3 });
+
+	assertEquals(consoleOutput.log.length, 1);
+	const output = consoleOutput.log[0];
+	// Args should be: 1 two {"three":3}
+	assert(output.includes('1 two {"three":3}'));
+
+	restoreConsole();
+});
+
+Deno.test("concat - handles null and undefined", () => {
+	reset();
+	createClog.global.concat = true;
+
+	const clog = createClog("test");
+	clog.log("values:", null, undefined, "end");
+
+	assertEquals(consoleOutput.log.length, 1);
+	const output = consoleOutput.log[0];
+	assert(output.includes("values: null undefined end"));
+
+	restoreConsole();
+});
+
+Deno.test("concat - works without namespace", () => {
+	reset();
+	createClog.global.concat = true;
+
+	const clog = createClog();
+	clog.log("msg", { data: 1 });
+
+	assertEquals(consoleOutput.log.length, 1);
+	const output = consoleOutput.log[0];
+	// Should have timestamp and level but no [namespace]
+	assertMatch(output, /^\[\d{4}-\d{2}-\d{2}T.*\] \[INFO\] msg \{"data":1\}$/);
+
+	restoreConsole();
+});
+
+Deno.test("reset() clears global concat", () => {
+	createClog.global.concat = true;
+
+	createClog.reset();
+
+	assertEquals(createClog.global.concat, undefined);
+});
+
+Deno.test("concat - works with all log levels", () => {
+	reset();
+	createClog.global.concat = true;
+
+	const clog = createClog("test");
+
+	clog.debug("debug", { level: "DEBUG" });
+	clog.log("log", { level: "INFO" });
+	clog.warn("warn", { level: "WARNING" });
+	clog.error("error", { level: "ERROR" });
+
+	assertEquals(consoleOutput.debug.length, 1);
+	assertEquals(consoleOutput.log.length, 1);
+	assertEquals(consoleOutput.warn.length, 1);
+	assertEquals(consoleOutput.error.length, 1);
+
+	assert(consoleOutput.debug[0].includes("[DEBUG]"));
+	assert(consoleOutput.log[0].includes("[INFO]"));
+	assert(consoleOutput.warn[0].includes("[WARNING]"));
+	assert(consoleOutput.error[0].includes("[ERROR]"));
+
+	restoreConsole();
 });

@@ -94,6 +94,8 @@ createClog.global: GlobalConfig
 | `writer` | `WriterFn \| undefined` | `undefined` | Global writer that overrides all instance writers |
 | `jsonOutput` | `boolean` | `false` | Enable JSON output format for server environments |
 | `debug` | `boolean \| undefined` | `undefined` | Global debug mode (can be overridden per-instance) |
+| `stringify` | `boolean \| undefined` | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance) |
+| `concat` | `boolean \| undefined` | `undefined` | Concatenate all args into single string (can be overridden per-instance) |
 
 ### Examples
 
@@ -110,6 +112,12 @@ createClog.global.writer = (data) => sendToServer(data);
 
 // Disable debug globally (instances can override)
 createClog.global.debug = false;
+
+// Stringify objects in log output
+createClog.global.stringify = true;
+
+// Output single concatenated string
+createClog.global.concat = true;
 ```
 
 ### Writer Precedence
@@ -131,7 +139,7 @@ Resets global configuration to default values.
 createClog.reset(): void
 ```
 
-Clears `hook`, `writer`, `debug`, and sets `jsonOutput` to `false`. Useful for testing to ensure clean state between tests.
+Clears `hook`, `writer`, `debug`, `stringify`, `concat`, and sets `jsonOutput` to `false`. Useful for testing to ensure clean state between tests.
 
 ### Example
 
@@ -488,6 +496,7 @@ type LogData = {
   namespace: string | false;
   args: any[];
   timestamp: string;  // ISO 8601 format
+  config?: ClogConfig;  // Instance config (for custom writers)
 }
 ```
 
@@ -497,6 +506,7 @@ type LogData = {
 | `namespace` | `string \| false` | Logger namespace or `false` |
 | `args` | `any[]` | All arguments passed to the log method |
 | `timestamp` | `string` | ISO 8601 formatted timestamp |
+| `config` | `ClogConfig \| undefined` | Instance-level config (useful for custom writers to check settings) |
 
 ### LogLevel
 
@@ -541,6 +551,8 @@ interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
   debug?: boolean;
+  stringify?: boolean;
+  concat?: boolean;
 }
 ```
 
@@ -549,6 +561,8 @@ interface ClogConfig {
 | `writer` | `WriterFn` | Custom writer for this instance (overridden by global writer) |
 | `color` | `string \| null` | CSS color for namespace styling (browser/Deno only) |
 | `debug` | `boolean` | When `false`, `.debug()` is a no-op (overrides global setting) |
+| `stringify` | `boolean` | When `true`, JSON.stringify non-primitive args (overrides global setting) |
+| `concat` | `boolean` | When `true`, concatenate all args into single string (overrides global setting) |
 
 ### GlobalConfig
 
@@ -560,6 +574,8 @@ interface GlobalConfig {
   writer?: WriterFn;
   jsonOutput?: boolean;
   debug?: boolean;
+  stringify?: boolean;
+  concat?: boolean;
 }
 ```
 
@@ -569,6 +585,8 @@ interface GlobalConfig {
 | `writer` | `WriterFn` | `undefined` | Global writer overriding all instances |
 | `jsonOutput` | `boolean` | `false` | Enable JSON output for server environments |
 | `debug` | `boolean` | `undefined` | Global debug mode (can be overridden per-instance) |
+| `stringify` | `boolean` | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance) |
+| `concat` | `boolean` | `undefined` | Concatenate all args into single string (can be overridden per-instance) |
 
 ### StyledText
 

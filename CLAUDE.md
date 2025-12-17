@@ -63,6 +63,8 @@ Safe hex colors in `SAFE_COLORS` are optimized for both light and dark backgroun
 - Runtime detection: `_detectRuntime()` in clog.ts
 - Writer precedence: global.writer > config.writer > colorWriter > defaultWriter
 - Debug mode: config.debug > global.debug > true (enabled by default)
+- Stringify mode: config.stringify > global.stringify > false (JSON.stringify non-primitives)
+- Concat mode: config.concat > global.concat > false (single string output)
 - Symbol `CLOG_STYLED` identifies StyledText objects for special handling in writers
 
 ## For Detailed Documentation

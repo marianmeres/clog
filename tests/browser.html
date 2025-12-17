@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Test</title>
+		<script type="module">
+			import {
+				createClog,
+				withNamespace,
+			} from "../.npm-dist/dist/mod.js";
+
+			// createClog.global.concat = true;
+
+			//
+			const clog = createClog("browser", { color: "auto" });
+			clog("foo", 1, null, true, false, undefined, { bar: "baz" });
+
+			//
+			const clog2 = createClog("browser (stringify)", {
+				color: "auto",
+				stringify: true,
+			});
+			clog2("foo", 1, null, true, false, undefined, { bar: "baz" });
+
+			//
+			const clog3 = createClog("browser (concat)", {
+				color: "auto",
+				concat: true,
+			});
+			clog3("foo", 1, null, true, false, undefined, { bar: "baz" });
+
+			//
+			const nested = withNamespace(clog3, "haha");
+			nested("foo", 1, null, true, false, undefined, { bar: "baz" });
+		</script>
+	</head>
+	<body>
+		check console
+	</body>
+</html>

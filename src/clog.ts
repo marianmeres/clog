@@ -36,6 +36,7 @@ export type LogLevel = keyof typeof LEVEL_MAP;
  * @property namespace - The logger namespace, or `false` if no namespace
  * @property args - Array of all arguments passed to the log method
  * @property timestamp - ISO 8601 formatted timestamp string
+ * @property config - Instance-level configuration (optional, for per-instance settings)
  */
 export type LogData = {
 	level: (typeof LEVEL_MAP)[LogLevel];
@@ -43,6 +44,7 @@ export type LogData = {
 	// deno-lint-ignore no-explicit-any
 	args: any[];
 	timestamp: string;
+	config?: ClogConfig;
 };
 
 /**
@@ -173,6 +175,20 @@ export interface ClogConfig {
 	 * @default true (debug output enabled)
 	 */
 	debug?: boolean;
+
+	/**
+	 * When `true`, JSON.stringify non-primitive arguments.
+	 * Makes all logged values visible as plain strings.
+	 * @default false
+	 */
+	stringify?: boolean;
+
+	/**
+	 * When `true`, concatenate all arguments into a single string.
+	 * Automatically enables stringify behavior.
+	 * @default false
+	 */
+	concat?: boolean;
 }
 
 /**
@@ -209,6 +225,21 @@ export interface GlobalConfig {
 	 * @default undefined (debug enabled)
 	 */
 	debug?: boolean;
+
+	/**
+	 * Global stringify mode. When `true`, JSON.stringify non-primitive arguments.
+	 * Can be overridden per-instance via `ClogConfig.stringify`.
+	 * @default undefined (stringify disabled)
+	 */
+	stringify?: boolean;
+
+	/**
+	 * Global concat mode. When `true`, concatenate all arguments into a single string.
+	 * Automatically enables stringify behavior.
+	 * Can be overridden per-instance via `ClogConfig.concat`.
+	 * @default undefined (concat disabled)
+	 */
+	concat?: boolean;
 }
 
 /** Detects current runtime environment */
@@ -271,10 +302,31 @@ function _cleanStyledArgs(args: any[]): any[] {
 	return args.map((arg) => (arg?.[CLOG_STYLED] ? arg.text : arg));
 }
 
+/** Stringify non-primitive args when stringify flag is enabled */
+// deno-lint-ignore no-explicit-any
+function _stringifyArgs(args: any[], config?: ClogConfig): any[] {
+	if (!(config?.stringify ?? GLOBAL.stringify)) return args;
+	return args.map((arg) => {
+		if (arg === null || arg === undefined) return arg;
+		if (typeof arg !== "object") return arg;
+		// Handle StyledText - extract plain text
+		if (arg?.[CLOG_STYLED]) return arg.text;
+		// Stringify objects/arrays
+		try {
+			return JSON.stringify(arg);
+		} catch {
+			return String(arg);
+		}
+	});
+}
+
 /** Default writer implementation - handles browser vs server output */
 const defaultWriter: WriterFn = (data: LogData) => {
-	const { level, namespace, args, timestamp } = data;
+	const { level, namespace, args, timestamp, config } = data;
 	const runtime = _detectRuntime();
+
+	// Apply stringify transformation first (if enabled)
+	const processedArgs = _stringifyArgs(args, config);
 
 	// Map level back to console method (DEBUG->debug, INFO->log, etc)
 	const consoleMethod = (
@@ -287,11 +339,41 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	)[level];
 
 	const ns = namespace ? `[${namespace}]` : "";
-	const hasStyled = _hasStyledArgs(args);
+
+	// Handle concat mode - output single string
+	const shouldConcat = config?.concat ?? GLOBAL.concat;
+	if (shouldConcat) {
+		const stringified = args
+			// deno-lint-ignore no-explicit-any
+			.map((arg: any) => {
+				if (arg === null) return "null";
+				if (arg === undefined) return "undefined";
+				if (typeof arg !== "object") return String(arg);
+				if (arg?.[CLOG_STYLED]) return arg.text;
+				try {
+					return JSON.stringify(arg);
+				} catch {
+					return String(arg);
+				}
+			})
+			.join(" ");
+
+		const output =
+			runtime === "browser"
+				? ns
+					? `${ns} ${stringified}`
+					: stringified
+				: `[${timestamp}] [${level}]${ns ? ` ${ns}` : ""} ${stringified}`;
+
+		console[consoleMethod](output);
+		return;
+	}
+
+	const hasStyled = _hasStyledArgs(processedArgs);
 
 	// Browser/Deno with styled args: use %c formatting
 	if ((runtime === "browser" || runtime === "deno") && hasStyled) {
-		const [content, contentValues] = _processStyledArgs(args);
+		const [content, contentValues] = _processStyledArgs(processedArgs);
 		if (runtime === "browser") {
 			console[consoleMethod](
 				ns ? `${ns} ${content}` : content,
@@ -306,7 +388,7 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	}
 
 	// Clean styled args (extract plain text) for non-%c environments
-	const cleanedArgs = _cleanStyledArgs(args);
+	const cleanedArgs = _cleanStyledArgs(processedArgs);
 
 	if (runtime === "browser") {
 		// Browser: simple output, let browser console do its magic
@@ -347,13 +429,21 @@ const defaultWriter: WriterFn = (data: LogData) => {
 const colorWriter =
 	(color: string): WriterFn =>
 	(data: LogData) => {
-		const { level, namespace, args, timestamp } = data;
+		const { level, namespace, args, timestamp, config } = data;
 		const runtime = _detectRuntime();
 
 		// Only apply %c color in browser and deno
 		if ((runtime !== "browser" && runtime !== "deno") || !namespace) {
 			return defaultWriter(data);
 		}
+
+		// Concat mode outputs plain text, delegate to defaultWriter
+		if (config?.concat ?? GLOBAL.concat) {
+			return defaultWriter(data);
+		}
+
+		// Apply stringify transformation first (if enabled)
+		const processedArgs = _stringifyArgs(args, config);
 
 		const consoleMethod = (
 			{
@@ -371,8 +461,8 @@ const colorWriter =
 		}
 
 		// Check for styled args and process them
-		if (_hasStyledArgs(args)) {
-			const [content, contentValues] = _processStyledArgs(args);
+		if (_hasStyledArgs(processedArgs)) {
+			const [content, contentValues] = _processStyledArgs(processedArgs);
 			if (runtime === "browser") {
 				console[consoleMethod](
 					`%c${ns}%c ${content}`,
@@ -393,11 +483,11 @@ const colorWriter =
 		} else {
 			// No styled args, use original behavior
 			if (runtime === "browser") {
-				console[consoleMethod](`%c${ns}`, `color:${color}`, ...args);
+				console[consoleMethod](`%c${ns}`, `color:${color}`, ...processedArgs);
 			} else {
 				// Deno: include timestamp and level like server mode, %c must be in first arg
 				const prefix = `[${timestamp}] [${level}] %c${ns}`;
-				console[consoleMethod](prefix, `color:${color}`, ...args);
+				console[consoleMethod](prefix, `color:${color}`, ...processedArgs);
 			}
 		}
 	};
@@ -449,6 +539,7 @@ export function createClog(
 			namespace: ns,
 			args,
 			timestamp: new Date().toISOString(),
+			config,
 		};
 
 		// Call hook first (if exists) - for collecting/batching
@@ -524,7 +615,7 @@ createClog.global = GLOBAL;
 
 /**
  * Resets global configuration to default values.
- * Clears `hook`, `writer`, `debug`, and sets `jsonOutput` to `false`.
+ * Clears `hook`, `writer`, `debug`, `stringify`, `concat`, and sets `jsonOutput` to `false`.
  * Useful for testing to ensure clean state between tests.
  *
  * @example
@@ -538,6 +629,8 @@ createClog.reset = (): void => {
 	createClog.global.writer = undefined;
 	createClog.global.jsonOutput = false;
 	createClog.global.debug = undefined;
+	createClog.global.stringify = undefined;
+	createClog.global.concat = undefined;
 };
 
 /**

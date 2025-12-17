@@ -120,6 +120,7 @@ type LogData = {
   namespace: string | false;
   args: any[];
   timestamp: string; // ISO 8601
+  config?: ClogConfig; // Instance config (for custom writers)
 };
 
 type WriterFn = (data: LogData) => void;
@@ -140,14 +141,18 @@ interface Clog extends Logger {
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
-  debug?: boolean;  // when false, .debug() is a no-op (overrides global)
+  debug?: boolean;     // when false, .debug() is a no-op (overrides global)
+  stringify?: boolean; // when true, JSON.stringify non-primitive args
+  concat?: boolean;    // when true, concatenate all args into single string
 }
 
 interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
-  debug?: boolean;  // when false, .debug() is a no-op (can be overridden per-instance)
+  debug?: boolean;     // when false, .debug() is a no-op (can be overridden per-instance)
+  stringify?: boolean; // when true, JSON.stringify non-primitive args
+  concat?: boolean;    // when true, concatenate all args into single string
 }
 
 // From colors.ts
@@ -208,7 +213,7 @@ None (zero dependencies)
 
 ## Test Coverage
 
-47 tests covering:
+65 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -226,6 +231,8 @@ None (zero dependencies)
 - Batching pattern
 - Debug mode (instance and global)
 - Debug precedence (instance > global > default)
+- Stringify mode (9 tests: global/instance flags, precedence, JSON output mode, circular refs)
+- Concat mode (9 tests: global/instance flags, precedence, single string output, all levels)
 - withNamespace wrapper (9 tests: basic wrapping, callable interface, all log levels, return values, throw pattern, deep nesting, console wrapping, debug inheritance)
 - createNoopClog (7 tests: return values, callable interface, no console output, no hook triggers, namespace property, readonly namespace, throw pattern)
 
@@ -306,6 +313,35 @@ createClog.global.debug = process.env.NODE_ENV !== "production";
 // Per-instance: override global setting
 const verboseLog = createClog("verbose", { debug: true }); // always debug
 const quietLog = createClog("quiet", { debug: false });    // never debug
+```
+
+### Stringify Mode
+
+```typescript
+// JSON.stringify non-primitive arguments
+createClog.global.stringify = true;
+
+const clog = createClog("api");
+clog.log("data", { user: "john" }, [1, 2, 3]);
+// Output: [timestamp] [INFO] [api] data {"user":"john"} [1,2,3]
+
+// Per-instance
+const logWithStringify = createClog("app", { stringify: true });
+```
+
+### Concat Mode
+
+```typescript
+// Concatenate all args into single string (also enables stringify)
+createClog.global.concat = true;
+
+const clog = createClog("x");
+clog(1, { hey: "ho" });
+// Output: [timestamp] [INFO] [x] 1 {"hey":"ho"}
+// Console receives exactly ONE string argument
+
+// Per-instance
+const flatLog = createClog("app", { concat: true });
 ```
 
 ### Testing

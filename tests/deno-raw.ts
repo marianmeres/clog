@@ -67,3 +67,8 @@ x.debug("yyy");
 //
 createClog.global.debug = false;
 assertEquals(nested.debug("no output"), "no output"); // no console output
+createClog.global.debug = true;
+
+//
+const str = createClog("strigifier", { stringify: true });
+str.debug("a", 1, null, false, { hey: "ho" });
