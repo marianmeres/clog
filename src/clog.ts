@@ -189,6 +189,14 @@ export interface ClogConfig {
 	 * @default false
 	 */
 	concat?: boolean;
+
+	/**
+	 * When enabled, append call stack trace as last argument.
+	 * `true` = full stack, `number` = limit to N frames.
+	 * Useful for debugging to see where log calls originate.
+	 * @default undefined (disabled)
+	 */
+	stacktrace?: boolean | number;
 }
 
 /**
@@ -240,6 +248,14 @@ export interface GlobalConfig {
 	 * @default undefined (concat disabled)
 	 */
 	concat?: boolean;
+
+	/**
+	 * Global stacktrace mode. When enabled, append call stack to output.
+	 * `true` = full stack, `number` = limit to N frames.
+	 * Can be overridden per-instance via `ClogConfig.stacktrace`.
+	 * @default undefined (disabled)
+	 */
+	stacktrace?: boolean | number;
 }
 
 /** Detects current runtime environment */
@@ -320,6 +336,23 @@ function _stringifyArgs(args: any[], config?: ClogConfig): any[] {
 	});
 }
 
+/** Captures call stack, skipping internal clog frames */
+function _captureStack(limit?: number): string[] {
+	const stack = new Error().stack || "";
+	const lines = stack.split("\n");
+	// Skip internal frames: "Error", "_captureStack", "defaultWriter/colorWriter", "_apply", "logger method"
+	const relevant = lines.slice(5);
+	if (typeof limit === "number" && limit > 0) {
+		return relevant.slice(0, limit);
+	}
+	return relevant;
+}
+
+/** Formats stack to human readable format */
+function _formatStack(lines: string[]) {
+	return "\n---\nStack:\n" + lines.map((v) => "  " + v.trim()).join("\n");
+}
+
 /** Default writer implementation - handles browser vs server output */
 const defaultWriter: WriterFn = (data: LogData) => {
 	const { level, namespace, args, timestamp, config } = data;
@@ -327,6 +360,18 @@ const defaultWriter: WriterFn = (data: LogData) => {
 
 	// Apply stringify transformation first (if enabled)
 	const processedArgs = _stringifyArgs(args, config);
+
+	// Capture stack trace if enabled (must be done early to get correct call site)
+	const stacktraceConfig = config?.stacktrace ?? GLOBAL.stacktrace;
+	const stackStr = stacktraceConfig
+		? _formatStack(
+				_captureStack(
+					typeof stacktraceConfig === "number"
+						? stacktraceConfig
+						: undefined
+				)
+		  )
+		: null;
 
 	// Map level back to console method (DEBUG->debug, INFO->log, etc)
 	const consoleMethod = (
@@ -363,9 +408,11 @@ const defaultWriter: WriterFn = (data: LogData) => {
 				? ns
 					? `${ns} ${stringified}`
 					: stringified
-				: `[${timestamp}] [${level}]${ns ? ` ${ns}` : ""} ${stringified}`;
+				: `[${timestamp}] [${level}]${
+						ns ? ` ${ns}` : ""
+				  } ${stringified}`;
 
-		console[consoleMethod](output);
+		console[consoleMethod](output, ...(stackStr ? [stackStr] : []));
 		return;
 	}
 
@@ -377,12 +424,17 @@ const defaultWriter: WriterFn = (data: LogData) => {
 		if (runtime === "browser") {
 			console[consoleMethod](
 				ns ? `${ns} ${content}` : content,
-				...contentValues
+				...contentValues,
+				...(stackStr ? [stackStr] : [])
 			);
 		} else {
 			// Deno: include timestamp and level
 			const prefix = `[${timestamp}] [${level}]${ns ? ` ${ns}` : ""}`;
-			console[consoleMethod](`${prefix} ${content}`, ...contentValues);
+			console[consoleMethod](
+				`${prefix} ${content}`,
+				...contentValues,
+				...(stackStr ? [stackStr] : [])
+			);
 		}
 		return;
 	}
@@ -393,9 +445,16 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	if (runtime === "browser") {
 		// Browser: simple output, let browser console do its magic
 		if (ns) {
-			console[consoleMethod](ns, ...cleanedArgs);
+			console[consoleMethod](
+				ns,
+				...cleanedArgs,
+				...(stackStr ? [stackStr] : [])
+			);
 		} else {
-			console[consoleMethod](...cleanedArgs);
+			console[consoleMethod](
+				...cleanedArgs,
+				...(stackStr ? [stackStr] : [])
+			);
 		}
 	} else {
 		// Server: structured output
@@ -414,13 +473,22 @@ const defaultWriter: WriterFn = (data: LogData) => {
 				output[`arg_${i}`] = arg?.stack ?? arg;
 			});
 
+			// Include stack trace if enabled
+			if (stackStr) {
+				output.stack = stackStr;
+			}
+
 			console[consoleMethod](JSON.stringify(output));
 		} else {
 			// Text output: [timestamp] [LEVEL] [namespace] message ...args
 			const prefix = `[${timestamp}] [${level}]${
 				ns ? ` ${ns}` : ""
 			}`.trim();
-			console[consoleMethod](prefix, ...cleanedArgs);
+			console[consoleMethod](
+				prefix,
+				...cleanedArgs,
+				...(stackStr ? [stackStr] : [])
+			);
 		}
 	}
 };
@@ -445,6 +513,18 @@ const colorWriter =
 		// Apply stringify transformation first (if enabled)
 		const processedArgs = _stringifyArgs(args, config);
 
+		// Capture stack trace if enabled (must be done early to get correct call site)
+		const stacktraceConfig = config?.stacktrace ?? GLOBAL.stacktrace;
+		const stackStr = stacktraceConfig
+			? _formatStack(
+					_captureStack(
+						typeof stacktraceConfig === "number"
+							? stacktraceConfig
+							: undefined
+					)
+			  )
+			: null;
+
 		const consoleMethod = (
 			{
 				DEBUG: "debug",
@@ -468,7 +548,8 @@ const colorWriter =
 					`%c${ns}%c ${content}`,
 					`color:${color}`,
 					"",
-					...contentValues
+					...contentValues,
+					...(stackStr ? [stackStr] : [])
 				);
 			} else {
 				// Deno: include timestamp and level
@@ -477,17 +558,28 @@ const colorWriter =
 					`${prefix} ${content}`,
 					`color:${color}`,
 					"",
-					...contentValues
+					...contentValues,
+					...(stackStr ? [stackStr] : [])
 				);
 			}
 		} else {
 			// No styled args, use original behavior
 			if (runtime === "browser") {
-				console[consoleMethod](`%c${ns}`, `color:${color}`, ...processedArgs);
+				console[consoleMethod](
+					`%c${ns}`,
+					`color:${color}`,
+					...processedArgs,
+					...(stackStr ? [stackStr] : [])
+				);
 			} else {
 				// Deno: include timestamp and level like server mode, %c must be in first arg
 				const prefix = `[${timestamp}] [${level}] %c${ns}`;
-				console[consoleMethod](prefix, `color:${color}`, ...processedArgs);
+				console[consoleMethod](
+					prefix,
+					`color:${color}`,
+					...processedArgs,
+					...(stackStr ? [stackStr] : [])
+				);
 			}
 		}
 	};
@@ -631,6 +723,7 @@ createClog.reset = (): void => {
 	createClog.global.debug = undefined;
 	createClog.global.stringify = undefined;
 	createClog.global.concat = undefined;
+	createClog.global.stacktrace = undefined;
 };
 
 /**

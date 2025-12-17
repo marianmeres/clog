@@ -65,6 +65,7 @@ Safe hex colors in `SAFE_COLORS` are optimized for both light and dark backgroun
 - Debug mode: config.debug > global.debug > true (enabled by default)
 - Stringify mode: config.stringify > global.stringify > false (JSON.stringify non-primitives)
 - Concat mode: config.concat > global.concat > false (single string output)
+- Stacktrace mode: config.stacktrace > global.stacktrace > undefined (disabled). **Dev only - not for production!**
 - Symbol `CLOG_STYLED` identifies StyledText objects for special handling in writers
 
 ## For Detailed Documentation

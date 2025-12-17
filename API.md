@@ -96,6 +96,7 @@ createClog.global: GlobalConfig
 | `debug` | `boolean \| undefined` | `undefined` | Global debug mode (can be overridden per-instance) |
 | `stringify` | `boolean \| undefined` | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance) |
 | `concat` | `boolean \| undefined` | `undefined` | Concatenate all args into single string (can be overridden per-instance) |
+| `stacktrace` | `boolean \| number \| undefined` | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only - not for production!** |
 
 ### Examples
 
@@ -118,6 +119,11 @@ createClog.global.stringify = true;
 
 // Output single concatenated string
 createClog.global.concat = true;
+
+// Append call stack trace (dev only!)
+createClog.global.stacktrace = true;
+// Or limit to N frames
+createClog.global.stacktrace = 3;
 ```
 
 ### Writer Precedence
@@ -139,7 +145,7 @@ Resets global configuration to default values.
 createClog.reset(): void
 ```
 
-Clears `hook`, `writer`, `debug`, `stringify`, `concat`, and sets `jsonOutput` to `false`. Useful for testing to ensure clean state between tests.
+Clears `hook`, `writer`, `debug`, `stringify`, `concat`, `stacktrace`, and sets `jsonOutput` to `false`. Useful for testing to ensure clean state between tests.
 
 ### Example
 
@@ -553,6 +559,7 @@ interface ClogConfig {
   debug?: boolean;
   stringify?: boolean;
   concat?: boolean;
+  stacktrace?: boolean | number;
 }
 ```
 
@@ -563,6 +570,7 @@ interface ClogConfig {
 | `debug` | `boolean` | When `false`, `.debug()` is a no-op (overrides global setting) |
 | `stringify` | `boolean` | When `true`, JSON.stringify non-primitive args (overrides global setting) |
 | `concat` | `boolean` | When `true`, concatenate all args into single string (overrides global setting) |
+| `stacktrace` | `boolean \| number` | When enabled, append call stack to output (overrides global). **Dev only!** |
 
 ### GlobalConfig
 
@@ -576,6 +584,7 @@ interface GlobalConfig {
   debug?: boolean;
   stringify?: boolean;
   concat?: boolean;
+  stacktrace?: boolean | number;
 }
 ```
 
@@ -587,6 +596,7 @@ interface GlobalConfig {
 | `debug` | `boolean` | `undefined` | Global debug mode (can be overridden per-instance) |
 | `stringify` | `boolean` | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance) |
 | `concat` | `boolean` | `undefined` | Concatenate all args into single string (can be overridden per-instance) |
+| `stacktrace` | `boolean \| number` | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only!** |
 
 ### StyledText
 

@@ -141,18 +141,20 @@ interface Clog extends Logger {
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
-  debug?: boolean;     // when false, .debug() is a no-op (overrides global)
-  stringify?: boolean; // when true, JSON.stringify non-primitive args
-  concat?: boolean;    // when true, concatenate all args into single string
+  debug?: boolean;              // when false, .debug() is a no-op (overrides global)
+  stringify?: boolean;          // when true, JSON.stringify non-primitive args
+  concat?: boolean;             // when true, concatenate all args into single string
+  stacktrace?: boolean | number; // when enabled, append call stack (dev only!)
 }
 
 interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
-  debug?: boolean;     // when false, .debug() is a no-op (can be overridden per-instance)
-  stringify?: boolean; // when true, JSON.stringify non-primitive args
-  concat?: boolean;    // when true, concatenate all args into single string
+  debug?: boolean;              // when false, .debug() is a no-op (can be overridden per-instance)
+  stringify?: boolean;          // when true, JSON.stringify non-primitive args
+  concat?: boolean;             // when true, concatenate all args into single string
+  stacktrace?: boolean | number; // when enabled, append call stack (dev only!)
 }
 
 // From colors.ts
@@ -342,6 +344,24 @@ clog(1, { hey: "ho" });
 
 // Per-instance
 const flatLog = createClog("app", { concat: true });
+```
+
+### Stacktrace Mode (Dev Only!)
+
+```typescript
+// WARNING: Not for production - has performance overhead!
+// Append call stack trace to output
+createClog.global.stacktrace = true;
+
+const clog = createClog("debug");
+clog.log("Where am I?");
+// Output includes stack trace showing call site
+
+// Limit to N frames
+createClog.global.stacktrace = 3;
+
+// Per-instance
+const debugLog = createClog("debug", { stacktrace: true });
 ```
 
 ### Testing

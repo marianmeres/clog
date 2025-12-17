@@ -387,6 +387,33 @@ This is useful when you need:
 | `stringify: true` | JSON.stringify | multiple |
 | `concat: true` | JSON.stringify | **single string** |
 
+### Stacktrace Mode
+
+> **Warning:** This feature is intended for **local development debugging only**. Do NOT use in production as capturing stack traces has significant performance overhead.
+
+Append call stack trace to log output, showing where each log call originated:
+
+```typescript
+// Global
+createClog.global.stacktrace = true;
+
+// Per-instance
+const clog = createClog("debug", { stacktrace: true });
+clog.log("Where am I called from?");
+// Output includes stack trace as last argument showing call site
+```
+
+You can also limit the number of stack frames:
+
+```typescript
+// Show only top 3 frames
+createClog.global.stacktrace = 3;
+```
+
+With JSON output enabled, the stack trace is included as a `"stack"` field in the JSON object.
+
+**Precedence:** Instance `config.stacktrace` → Global `createClog.global.stacktrace` → Default (`undefined`/disabled)
+
 ## API Reference
 
 For complete API documentation, see [API.md](API.md).
@@ -421,6 +448,7 @@ createClog.global.jsonOutput = true;
 createClog.global.debug = false;     // disable debug globally
 createClog.global.stringify = true;  // JSON.stringify objects
 createClog.global.concat = true;     // single string output
+createClog.global.stacktrace = true; // append call stack (dev only!)
 
 // Reset global config
 createClog.reset();
@@ -432,18 +460,20 @@ createClog.reset();
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
-  debug?: boolean;      // when false, .debug() is a no-op
-  stringify?: boolean;  // JSON.stringify non-primitive args
-  concat?: boolean;     // concatenate all args into single string
+  debug?: boolean;              // when false, .debug() is a no-op
+  stringify?: boolean;          // JSON.stringify non-primitive args
+  concat?: boolean;             // concatenate all args into single string
+  stacktrace?: boolean | number; // append call stack (dev only!)
 }
 
 interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
-  debug?: boolean;      // can be overridden per-instance
-  stringify?: boolean;  // can be overridden per-instance
-  concat?: boolean;     // can be overridden per-instance
+  debug?: boolean;              // can be overridden per-instance
+  stringify?: boolean;          // can be overridden per-instance
+  concat?: boolean;             // can be overridden per-instance
+  stacktrace?: boolean | number; // can be overridden per-instance (dev only!)
 }
 
 type LogData = {

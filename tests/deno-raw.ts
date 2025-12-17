@@ -8,8 +8,9 @@ import {
 	SAFE_COLORS,
 } from "../src/colors.ts";
 import { createClog, withNamespace } from "../src/clog.ts";
-import { assert } from "@std/assert/assert";
 import { assertEquals } from "@std/assert/equals";
+
+createClog.global.stacktrace = true;
 
 const clog = createClog("deno-raw", { color: "auto" });
 // const clog = createClog("deno-raw", { color: "auto" });
