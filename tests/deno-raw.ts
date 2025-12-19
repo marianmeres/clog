@@ -10,7 +10,7 @@ import {
 import { createClog, withNamespace } from "../src/clog.ts";
 import { assertEquals } from "@std/assert/equals";
 
-createClog.global.stacktrace = true;
+// createClog.global.stacktrace = true;
 
 const clog = createClog("deno-raw", { color: "auto" });
 // const clog = createClog("deno-raw", { color: "auto" });
