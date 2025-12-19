@@ -1,6 +1,6 @@
 {
   "name": "@marianmeres/clog",
-  "version": "3.13.0",
+  "version": "3.13.1",
   "exports": {
     ".": "./src/mod.ts",
     "./forward": "./src/forward.ts"
