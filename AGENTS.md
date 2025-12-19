@@ -139,6 +139,7 @@ type LogData = {
   args: any[];
   timestamp: string; // ISO 8601
   config?: ClogConfig; // Instance config (for custom writers)
+  meta?: Record<string, unknown>; // Metadata from getMeta()
 };
 
 type WriterFn = (data: LogData) => void;
@@ -163,6 +164,7 @@ interface ClogConfig {
   stringify?: boolean;          // when true, JSON.stringify non-primitive args
   concat?: boolean;             // when true, concatenate all args into single string
   stacktrace?: boolean | number; // when enabled, append call stack (dev only!)
+  getMeta?: () => Record<string, unknown>; // metadata injection (overrides global)
 }
 
 interface GlobalConfig {
@@ -173,6 +175,7 @@ interface GlobalConfig {
   stringify?: boolean;          // when true, JSON.stringify non-primitive args
   concat?: boolean;             // when true, concatenate all args into single string
   stacktrace?: boolean | number; // when enabled, append call stack (dev only!)
+  getMeta?: () => Record<string, unknown>; // metadata injection (can be overridden per-instance)
 }
 
 // From colors.ts
@@ -253,7 +256,7 @@ Error stacks preserved as `arg_N` with stack string value.
 
 ## Test Coverage
 
-65 tests covering:
+94 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -273,6 +276,8 @@ Error stacks preserved as `arg_N` with stack string value.
 - Debug precedence (instance > global > default)
 - Stringify mode (9 tests: global/instance flags, precedence, JSON output mode, circular refs)
 - Concat mode (9 tests: global/instance flags, precedence, single string output, all levels)
+- Stacktrace mode (9 tests: global/instance flags, precedence, frame limits, JSON output, concat mode)
+- getMeta mode (9 tests: global/instance config, override precedence, hook/writer access, JSON output, all log levels)
 - withNamespace wrapper (9 tests: basic wrapping, callable interface, all log levels, return values, throw pattern, deep nesting, console wrapping, debug inheritance)
 - createNoopClog (7 tests: return values, callable interface, no console output, no hook triggers, namespace property, readonly namespace, throw pattern)
 
@@ -424,6 +429,38 @@ createClog.global.stacktrace = 3;
 const debugLog = createClog("debug", { stacktrace: true });
 ```
 
+### Metadata Injection (getMeta)
+
+```typescript
+// Global: inject metadata into all logs
+createClog.global.getMeta = () => ({
+  userId: getCurrentUserId(),
+  requestId: getRequestId(),
+  env: process.env.NODE_ENV
+});
+
+// Per-instance: override global getMeta
+const apiLog = createClog("api", {
+  getMeta: () => ({ traceId: getTraceId() })
+});
+
+// Access metadata in hook for log collection
+createClog.global.hook = (data) => {
+  sendToAnalytics({
+    ...data,
+    meta: data.meta  // { userId: "...", requestId: "..." }
+  });
+};
+
+// Access metadata in custom writer
+const clog = createClog("app", {
+  getMeta: () => ({ requestId: "req-123" }),
+  writer: (data) => {
+    myLogSystem.write({ ...data, meta: data.meta });
+  }
+});
+```
+
 ### Testing
 
 ```typescript
@@ -515,7 +552,17 @@ Removed:
 | Color utilities | [src/colors.ts](src/colors.ts) |
 | Log forwarder | [src/forward.ts](src/forward.ts) |
 | Entry point | [src/mod.ts](src/mod.ts) |
-| Logger tests | [tests/clog.test.ts](tests/clog.test.ts) |
+| Test helpers | [tests/_helpers.ts](tests/_helpers.ts) |
+| Basic tests | [tests/basic.test.ts](tests/basic.test.ts) |
+| Global config tests | [tests/global-config.test.ts](tests/global-config.test.ts) |
+| JSON output tests | [tests/json-output.test.ts](tests/json-output.test.ts) |
+| Debug mode tests | [tests/debug-mode.test.ts](tests/debug-mode.test.ts) |
+| Stringify tests | [tests/stringify.test.ts](tests/stringify.test.ts) |
+| Concat tests | [tests/concat.test.ts](tests/concat.test.ts) |
+| Stacktrace tests | [tests/stacktrace.test.ts](tests/stacktrace.test.ts) |
+| getMeta tests | [tests/get-meta.test.ts](tests/get-meta.test.ts) |
+| withNamespace tests | [tests/with-namespace.test.ts](tests/with-namespace.test.ts) |
+| createNoopClog tests | [tests/noop-clog.test.ts](tests/noop-clog.test.ts) |
 | Forwarder tests | [tests/forward.test.ts](tests/forward.test.ts) |
 | Color examples | [tests/deno-raw.ts](tests/deno-raw.ts) |
 | Build script | [scripts/build-npm.ts](scripts/build-npm.ts) |

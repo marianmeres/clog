@@ -414,6 +414,71 @@ With JSON output enabled, the stack trace is included as a `"stack"` field in th
 
 **Precedence:** Instance `config.stacktrace` → Global `createClog.global.stacktrace` → Default (`undefined`/disabled)
 
+### Metadata Injection (getMeta)
+
+Inject contextual metadata (like user ID, request ID, session info) into log entries. The metadata is available in `LogData.meta` for custom writers and hooks, but is NOT passed to console output:
+
+```typescript
+// Instance-level getMeta
+const clog = createClog("api", {
+  getMeta: () => ({
+    userId: getCurrentUserId(),
+    requestId: getRequestId()
+  })
+});
+
+clog.log("Request received");
+// Console output: [timestamp] [INFO] [api] Request received
+// But LogData.meta contains: { userId: "...", requestId: "..." }
+
+// Global getMeta (affects all instances)
+createClog.global.getMeta = () => ({
+  sessionId: getSessionId(),
+  env: process.env.NODE_ENV
+});
+```
+
+Access metadata in custom writers or hooks:
+
+```typescript
+// In a custom writer
+const clog = createClog("app", {
+  getMeta: () => ({ traceId: "abc-123" }),
+  writer: (data) => {
+    console.log("Meta:", data.meta);  // { traceId: "abc-123" }
+    console.log("Message:", data.args[0]);
+  }
+});
+
+// In a global hook for log collection
+createClog.global.hook = (data) => {
+  sendToAnalytics({
+    ...data,
+    meta: data.meta  // { userId: "...", requestId: "..." }
+  });
+};
+```
+
+With JSON output enabled, metadata is automatically included:
+
+```typescript
+createClog.global.jsonOutput = true;
+createClog.global.getMeta = () => ({ userId: "user-123" });
+
+const clog = createClog("api");
+clog.log("Request");
+
+// Output: {"timestamp":"...","level":"INFO","namespace":"api","message":"Request","meta":{"userId":"user-123"}}
+```
+
+**Key points:**
+- `getMeta` is called synchronously on every log call
+- Returns `Record<string, unknown>` for flexibility
+- Instance `getMeta` overrides global `getMeta`
+- If `getMeta` returns `undefined`, no `meta` field is added to `LogData`
+
+**Precedence:** Instance `config.getMeta` → Global `createClog.global.getMeta` → Default (`undefined`)
+
 ## API Reference
 
 For complete API documentation, see [API.md](API.md).
@@ -449,6 +514,7 @@ createClog.global.debug = false;     // disable debug globally
 createClog.global.stringify = true;  // JSON.stringify objects
 createClog.global.concat = true;     // single string output
 createClog.global.stacktrace = true; // append call stack (dev only!)
+createClog.global.getMeta = () => ({ userId: "..." }); // metadata injection
 
 // Reset global config
 createClog.reset();
@@ -464,6 +530,7 @@ interface ClogConfig {
   stringify?: boolean;          // JSON.stringify non-primitive args
   concat?: boolean;             // concatenate all args into single string
   stacktrace?: boolean | number; // append call stack (dev only!)
+  getMeta?: () => Record<string, unknown>; // metadata injection
 }
 
 interface GlobalConfig {
@@ -474,6 +541,7 @@ interface GlobalConfig {
   stringify?: boolean;          // can be overridden per-instance
   concat?: boolean;             // can be overridden per-instance
   stacktrace?: boolean | number; // can be overridden per-instance (dev only!)
+  getMeta?: () => Record<string, unknown>; // can be overridden per-instance
 }
 
 type LogData = {
@@ -482,6 +550,7 @@ type LogData = {
   args: any[];
   timestamp: string;
   config?: ClogConfig;  // instance config (for custom writers)
+  meta?: Record<string, unknown>; // metadata from getMeta()
 };
 ```
 

@@ -45,6 +45,8 @@ export type LogData = {
 	args: any[];
 	timestamp: string;
 	config?: ClogConfig;
+	/** Metadata from getMeta() function, available for custom writers/hooks */
+	meta?: Record<string, unknown>;
 };
 
 /**
@@ -197,6 +199,19 @@ export interface ClogConfig {
 	 * @default undefined (disabled)
 	 */
 	stacktrace?: boolean | number;
+
+	/**
+	 * Function called on each log to return metadata.
+	 * Metadata is available in LogData.meta for custom writers/hooks,
+	 * but not passed to console output.
+	 * @example
+	 * ```typescript
+	 * const clog = createClog("app", {
+	 *   getMeta: () => ({ userId: getCurrentUserId(), requestId: getRequestId() })
+	 * });
+	 * ```
+	 */
+	getMeta?: () => Record<string, unknown>;
 }
 
 /**
@@ -256,6 +271,19 @@ export interface GlobalConfig {
 	 * @default undefined (disabled)
 	 */
 	stacktrace?: boolean | number;
+
+	/**
+	 * Global getMeta function. Can be overridden per-instance.
+	 * Called on each log to provide contextual metadata.
+	 * @example
+	 * ```typescript
+	 * createClog.global.getMeta = () => ({
+	 *   userId: getCurrentUserId(),
+	 *   requestId: getRequestId()
+	 * });
+	 * ```
+	 */
+	getMeta?: () => Record<string, unknown>;
 }
 
 /** Detects current runtime environment */
@@ -465,6 +493,7 @@ const defaultWriter: WriterFn = (data: LogData) => {
 				level,
 				namespace,
 				message: cleanedArgs[0],
+				...(data.meta && { meta: data.meta }),
 			};
 
 			// Include additional args as arg_0, arg_1, etc
@@ -626,12 +655,17 @@ export function createClog(
 	const _apply = (level: LogLevel, args: any[]): string => {
 		const message = String(args[0] ?? "");
 
+		// Resolve getMeta: instance > global
+		const getMetaFn = config?.getMeta ?? GLOBAL.getMeta;
+		const meta = getMetaFn?.();
+
 		const data: LogData = {
 			level: LEVEL_MAP[level],
 			namespace: ns,
 			args,
 			timestamp: new Date().toISOString(),
 			config,
+			meta,
 		};
 
 		// Call hook first (if exists) - for collecting/batching
@@ -724,6 +758,7 @@ createClog.reset = (): void => {
 	createClog.global.stringify = undefined;
 	createClog.global.concat = undefined;
 	createClog.global.stacktrace = undefined;
+	createClog.global.getMeta = undefined;
 };
 
 /**

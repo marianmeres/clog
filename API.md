@@ -98,6 +98,7 @@ createClog.global: GlobalConfig
 | `stringify` | `boolean \| undefined` | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance) |
 | `concat` | `boolean \| undefined` | `undefined` | Concatenate all args into single string (can be overridden per-instance) |
 | `stacktrace` | `boolean \| number \| undefined` | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only - not for production!** |
+| `getMeta` | `(() => Record<string, unknown>) \| undefined` | `undefined` | Function returning metadata to include in LogData (can be overridden per-instance) |
 
 ### Examples
 
@@ -125,6 +126,12 @@ createClog.global.concat = true;
 createClog.global.stacktrace = true;
 // Or limit to N frames
 createClog.global.stacktrace = 3;
+
+// Inject metadata into all logs
+createClog.global.getMeta = () => ({
+  userId: getCurrentUserId(),
+  requestId: getRequestId()
+});
 ```
 
 ### Writer Precedence
@@ -146,7 +153,7 @@ Resets global configuration to default values.
 createClog.reset(): void
 ```
 
-Clears `hook`, `writer`, `debug`, `stringify`, `concat`, `stacktrace`, and sets `jsonOutput` to `false`. Useful for testing to ensure clean state between tests.
+Clears `hook`, `writer`, `debug`, `stringify`, `concat`, `stacktrace`, `getMeta`, and sets `jsonOutput` to `false`. Useful for testing to ensure clean state between tests.
 
 ### Example
 
@@ -588,6 +595,7 @@ type LogData = {
   args: any[];
   timestamp: string;  // ISO 8601 format
   config?: ClogConfig;  // Instance config (for custom writers)
+  meta?: Record<string, unknown>;  // Metadata from getMeta()
 }
 ```
 
@@ -598,6 +606,7 @@ type LogData = {
 | `args` | `any[]` | All arguments passed to the log method |
 | `timestamp` | `string` | ISO 8601 formatted timestamp |
 | `config` | `ClogConfig \| undefined` | Instance-level config (useful for custom writers to check settings) |
+| `meta` | `Record<string, unknown> \| undefined` | Metadata from `getMeta()` function (for custom writers/hooks) |
 
 ### LogLevel
 
@@ -645,6 +654,7 @@ interface ClogConfig {
   stringify?: boolean;
   concat?: boolean;
   stacktrace?: boolean | number;
+  getMeta?: () => Record<string, unknown>;
 }
 ```
 
@@ -656,6 +666,7 @@ interface ClogConfig {
 | `stringify` | `boolean` | When `true`, JSON.stringify non-primitive args (overrides global setting) |
 | `concat` | `boolean` | When `true`, concatenate all args into single string (overrides global setting) |
 | `stacktrace` | `boolean \| number` | When enabled, append call stack to output (overrides global). **Dev only!** |
+| `getMeta` | `() => Record<string, unknown>` | Function returning metadata to include in `LogData.meta` (overrides global) |
 
 ### GlobalConfig
 
@@ -670,6 +681,7 @@ interface GlobalConfig {
   stringify?: boolean;
   concat?: boolean;
   stacktrace?: boolean | number;
+  getMeta?: () => Record<string, unknown>;
 }
 ```
 
@@ -682,6 +694,7 @@ interface GlobalConfig {
 | `stringify` | `boolean` | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance) |
 | `concat` | `boolean` | `undefined` | Concatenate all args into single string (can be overridden per-instance) |
 | `stacktrace` | `boolean \| number` | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only!** |
+| `getMeta` | `() => Record<string, unknown>` | `undefined` | Function returning metadata to include in `LogData.meta` (can be overridden per-instance) |
 
 ### StyledText
 

@@ -18,7 +18,8 @@ Quick reference for AI assistants working with this codebase.
 | Color utilities | `src/colors.ts` |
 | Log forwarder | `src/forward.ts` |
 | Entry point | `src/mod.ts` |
-| Logger tests | `tests/clog.test.ts` |
+| Test helpers | `tests/_helpers.ts` |
+| Logger tests | `tests/*.test.ts` (split by feature) |
 | Forwarder tests | `tests/forward.test.ts` |
 
 ## Common Tasks
@@ -69,6 +70,7 @@ Safe hex colors in `SAFE_COLORS` are optimized for both light and dark backgroun
 - Stringify mode: config.stringify > global.stringify > false (JSON.stringify non-primitives)
 - Concat mode: config.concat > global.concat > false (single string output)
 - Stacktrace mode: config.stacktrace > global.stacktrace > undefined (disabled). **Dev only - not for production!**
+- getMeta mode: config.getMeta > global.getMeta > undefined (metadata injection for hooks/writers)
 - Symbol `CLOG_STYLED` identifies StyledText objects for special handling in writers
 
 ## For Detailed Documentation
