@@ -16,8 +16,10 @@ Quick reference for AI assistants working with this codebase.
 |---------|------|
 | Logger implementation | `src/clog.ts` |
 | Color utilities | `src/colors.ts` |
+| Log forwarder | `src/forward.ts` |
 | Entry point | `src/mod.ts` |
-| Tests | `tests/clog.test.ts` |
+| Logger tests | `tests/clog.test.ts` |
+| Forwarder tests | `tests/forward.test.ts` |
 
 ## Common Tasks
 
@@ -41,6 +43,7 @@ deno run -A scripts/build-npm.ts
 5. **Global config** - `createClog.global` affects all instances (uses Symbol.for for true global state)
 6. **StyledText** - Symbol-tagged objects for colored output that work with both `clog()` and `console.log(...)`
 7. **withNamespace(logger, ns)** - Wraps any console-compatible logger with additional namespace prefix
+8. **createLogForwarder(flusher, config)** - Factory for log batching/forwarding (from `@marianmeres/clog/forward`)
 
 ## Color System
 

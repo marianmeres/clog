@@ -9,6 +9,7 @@ Complete API documentation for `@marianmeres/clog`.
 - [createClog.reset()](#createclogreset)
 - [createNoopClog()](#createnoopclog)
 - [withNamespace()](#withnamespace)
+- [createLogForwarder()](#createlogforwarder)
 - [LEVEL_MAP](#level_map)
 - [Color Functions](#color-functions)
   - [colored()](#colored)
@@ -276,6 +277,90 @@ class AuthModule {
     this.log.log("Login attempt", { user });  // [app] [auth] Login attempt { user: "..." }
   }
 }
+```
+
+---
+
+## createLogForwarder()
+
+Creates a log forwarder for batching and sending logs to remote services. Available from `@marianmeres/clog/forward`.
+
+```typescript
+import { createLogForwarder } from "@marianmeres/clog/forward";
+
+function createLogForwarder(
+  flusher: (logs: LogData[]) => Promise<boolean>,
+  config?: LogForwarderConfig,
+  autostart?: boolean
+): LogForwarder
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `flusher` | `(logs: LogData[]) => Promise<boolean>` | - | Async function to send batched logs, returns `true` on success |
+| `config` | `LogForwarderConfig` | `undefined` | BatchFlusher configuration options |
+| `autostart` | `boolean` | `true` | Start interval-based flushing immediately |
+
+### Config Options (LogForwarderConfig)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `flushIntervalMs` | `number` | `1000` | Auto-flush interval in milliseconds |
+| `flushThreshold` | `number` | - | Flush immediately when buffer reaches this size |
+| `maxBatchSize` | `number` | `100` | Maximum buffer size (oldest items discarded if exceeded) |
+
+### Returns
+
+A `LogForwarder` instance with the following interface:
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `hook` | `(data: LogData) => void` | Hook function to assign to `createClog.global.hook` |
+| `add` | `(data: LogData) => void` | Add log entry to batch (alias for `hook`) |
+| `flush` | `() => Promise<boolean>` | Flush current buffer immediately |
+| `drain` | `() => Promise<boolean>` | Flush remaining items and stop interval |
+| `start` | `() => void` | Start auto-flush interval |
+| `stop` | `() => void` | Stop auto-flush interval |
+| `reset` | `() => void` | Clear buffer and state |
+| `dump` | `() => LogData[]` | Get current buffer contents |
+| `configure` | `(config) => void` | Update configuration |
+| `subscribe` | `(fn) => () => void` | Subscribe to state changes, returns unsubscribe |
+| `size` | `number` | Current buffer size (readonly) |
+| `isRunning` | `boolean` | Whether interval flushing is active (readonly) |
+| `isFlushing` | `boolean` | Whether flush operation is in progress (readonly) |
+
+### Example
+
+```typescript
+import { createClog } from "@marianmeres/clog";
+import { createLogForwarder } from "@marianmeres/clog/forward";
+
+const forwarder = createLogForwarder(
+  async (logs) => {
+    const res = await fetch("/api/logs", {
+      method: "POST",
+      body: JSON.stringify(logs)
+    });
+    return res.ok;
+  },
+  { flushIntervalMs: 5000, flushThreshold: 50, maxBatchSize: 1000 }
+);
+
+// Wire up to clog
+createClog.global.hook = forwarder.hook;
+
+// Monitor buffer state
+forwarder.subscribe((state) => {
+  if (state.size > 800) console.warn("Buffer getting full");
+});
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  await forwarder.drain();
+  process.exit(0);
+});
 ```
 
 ---

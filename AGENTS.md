@@ -24,9 +24,11 @@ Universal console-compatible logger (~400 lines including JSDoc) with namespace 
 src/
 ├── mod.ts              # Entry point (re-exports from clog.ts and colors.ts)
 ├── clog.ts             # Main logger implementation
-└── colors.ts           # Color utilities (colored, shortcuts, SAFE_COLORS)
+├── colors.ts           # Color utilities (colored, shortcuts, SAFE_COLORS)
+└── forward.ts          # Log forwarder utility (batching/forwarding)
 tests/
-├── clog.test.ts        # Test suite (40 tests)
+├── clog.test.ts        # Main test suite
+├── forward.test.ts     # Log forwarder tests
 └── deno-raw.ts         # Manual color examples
 scripts/
 └── build-npm.ts        # npm build script
@@ -97,6 +99,15 @@ clog.log("msg")
 | `ColorName` | Type | Union of SAFE_COLORS keys |
 | `red`, `green`, `blue`, `yellow`, `orange`, `pink`, `purple`, `magenta`, `cyan`, `teal`, `gray`, `grey` | Functions | Color shortcut functions returning StyledText |
 
+**From forward.ts (import from `@marianmeres/clog/forward`):**
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `createLogForwarder` | Function | Factory for log batching/forwarding instances |
+| `LogForwarder` | Interface | Log forwarder instance interface |
+| `LogForwarderConfig` | Type | Configuration options (wraps BatchFlusherConfig) |
+| `LogFlusherFn` | Type | Flusher function signature |
+
 ### Function Signatures
 
 ```typescript
@@ -108,6 +119,13 @@ createClog.reset: () => void
 function createNoopClog(namespace?: string | null): Clog
 
 function withNamespace<T extends Logger>(logger: T, namespace: string): T & ((...args: any[]) => string)
+
+// From @marianmeres/clog/forward
+function createLogForwarder(
+  flusher: LogFlusherFn,
+  config?: LogForwarderConfig,
+  autostart?: boolean
+): LogForwarder
 ```
 
 ### Type Definitions
@@ -169,6 +187,26 @@ interface StyledText extends Iterable<string> {
 
 type ColorName = keyof typeof SAFE_COLORS;
 // "gray" | "grey" | "red" | "orange" | "yellow" | "green" | "teal" | "cyan" | "blue" | "purple" | "magenta" | "pink"
+
+// From @marianmeres/clog/forward
+type LogFlusherFn = (logs: LogData[]) => Promise<boolean>;
+type LogForwarderConfig = Partial<BatchFlusherConfig>; // from @marianmeres/batch
+
+interface LogForwarder {
+  hook: (data: LogData) => void;
+  add: (data: LogData) => void;
+  flush: () => Promise<boolean>;
+  drain: () => Promise<boolean>;
+  start: () => void;
+  stop: () => void;
+  reset: () => void;
+  dump: () => LogData[];
+  configure: (config: LogForwarderConfig) => void;
+  subscribe: (fn: (state: BatchFlusherState) => void) => () => void;
+  readonly size: number;
+  readonly isRunning: boolean;
+  readonly isFlushing: boolean;
+}
 ```
 
 ## Output Formats
@@ -205,7 +243,7 @@ Error stacks preserved as `arg_N` with stack string value.
 ## Dependencies
 
 ### Production
-None (zero dependencies)
+- `@marianmeres/batch` - Batch processing (used by forward.ts)
 
 ### Development
 - `@std/assert` - Testing assertions
@@ -256,7 +294,29 @@ None (zero dependencies)
 throw new Error(clog.error("Something failed"));
 ```
 
-### Log Batching
+### Log Forwarding (Recommended)
+
+```typescript
+import { createLogForwarder } from "@marianmeres/clog/forward";
+
+const forwarder = createLogForwarder(
+  async (logs) => {
+    await fetch("/api/logs", { method: "POST", body: JSON.stringify(logs) });
+    return true;
+  },
+  { flushIntervalMs: 5000, flushThreshold: 50, maxBatchSize: 1000 }
+);
+
+createClog.global.hook = forwarder.hook;
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  await forwarder.drain();
+  process.exit(0);
+});
+```
+
+### Manual Log Batching
 
 ```typescript
 const batch: LogData[] = [];
@@ -453,8 +513,10 @@ Removed:
 |---------|------|
 | Main logger implementation | [src/clog.ts](src/clog.ts) |
 | Color utilities | [src/colors.ts](src/colors.ts) |
+| Log forwarder | [src/forward.ts](src/forward.ts) |
 | Entry point | [src/mod.ts](src/mod.ts) |
-| Tests | [tests/clog.test.ts](tests/clog.test.ts) |
+| Logger tests | [tests/clog.test.ts](tests/clog.test.ts) |
+| Forwarder tests | [tests/forward.test.ts](tests/forward.test.ts) |
 | Color examples | [tests/deno-raw.ts](tests/deno-raw.ts) |
 | Build script | [scripts/build-npm.ts](scripts/build-npm.ts) |
 | Package config | [deno.json](deno.json) |
