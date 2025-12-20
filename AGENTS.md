@@ -77,6 +77,7 @@ clog.log("msg")
 | `createClog.reset` | Function | Reset global config to defaults |
 | `createNoopClog` | Function | Factory for no-op logger instances (for testing) |
 | `withNamespace` | Function | Wrap logger with additional namespace prefix |
+| `stringifyValue` | Function | Stringify a single value for logging (for custom writers) |
 | `LEVEL_MAP` | Const Object | RFC 5424 level mapping |
 | `LogLevel` | Type | `"debug" \| "log" \| "warn" \| "error"` |
 | `LogData` | Type | Normalized log data structure |
@@ -119,6 +120,8 @@ createClog.reset: () => void
 function createNoopClog(namespace?: string | null): Clog
 
 function withNamespace<T extends Logger>(logger: T, namespace: string): T & ((...args: any[]) => string)
+
+function stringifyValue(arg: any): string
 
 // From @marianmeres/clog/forward
 function createLogForwarder(

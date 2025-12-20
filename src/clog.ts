@@ -364,6 +364,38 @@ function _stringifyArgs(args: any[], config?: ClogConfig): any[] {
 	});
 }
 
+/**
+ * Stringify a single value for logging output.
+ * Handles null, undefined, primitives, StyledText, and objects.
+ * Useful for custom writers that need to convert values to strings.
+ *
+ * @param arg - Any value to stringify
+ * @returns String representation of the value
+ *
+ * @example
+ * ```typescript
+ * import { stringifyValue } from "@marianmeres/clog";
+ *
+ * // In a custom writer:
+ * const customWriter = (data) => {
+ *   const message = data.args.map(stringifyValue).join(" ");
+ *   myLoggingService.send(message);
+ * };
+ * ```
+ */
+// deno-lint-ignore no-explicit-any
+export function stringifyValue(arg: any): string {
+	if (arg === null) return "null";
+	if (arg === undefined) return "undefined";
+	if (typeof arg !== "object") return String(arg);
+	if (arg?.[CLOG_STYLED]) return arg.text;
+	try {
+		return JSON.stringify(arg);
+	} catch {
+		return String(arg);
+	}
+}
+
 /** Captures call stack, skipping internal clog frames */
 function _captureStack(limit?: number): string[] {
 	const stack = new Error().stack || "";
@@ -416,20 +448,7 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	// Handle concat mode - output single string
 	const shouldConcat = config?.concat ?? GLOBAL.concat;
 	if (shouldConcat) {
-		const stringified = args
-			// deno-lint-ignore no-explicit-any
-			.map((arg: any) => {
-				if (arg === null) return "null";
-				if (arg === undefined) return "undefined";
-				if (typeof arg !== "object") return String(arg);
-				if (arg?.[CLOG_STYLED]) return arg.text;
-				try {
-					return JSON.stringify(arg);
-				} catch {
-					return String(arg);
-				}
-			})
-			.join(" ");
+		const stringified = args.map(stringifyValue).join(" ");
 
 		const output =
 			runtime === "browser"

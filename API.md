@@ -11,6 +11,7 @@ Complete API documentation for `@marianmeres/clog`.
 - [withNamespace()](#withnamespace)
 - [createLogForwarder()](#createlogforwarder)
 - [LEVEL_MAP](#level_map)
+- [stringifyValue()](#stringifyvalue)
 - [Color Functions](#color-functions)
   - [colored()](#colored)
   - [Color Shortcuts](#color-shortcuts)
@@ -401,6 +402,55 @@ import { LEVEL_MAP } from "@marianmeres/clog";
 
 console.log(LEVEL_MAP.debug); // "DEBUG"
 console.log(LEVEL_MAP.log);   // "INFO"
+```
+
+---
+
+## stringifyValue()
+
+Stringify a single value for logging output. Handles null, undefined, primitives, StyledText, and objects. Useful for custom writers that need to convert values to strings.
+
+```typescript
+function stringifyValue(arg: any): string
+```
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `arg` | `any` | Any value to stringify |
+
+### Returns
+
+String representation of the value:
+- `null` → `"null"`
+- `undefined` → `"undefined"`
+- primitives → `String(value)`
+- StyledText → plain text content
+- objects → `JSON.stringify(value)` (falls back to `String(value)` on error)
+
+### Examples
+
+```typescript
+import { stringifyValue } from "@marianmeres/clog";
+
+// Basic usage
+stringifyValue(null);           // "null"
+stringifyValue(undefined);      // "undefined"
+stringifyValue(42);             // "42"
+stringifyValue("hello");        // "hello"
+stringifyValue({ a: 1 });       // '{"a":1}'
+stringifyValue([1, 2, 3]);      // '[1,2,3]'
+
+// In a custom writer
+const customWriter: WriterFn = (data) => {
+  const message = data.args.map(stringifyValue).join(" ");
+  myLoggingService.send(message);
+};
+
+// With StyledText (extracts plain text)
+import { green } from "@marianmeres/clog";
+stringifyValue(green("OK"));    // "OK"
 ```
 
 ---
