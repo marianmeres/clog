@@ -64,6 +64,24 @@ clog.log("msg")
 3. `colorWriter` (if `config.color` set, browser/deno only)
 4. `defaultWriter`
 
+## Critical Conventions
+
+1. No log level filtering - control at source, not runtime
+2. All log methods return first argument as string (for `throw new Error(clog.error("msg"))`)
+3. Console-compatible API - can replace `console` with any `Logger`
+4. Global config uses `Symbol.for()` + `globalThis` for true global state
+5. Writer precedence: global.writer > config.writer > colorWriter > defaultWriter
+6. Config precedence: instance config > global config > defaults
+7. Colors work in browser/Deno only (use %c formatting)
+
+## Before Making Changes
+
+- [ ] Read existing code patterns in [src/clog.ts](src/clog.ts)
+- [ ] Run tests: `deno test`
+- [ ] Check type definitions match implementation
+- [ ] Update tests for any API changes
+- [ ] Update AGENTS.md if public API changes
+
 ## Public API
 
 ### Exports (from src/mod.ts)
@@ -573,4 +591,4 @@ Removed:
 | Human documentation | [README.md](README.md) |
 | API documentation | [API.md](API.md) |
 | Machine documentation | [AGENTS.md](AGENTS.md) |
-| AI assistant context | [CLAUDE.md](CLAUDE.md) |
+| AI assistant redirect | [CLAUDE.md](CLAUDE.md) |

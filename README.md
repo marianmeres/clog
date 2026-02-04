@@ -744,3 +744,7 @@ createClog.DISABLED = true;
 createClog.global.writer = () => {};
 ```
 
+## License
+
+[MIT](LICENSE)
+
