@@ -3,12 +3,13 @@
   "specifiers": {
     "jsr:@marianmeres/batch@*": "1.1.0",
     "jsr:@marianmeres/batch@^1.1.0": "1.1.0",
-    "jsr:@marianmeres/npmbuild@^1.10.0": "1.10.0",
+    "jsr:@marianmeres/npmbuild@^1.11.0": "1.11.0",
     "jsr:@marianmeres/pubsub@^2.4.4": "2.4.4",
-    "jsr:@std/assert@^1.0.16": "1.0.16",
-    "jsr:@std/collections@^1.1.3": "1.1.3",
+    "jsr:@std/assert@^1.0.19": "1.0.19",
+    "jsr:@std/collections@^1.1.5": "1.1.6",
     "jsr:@std/fs@^1.0.13": "1.0.13",
-    "jsr:@std/fs@^1.0.21": "1.0.21",
+    "jsr:@std/fs@^1.0.22": "1.0.23",
+    "jsr:@std/fs@^1.0.23": "1.0.23",
     "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@std/path@^1.0.8": "1.0.8",
     "jsr:@std/path@^1.1.4": "1.1.4"
@@ -20,25 +21,25 @@
         "jsr:@marianmeres/pubsub"
       ]
     },
-    "@marianmeres/npmbuild@1.10.0": {
-      "integrity": "eb45240930dbdf7b870af50a99496adf2e98683e25d57c4a0864387760e05e69",
+    "@marianmeres/npmbuild@1.11.0": {
+      "integrity": "924ed6df296aa4e3ffd55ad2c4b7904663824c5c30866c0c47fa815fd2c1a7d8",
       "dependencies": [
         "jsr:@std/collections",
-        "jsr:@std/fs@^1.0.21",
+        "jsr:@std/fs@^1.0.22",
         "jsr:@std/path@^1.1.4"
       ]
     },
     "@marianmeres/pubsub@2.4.4": {
       "integrity": "ecd79d07121438802aa374323e08d7e2f156a4bdf84237be4e9bf711c8cadf93"
     },
-    "@std/assert@1.0.16": {
-      "integrity": "6a7272ed1eaa77defe76e5ff63ca705d9c495077e2d5fd0126d2b53fc5bd6532",
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
       "dependencies": [
         "jsr:@std/internal"
       ]
     },
-    "@std/collections@1.1.3": {
-      "integrity": "bf8b0818886df6a32b64c7d3b037a425111f28278d69fd0995aeb62777c986b0"
+    "@std/collections@1.1.6": {
+      "integrity": "b458160ce65ea5ad35da05d0a5cbee4b583677c8b443a10d7beb0c4ac63f2baa"
     },
     "@std/fs@1.0.11": {
       "integrity": "ba674672693340c5ebdd018b4fe1af46cb08741f42b4c538154e97d217b55bdd",
@@ -52,8 +53,8 @@
         "jsr:@std/path@^1.0.8"
       ]
     },
-    "@std/fs@1.0.21": {
-      "integrity": "d720fe1056d78d43065a4d6e0eeb2b19f34adb8a0bc7caf3a4dbf1d4178252cd",
+    "@std/fs@1.0.23": {
+      "integrity": "3ecbae4ce4fee03b180fa710caff36bb5adb66631c46a6460aaad49515565a37",
       "dependencies": [
         "jsr:@std/internal",
         "jsr:@std/path@^1.1.4"
@@ -75,9 +76,9 @@
   "workspace": {
     "dependencies": [
       "jsr:@marianmeres/batch@^1.1.0",
-      "jsr:@marianmeres/npmbuild@^1.10.0",
-      "jsr:@std/assert@^1.0.16",
-      "jsr:@std/fs@^1.0.21",
+      "jsr:@marianmeres/npmbuild@^1.11.0",
+      "jsr:@std/assert@^1.0.19",
+      "jsr:@std/fs@^1.0.23",
       "jsr:@std/path@^1.1.4"
     ]
   }
