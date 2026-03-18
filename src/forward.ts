@@ -1,3 +1,11 @@
+/**
+ * @module
+ * Log forwarding via batched flush for `@marianmeres/clog`.
+ *
+ * Provides {@linkcode createLogForwarder} which wraps `@marianmeres/batch`
+ * to collect log entries and periodically flush them to a remote endpoint
+ * or any async consumer. Designed to be wired into `createClog.global.hook`.
+ */
 import {
 	BatchFlusher,
 	type BatchFlusherConfig,
