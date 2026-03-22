@@ -1,1 +1,3 @@
-Universal console-compatible logger with namespace support for browser, Node.js, and Deno. Provides structured logging with JSON output, colored output, log forwarding/batching, debug mode, metadata injection, and zero dependencies.
+Universal console-compatible logger with namespace support for browser, Node.js, and Deno. 
+Provides structured logging with JSON output, colored output, log forwarding/batching, 
+debug mode, metadata injection, and zero dependencies.
