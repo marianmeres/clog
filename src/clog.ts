@@ -30,13 +30,43 @@ export const LEVEL_MAP = {
 export type LogLevel = keyof typeof LEVEL_MAP;
 
 /**
+ * Sentinel returned by a hook to signal that the writer should be skipped
+ * for the current log call. All other logs continue normally.
+ *
+ * @example
+ * ```typescript
+ * import { createClog, CLOG_SKIP } from "@marianmeres/clog";
+ * createClog.global.hook = (data) => {
+ *   if (shouldDrop(data)) return CLOG_SKIP;
+ * };
+ * ```
+ */
+export const CLOG_SKIP: unique symbol = Symbol.for("@marianmeres/clog-skip");
+
+/**
+ * Internal marker placed on Clog instances so `withNamespace` can detect them
+ * and compose a structured child namespace instead of prefixing an arg.
+ */
+const CLOG_INSTANCE: unique symbol = Symbol.for("@marianmeres/clog-instance");
+
+/**
  * Normalized log data structure passed to writers and hooks.
  *
  * @property level - RFC 5424 level name: `"DEBUG"` | `"INFO"` | `"WARNING"` | `"ERROR"`
- * @property namespace - The logger namespace, or `false` if no namespace
- * @property args - Array of all arguments passed to the log method
+ * @property namespace - The logger namespace, or `false` if no namespace. Composed
+ *                       namespaces (from `withNamespace`) use `:` as separator,
+ *                       e.g. `"app:module:sub"`.
+ * @property args - Shallow clone of the arguments passed to the log method. Safe
+ *                  to read; mutating does not affect the caller's array.
  * @property timestamp - ISO 8601 formatted timestamp string
  * @property config - Instance-level configuration (optional, for per-instance settings)
+ * @property meta - Metadata from `getMeta()`, lazily computed. Accessing the
+ *                  property invokes `getMeta` once and caches the result. If
+ *                  `getMeta` throws, this property is `undefined` (the error
+ *                  is swallowed so logging never fails because of metadata).
+ * @property stack - Captured call stack lines (already filtered to user frames),
+ *                   present only when `stacktrace` is enabled. Default writers
+ *                   render this; custom writers can use it as they wish.
  */
 export type LogData = {
 	level: (typeof LEVEL_MAP)[LogLevel];
@@ -45,8 +75,8 @@ export type LogData = {
 	args: any[];
 	timestamp: string;
 	config?: ClogConfig;
-	/** Metadata from getMeta() function, available for custom writers/hooks */
 	meta?: Record<string, unknown>;
+	stack?: string[];
 };
 
 /**
@@ -66,10 +96,12 @@ export type WriterFn = (data: LogData) => void;
 
 /**
  * Hook function signature for intercepting log calls.
- * Same signature as {@link WriterFn}, used for collecting, batching, or analytics.
- * Hooks are called before writers.
+ * Hooks are called before writers. Return {@link CLOG_SKIP} to suppress the
+ * writer for the current log call (all other logs continue normally). Any
+ * other return value is ignored.
  *
  * @param data - Normalized log data being logged
+ * @returns `CLOG_SKIP` to skip the writer, anything else to continue.
  *
  * @example
  * ```typescript
@@ -77,7 +109,7 @@ export type WriterFn = (data: LogData) => void;
  * createClog.global.hook = (data) => batch.push(data);
  * ```
  */
-export type HookFn = WriterFn;
+export type HookFn = (data: LogData) => void | typeof CLOG_SKIP;
 
 /**
  * Logger interface compatible with the console API.
@@ -144,16 +176,14 @@ export interface Clog extends Logger {
 
 	/**
 	 * The namespace of this logger instance.
-	 * Readonly property set at creation time.
+	 * Readonly property set at creation time. Composed namespaces (from
+	 * `withNamespace`) use `:` as separator, e.g. `"app:module"`.
 	 */
 	readonly ns: string | false;
 }
 
 /**
  * Instance-level configuration options for a Clog logger.
- *
- * @property writer - Custom writer function for this instance only
- * @property color - CSS color string for namespace styling (browser/Deno only)
  */
 export interface ClogConfig {
 	/**
@@ -186,24 +216,35 @@ export interface ClogConfig {
 	stringify?: boolean;
 
 	/**
-	 * When `true`, concatenate all arguments into a single string.
-	 * Automatically enables stringify behavior.
+	 * When `true`, concatenate all arguments into a single string. Implies
+	 * stringify (objects are JSON-stringified regardless of the `stringify`
+	 * setting, so combining `concat: true` with `stringify: false` still
+	 * stringifies).
 	 * @default false
 	 */
 	concat?: boolean;
 
 	/**
-	 * When enabled, append call stack trace as last argument.
-	 * `true` = full stack, `number` = limit to N frames.
-	 * Useful for debugging to see where log calls originate.
+	 * When enabled, capture and append a call stack. `true` = full stack,
+	 * `number` = limit to N frames. The captured frames are also exposed to
+	 * custom writers via `LogData.stack`.
 	 * @default undefined (disabled)
 	 */
 	stacktrace?: boolean | number;
 
 	/**
-	 * Function called on each log to return metadata.
-	 * Metadata is available in LogData.meta for custom writers/hooks,
-	 * but not passed to console output.
+	 * When `true`, emit structured JSON instead of text in server runtimes
+	 * (Node/Deno). Browser output is unaffected. Falls back to
+	 * `GlobalConfig.jsonOutput` if unset.
+	 * @default undefined (inherits global)
+	 */
+	jsonOutput?: boolean;
+
+	/**
+	 * Function called lazily on each log to return metadata. Metadata is
+	 * available in `LogData.meta` for custom writers/hooks. If this function
+	 * throws, the error is swallowed and meta stays `undefined` — logging
+	 * never fails because of metadata.
 	 * @example
 	 * ```typescript
 	 * const clog = createClog("app", {
@@ -216,86 +257,33 @@ export interface ClogConfig {
 
 /**
  * Global configuration options affecting all Clog logger instances.
- *
- * @property hook - Hook function called before every log (for batching/analytics)
- * @property writer - Global writer that overrides all instance writers
- * @property jsonOutput - Enable JSON output format for server environments
- * @property debug - Global debug mode (can be overridden per-instance)
  */
 export interface GlobalConfig {
-	/**
-	 * Global hook function called before every log operation.
-	 * Useful for batching, analytics, or collecting logs.
-	 */
+	/** Global hook function called before every log operation. */
 	hook?: HookFn;
 
-	/**
-	 * Global writer that overrides all instance-level writers.
-	 * Takes highest precedence in writer selection.
-	 */
+	/** Global writer that overrides all instance-level writers. */
 	writer?: WriterFn;
 
-	/**
-	 * Enable structured JSON output for server environments.
-	 * When true, outputs single-line JSON objects instead of text.
-	 * @default false
-	 */
+	/** Enable structured JSON output for server environments. */
 	jsonOutput?: boolean;
 
-	/**
-	 * Global debug mode. When `false`, `.debug()` calls become no-ops.
-	 * Can be overridden per-instance via `ClogConfig.debug`.
-	 * @default undefined (debug enabled)
-	 */
+	/** Global debug mode. When `false`, `.debug()` calls become no-ops. */
 	debug?: boolean;
 
-	/**
-	 * Global stringify mode. When `true`, JSON.stringify non-primitive arguments.
-	 * Can be overridden per-instance via `ClogConfig.stringify`.
-	 * @default undefined (stringify disabled)
-	 */
+	/** Global stringify mode. */
 	stringify?: boolean;
 
-	/**
-	 * Global concat mode. When `true`, concatenate all arguments into a single string.
-	 * Automatically enables stringify behavior.
-	 * Can be overridden per-instance via `ClogConfig.concat`.
-	 * @default undefined (concat disabled)
-	 */
+	/** Global concat mode. Implies stringify. */
 	concat?: boolean;
 
-	/**
-	 * Global stacktrace mode. When enabled, append call stack to output.
-	 * `true` = full stack, `number` = limit to N frames.
-	 * Can be overridden per-instance via `ClogConfig.stacktrace`.
-	 * @default undefined (disabled)
-	 */
+	/** Global stacktrace mode. `true` = full stack, `number` = limit to N frames. */
 	stacktrace?: boolean | number;
 
 	/**
-	 * Global getMeta function. Can be overridden per-instance.
-	 * Called on each log to provide contextual metadata.
-	 * @example
-	 * ```typescript
-	 * createClog.global.getMeta = () => ({
-	 *   userId: getCurrentUserId(),
-	 *   requestId: getRequestId()
-	 * });
-	 * ```
+	 * Global getMeta function. Called lazily per log; errors are swallowed.
 	 */
 	getMeta?: () => Record<string, unknown>;
-}
-
-/** Detects current runtime environment */
-function _detectRuntime(): "browser" | "node" | "deno" | "unknown" {
-	// deno-lint-ignore no-explicit-any
-	if (typeof window !== "undefined" && (window as any)?.document) {
-		return "browser";
-	}
-	if (globalThis.Deno?.version?.deno) return "deno";
-	// deno-lint-ignore no-explicit-any
-	if ((globalThis as any).process?.versions?.node) return "node";
-	return "unknown";
 }
 
 /**
@@ -312,39 +300,86 @@ const GLOBAL: GlobalConfig = ((globalThis as any)[GLOBAL_KEY] ??= {
 	debug: undefined,
 });
 
-/** Process args containing styled text objects, building %c format string */
-// deno-lint-ignore no-explicit-any
-function _processStyledArgs(args: any[]): [string, any[]] {
-	let format = "";
+// --- Runtime detection (cached) ---
+
+type Runtime = "browser" | "node" | "deno" | "unknown";
+
+let _cachedRuntime: Runtime | null = null;
+function detectRuntime(): Runtime {
+	if (_cachedRuntime !== null) return _cachedRuntime;
 	// deno-lint-ignore no-explicit-any
-	const values: any[] = [];
-
-	for (const arg of args) {
-		if (arg?.[CLOG_STYLED]) {
-			format += `%c${arg.text}%c `;
-			values.push(arg.style, "");
-		} else if (typeof arg === "string") {
-			format += `${arg} `;
-		} else {
-			format += "%o ";
-			values.push(arg);
-		}
+	if (typeof window !== "undefined" && (window as any)?.document) {
+		return (_cachedRuntime = "browser");
 	}
-
-	return [format.trim(), values];
+	if (globalThis.Deno?.version?.deno) return (_cachedRuntime = "deno");
+	// deno-lint-ignore no-explicit-any
+	if ((globalThis as any).process?.versions?.node) {
+		return (_cachedRuntime = "node");
+	}
+	return (_cachedRuntime = "unknown");
 }
 
-/** Check if any arg is a styled text object */
-// deno-lint-ignore no-explicit-any
-function _hasStyledArgs(args: any[]): boolean {
-	return args.some((arg) => arg?.[CLOG_STYLED]);
+// --- Stack capture (path-based frame filtering) ---
+
+/**
+ * Identifier substring used to detect clog's own stack frames. Works for both
+ * filesystem paths and URLs. `colors.ts` is included because styled helpers may
+ * also appear in the trace.
+ */
+const CLOG_FRAME_MARKERS = ["clog.ts", "colors.ts"];
+
+function isClogFrame(line: string): boolean {
+	return CLOG_FRAME_MARKERS.some((m) => line.includes(m));
 }
 
-/** Clean styled args by extracting plain text (for non-%c environments) */
-// deno-lint-ignore no-explicit-any
-function _cleanStyledArgs(args: any[]): any[] {
-	return args.map((arg) => (arg?.[CLOG_STYLED] ? arg.text : arg));
+/**
+ * Captures a call stack and strips internal clog frames by matching file
+ * paths. Result is the frames belonging to the caller of the log method.
+ */
+function captureStackLines(limit?: number): string[] {
+	const stack = new Error().stack || "";
+	const lines = stack.split("\n");
+	// First line in V8 is "Error" (or "Error: ..."); drop any "Error" header
+	// and any frame that references clog's own files.
+	const relevant: string[] = [];
+	for (const raw of lines) {
+		const line = raw.trimEnd();
+		if (!line) continue;
+		if (/^Error(:|$)/.test(line.trim())) continue;
+		if (isClogFrame(line)) continue;
+		relevant.push(line);
+	}
+	if (typeof limit === "number" && limit > 0) {
+		return relevant.slice(0, limit);
+	}
+	return relevant;
 }
+
+/**
+ * Formats an array of stack frame lines into a single human-readable block
+ * suitable for appending to console output. Exported so custom writers can
+ * produce the same rendering as the default writer.
+ */
+export function formatStack(lines: string[]): string {
+	return "\n---\nStack:\n" + lines.map((v) => "  " + v.trim()).join("\n");
+}
+
+// --- Namespace rendering ---
+
+/**
+ * Renders a (possibly composed) namespace into the bracketed text form.
+ * `"app:module"` → `"[app] [module]"`. Keeps text-output BC for users of
+ * `withNamespace`, which now composes via `:` internally.
+ */
+function renderNs(ns: string | false): string {
+	if (!ns) return "";
+	return ns
+		.split(":")
+		.map((s) => `[${s}]`)
+		.join(" ");
+}
+
+// --- Arg processing ---
 
 /** Stringify non-primitive args when stringify flag is enabled */
 // deno-lint-ignore no-explicit-any
@@ -368,20 +403,6 @@ function _stringifyArgs(args: any[], config?: ClogConfig): any[] {
  * Stringify a single value for logging output.
  * Handles null, undefined, primitives, StyledText, and objects.
  * Useful for custom writers that need to convert values to strings.
- *
- * @param arg - Any value to stringify
- * @returns String representation of the value
- *
- * @example
- * ```typescript
- * import { stringifyValue } from "@marianmeres/clog";
- *
- * // In a custom writer:
- * const customWriter = (data) => {
- *   const message = data.args.map(stringifyValue).join(" ");
- *   myLoggingService.send(message);
- * };
- * ```
  */
 // deno-lint-ignore no-explicit-any
 export function stringifyValue(arg: any): string {
@@ -396,73 +417,89 @@ export function stringifyValue(arg: any): string {
 	}
 }
 
-/** Captures call stack, skipping internal clog frames */
-function _captureStack(limit?: number): string[] {
-	const stack = new Error().stack || "";
-	const lines = stack.split("\n");
-	// Skip internal frames: "Error", "_captureStack", "defaultWriter/colorWriter", "_apply", "logger method"
-	const relevant = lines.slice(5);
-	if (typeof limit === "number" && limit > 0) {
-		return relevant.slice(0, limit);
-	}
-	return relevant;
+/** Check if any arg is a styled text object */
+// deno-lint-ignore no-explicit-any
+function _hasStyledArgs(args: any[]): boolean {
+	return args.some((arg) => arg?.[CLOG_STYLED]);
 }
 
-/** Formats stack to human readable format */
-function _formatStack(lines: string[]) {
-	return "\n---\nStack:\n" + lines.map((v) => "  " + v.trim()).join("\n");
+/** Clean styled args by extracting plain text (for non-%c environments) */
+// deno-lint-ignore no-explicit-any
+function _cleanStyledArgs(args: any[]): any[] {
+	return args.map((arg) => (arg?.[CLOG_STYLED] ? arg.text : arg));
 }
+
+/** Process args containing styled text objects, building %c format string */
+// deno-lint-ignore no-explicit-any
+function _processStyledArgs(args: any[]): [string, any[]] {
+	let format = "";
+	// deno-lint-ignore no-explicit-any
+	const values: any[] = [];
+
+	for (const arg of args) {
+		if (arg?.[CLOG_STYLED]) {
+			format += `%c${arg.text}%c `;
+			values.push(arg.style, "");
+		} else if (typeof arg === "string") {
+			format += `${arg} `;
+		} else {
+			format += "%o ";
+			values.push(arg);
+		}
+	}
+
+	return [format.trim(), values];
+}
+
+/**
+ * Computes the "display string" for args[0] — what the caller should get back
+ * from `clog.log()`. Under stringify or concat modes, objects are JSON
+ * rendered to match what actually appears in the log line.
+ */
+// deno-lint-ignore no-explicit-any
+function firstArgAsString(args: any[], config?: ClogConfig): string {
+	if (args.length === 0) return "";
+	const concat = config?.concat ?? GLOBAL.concat;
+	const stringify = config?.stringify ?? GLOBAL.stringify;
+	if (concat || stringify) return stringifyValue(args[0]);
+	return String(args[0] ?? "");
+}
+
+// --- Console method mapping ---
+
+const CONSOLE_METHOD = {
+	DEBUG: "debug",
+	INFO: "log",
+	WARNING: "warn",
+	ERROR: "error",
+} as const;
+
+// --- Default writers ---
 
 /** Default writer implementation - handles browser vs server output */
 const defaultWriter: WriterFn = (data: LogData) => {
-	const { level, namespace, args, timestamp, config } = data;
-	const runtime = _detectRuntime();
+	const { level, namespace, args, timestamp, config, stack } = data;
+	const runtime = detectRuntime();
+	const consoleMethod = CONSOLE_METHOD[level];
+	const nsText = renderNs(namespace);
+	const stackStr = stack && stack.length ? formatStack(stack) : null;
 
-	// Apply stringify transformation first (if enabled)
-	const processedArgs = _stringifyArgs(args, config);
-
-	// Capture stack trace if enabled (must be done early to get correct call site)
-	const stacktraceConfig = config?.stacktrace ?? GLOBAL.stacktrace;
-	const stackStr = stacktraceConfig
-		? _formatStack(
-				_captureStack(
-					typeof stacktraceConfig === "number"
-						? stacktraceConfig
-						: undefined
-				)
-		  )
-		: null;
-
-	// Map level back to console method (DEBUG->debug, INFO->log, etc)
-	const consoleMethod = (
-		{
-			DEBUG: "debug",
-			INFO: "log",
-			WARNING: "warn",
-			ERROR: "error",
-		} as const
-	)[level];
-
-	const ns = namespace ? `[${namespace}]` : "";
-
-	// Handle concat mode - output single string
+	// Concat mode: single string, plain text (no %c)
 	const shouldConcat = config?.concat ?? GLOBAL.concat;
 	if (shouldConcat) {
 		const stringified = args.map(stringifyValue).join(" ");
-
 		const output =
 			runtime === "browser"
-				? ns
-					? `${ns} ${stringified}`
+				? nsText
+					? `${nsText} ${stringified}`
 					: stringified
-				: `[${timestamp}] [${level}]${
-						ns ? ` ${ns}` : ""
-				  } ${stringified}`;
-
+				: `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""} ${stringified}`;
 		console[consoleMethod](output, ...(stackStr ? [stackStr] : []));
 		return;
 	}
 
+	// Apply stringify transformation (if enabled)
+	const processedArgs = _stringifyArgs(args, config);
 	const hasStyled = _hasStyledArgs(processedArgs);
 
 	// Browser/Deno with styled args: use %c formatting
@@ -470,13 +507,12 @@ const defaultWriter: WriterFn = (data: LogData) => {
 		const [content, contentValues] = _processStyledArgs(processedArgs);
 		if (runtime === "browser") {
 			console[consoleMethod](
-				ns ? `${ns} ${content}` : content,
+				nsText ? `${nsText} ${content}` : content,
 				...contentValues,
 				...(stackStr ? [stackStr] : [])
 			);
 		} else {
-			// Deno: include timestamp and level
-			const prefix = `[${timestamp}] [${level}]${ns ? ` ${ns}` : ""}`;
+			const prefix = `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""}`;
 			console[consoleMethod](
 				`${prefix} ${content}`,
 				...contentValues,
@@ -486,14 +522,13 @@ const defaultWriter: WriterFn = (data: LogData) => {
 		return;
 	}
 
-	// Clean styled args (extract plain text) for non-%c environments
+	// Clean styled args (extract plain text) for non-%c paths
 	const cleanedArgs = _cleanStyledArgs(processedArgs);
 
 	if (runtime === "browser") {
-		// Browser: simple output, let browser console do its magic
-		if (ns) {
+		if (nsText) {
 			console[consoleMethod](
-				ns,
+				nsText,
 				...cleanedArgs,
 				...(stackStr ? [stackStr] : [])
 			);
@@ -503,105 +538,73 @@ const defaultWriter: WriterFn = (data: LogData) => {
 				...(stackStr ? [stackStr] : [])
 			);
 		}
-	} else {
-		// Server: structured output
-		if (GLOBAL.jsonOutput) {
-			// deno-lint-ignore no-explicit-any
-			const output: Record<string, any> = {
-				timestamp,
-				level,
-				namespace,
-				message: cleanedArgs[0],
-				...(data.meta && { meta: data.meta }),
-			};
-
-			// Include additional args as arg_0, arg_1, etc
-			cleanedArgs.slice(1).forEach((arg, i) => {
-				// Preserve Error stacks
-				output[`arg_${i}`] = arg?.stack ?? arg;
-			});
-
-			// Include stack trace if enabled
-			if (stackStr) {
-				output.stack = stackStr;
-			}
-
-			console[consoleMethod](JSON.stringify(output));
-		} else {
-			// Text output: [timestamp] [LEVEL] [namespace] message ...args
-			const prefix = `[${timestamp}] [${level}]${
-				ns ? ` ${ns}` : ""
-			}`.trim();
-			console[consoleMethod](
-				prefix,
-				...cleanedArgs,
-				...(stackStr ? [stackStr] : [])
-			);
-		}
+		return;
 	}
+
+	// Server (Node / Deno / unknown) output path
+	const useJson = config?.jsonOutput ?? GLOBAL.jsonOutput;
+	if (useJson) {
+		// deno-lint-ignore no-explicit-any
+		const output: Record<string, any> = {
+			timestamp,
+			level,
+			...(namespace ? { namespace } : {}),
+			message: cleanedArgs[0],
+			...(data.meta && { meta: data.meta }),
+		};
+		cleanedArgs.slice(1).forEach((arg, i) => {
+			output[`arg_${i}`] = arg?.stack ?? arg;
+		});
+		if (stackStr) output.stack = stackStr;
+		console[consoleMethod](JSON.stringify(output));
+		return;
+	}
+
+	// Text: [timestamp] [LEVEL] [namespace] message ...args
+	const prefix = `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""}`.trim();
+	console[consoleMethod](
+		prefix,
+		...cleanedArgs,
+		...(stackStr ? [stackStr] : [])
+	);
 };
 
 /** Default writer with color support (browser and deno) */
 const colorWriter =
-	(color: string): WriterFn =>
+	(configuredColor: string): WriterFn =>
 	(data: LogData) => {
-		const { level, namespace, args, timestamp, config } = data;
-		const runtime = _detectRuntime();
+		const { level, namespace, args, timestamp, config, stack } = data;
+		const runtime = detectRuntime();
 
-		// Only apply %c color in browser and deno
-		if ((runtime !== "browser" && runtime !== "deno") || !namespace) {
+		// %c coloring only applies to browser/deno with an actual namespace;
+		// concat mode emits plain text and also delegates.
+		if (
+			(runtime !== "browser" && runtime !== "deno") ||
+			!namespace ||
+			(config?.concat ?? GLOBAL.concat)
+		) {
 			return defaultWriter(data);
 		}
 
-		// Concat mode outputs plain text, delegate to defaultWriter
-		if (config?.concat ?? GLOBAL.concat) {
-			return defaultWriter(data);
-		}
-
-		// Apply stringify transformation first (if enabled)
+		const color =
+			configuredColor === "auto" ? autoColor(namespace) : configuredColor;
 		const processedArgs = _stringifyArgs(args, config);
+		const consoleMethod = CONSOLE_METHOD[level];
+		const stackStr = stack && stack.length ? formatStack(stack) : null;
+		const nsText = renderNs(namespace);
 
-		// Capture stack trace if enabled (must be done early to get correct call site)
-		const stacktraceConfig = config?.stacktrace ?? GLOBAL.stacktrace;
-		const stackStr = stacktraceConfig
-			? _formatStack(
-					_captureStack(
-						typeof stacktraceConfig === "number"
-							? stacktraceConfig
-							: undefined
-					)
-			  )
-			: null;
-
-		const consoleMethod = (
-			{
-				DEBUG: "debug",
-				INFO: "log",
-				WARNING: "warn",
-				ERROR: "error",
-			} as const
-		)[level];
-
-		const ns = `[${namespace}]`;
-
-		if (color === "auto") {
-			color = autoColor(namespace);
-		}
-
-		// Check for styled args and process them
 		if (_hasStyledArgs(processedArgs)) {
 			const [content, contentValues] = _processStyledArgs(processedArgs);
 			if (runtime === "browser") {
 				console[consoleMethod](
-					`%c${ns}%c ${content}`,
+					`%c${nsText}%c ${content}`,
 					`color:${color}`,
 					"",
 					...contentValues,
 					...(stackStr ? [stackStr] : [])
 				);
 			} else {
-				// Deno: include timestamp and level
-				const prefix = `[${timestamp}] [${level}] %c${ns}%c`;
+				const prefix = `[${timestamp}] [${level}] %c${nsText}%c`;
 				console[consoleMethod](
 					`${prefix} ${content}`,
 					`color:${color}`,
@@ -610,35 +613,37 @@ const colorWriter =
 					...(stackStr ? [stackStr] : [])
 				);
 			}
+			return;
+		}
+
+		if (runtime === "browser") {
+			console[consoleMethod](
+				`%c${nsText}`,
+				`color:${color}`,
+				...processedArgs,
+				...(stackStr ? [stackStr] : [])
+			);
 		} else {
-			// No styled args, use original behavior
-			if (runtime === "browser") {
-				console[consoleMethod](
-					`%c${ns}`,
-					`color:${color}`,
-					...processedArgs,
-					...(stackStr ? [stackStr] : [])
-				);
-			} else {
-				// Deno: include timestamp and level like server mode, %c must be in first arg
-				const prefix = `[${timestamp}] [${level}] %c${ns}`;
-				console[consoleMethod](
-					prefix,
-					`color:${color}`,
-					...processedArgs,
-					...(stackStr ? [stackStr] : [])
-				);
-			}
+			const prefix = `[${timestamp}] [${level}] %c${nsText}`;
+			console[consoleMethod](
+				prefix,
+				`color:${color}`,
+				...processedArgs,
+				...(stackStr ? [stackStr] : [])
+			);
 		}
 	};
+
+// --- Factory ---
 
 /**
  * Creates a Clog logger instance with optional namespace and configuration.
  *
  * The returned logger is callable (proxies to `log()`) and provides
  * console-compatible methods: `debug()`, `log()`, `warn()`, `error()`.
- * All methods return the first argument as a string, enabling patterns like
- * `throw new Error(clog.error("message"))`.
+ * All methods return the first argument as a string — under `stringify`/`concat`
+ * modes, objects are JSON-rendered in the return value so that the logged line
+ * and the returned string match.
  *
  * @param namespace - Logger namespace string, or `false` for no namespace.
  *                    Defaults to `false` if not provided.
@@ -647,19 +652,15 @@ const colorWriter =
  *
  * @example
  * ```typescript
- * // Basic usage with namespace
  * const clog = createClog("my-app");
  * clog.log("Hello");           // [my-app] Hello
  * clog("Hello");               // Same as above (callable)
  *
- * // Without namespace
  * const logger = createClog();
  * logger.warn("Warning!");     // Warning!
  *
- * // With color (browser/Deno only)
  * const colored = createClog("ui", { color: "blue" });
  *
- * // Error throwing pattern
  * throw new Error(clog.error("Failed"));
  * ```
  */
@@ -667,54 +668,77 @@ export function createClog(
 	namespace?: string | false,
 	config?: ClogConfig
 ): Clog {
-	// Default to no namespace if not provided
 	const ns = namespace ?? false;
 
 	// deno-lint-ignore no-explicit-any
 	const _apply = (level: LogLevel, args: any[]): string => {
-		const message = String(args[0] ?? "");
+		// Shallow clone args so hooks/writers cannot mutate the caller's array.
+		const clonedArgs = args.slice();
 
-		// Resolve getMeta: instance > global
+		// Resolve getMeta lazily so it's only called if a consumer reads .meta,
+		// and wrap in try/catch so throwing getMeta never crashes a log call.
 		const getMetaFn = config?.getMeta ?? GLOBAL.getMeta;
-		const meta = getMetaFn?.();
+
+		// Stacktrace: capture *once* in _apply (fewer internal frames to filter)
+		// so custom writers can also access data.stack.
+		const stacktraceConfig = config?.stacktrace ?? GLOBAL.stacktrace;
+		const stack = stacktraceConfig
+			? captureStackLines(
+					typeof stacktraceConfig === "number" ? stacktraceConfig : undefined
+				)
+			: undefined;
 
 		const data: LogData = {
 			level: LEVEL_MAP[level],
 			namespace: ns,
-			args,
+			args: clonedArgs,
 			timestamp: new Date().toISOString(),
 			config,
-			meta,
+			stack,
 		};
 
-		// Call hook first (if exists) - for collecting/batching
-		GLOBAL.hook?.(data);
-
-		// Then call writer (global override, or instance, or default)
-		let writer = GLOBAL.writer ?? config?.writer;
-
-		// If no custom writer but color is set, use color writer
-		if (!writer && config?.color) {
-			writer = colorWriter(config.color);
+		if (getMetaFn) {
+			let _meta: Record<string, unknown> | undefined;
+			let _metaComputed = false;
+			Object.defineProperty(data, "meta", {
+				get() {
+					if (!_metaComputed) {
+						_metaComputed = true;
+						try {
+							_meta = getMetaFn();
+						} catch {
+							// Swallow — a throwing getMeta must not break logging.
+							_meta = undefined;
+						}
+					}
+					return _meta;
+				},
+				enumerable: true,
+				configurable: true,
+			});
 		}
 
-		// Fall back to default writer
-		writer = writer ?? defaultWriter;
+		// Hook first (can return CLOG_SKIP to suppress writer).
+		const hookResult = GLOBAL.hook?.(data);
 
-		writer(data);
+		if (hookResult !== CLOG_SKIP) {
+			let writer = GLOBAL.writer ?? config?.writer;
+			if (!writer && config?.color) writer = colorWriter(config.color);
+			writer = writer ?? defaultWriter;
+			writer(data);
+		}
 
-		return message;
+		return firstArgAsString(clonedArgs, config);
 	};
 
 	// Create callable function that proxies to log
 	// deno-lint-ignore no-explicit-any
 	const logger = ((...args: any[]) => _apply("log", args)) as Clog;
 
-	// Attach methods (debug respects instance config, then global config at runtime)
 	// deno-lint-ignore no-explicit-any
 	logger.debug = (...args: any[]) => {
 		if ((config?.debug ?? GLOBAL.debug) === false) {
-			return String(args[0] ?? "");
+			return firstArgAsString(args, config);
 		}
 		return _apply("debug", args);
 	};
@@ -725,8 +749,15 @@ export function createClog(
 	// deno-lint-ignore no-explicit-any
 	logger.error = (...args: any[]) => _apply("error", args);
 
-	// Attach ns as readonly
 	Object.defineProperty(logger, "ns", { value: ns, writable: false });
+
+	// Non-enumerable marker so `withNamespace` can detect clog instances and
+	// compose structurally. Carries the original config for inheritance.
+	Object.defineProperty(logger, CLOG_INSTANCE, {
+		value: { ns, config },
+		enumerable: false,
+		writable: false,
+	});
 
 	return logger;
 }
@@ -735,24 +766,20 @@ export function createClog(
  * Global configuration object for all Clog instances.
  *
  * Properties:
- * - `hook` - Function called before every log (for batching/analytics)
+ * - `hook` - Function called before every log (return `CLOG_SKIP` to drop)
  * - `writer` - Global writer that overrides all instance writers
  * - `jsonOutput` - Enable JSON output format for server environments
  * - `debug` - Global debug mode (can be overridden per-instance)
  *
  * @example
  * ```typescript
- * // Enable JSON output
  * createClog.global.jsonOutput = true;
  *
- * // Set up log batching
  * const batch: LogData[] = [];
  * createClog.global.hook = (data) => batch.push(data);
  *
- * // Custom global writer
  * createClog.global.writer = (data) => sendToServer(data);
  *
- * // Disable debug globally (can be overridden per-instance)
  * createClog.global.debug = false;
  * ```
  */
@@ -760,14 +787,7 @@ createClog.global = GLOBAL;
 
 /**
  * Resets global configuration to default values.
- * Clears `hook`, `writer`, `debug`, `stringify`, `concat`, and sets `jsonOutput` to `false`.
- * Useful for testing to ensure clean state between tests.
- *
- * @example
- * ```typescript
- * // In test teardown
- * createClog.reset();
- * ```
+ * Clears all fields and sets `jsonOutput` to `false`. Useful for testing.
  */
 createClog.reset = (): void => {
 	createClog.global.hook = undefined;
@@ -781,25 +801,15 @@ createClog.reset = (): void => {
 };
 
 /**
- * Creates a no-op logger that satisfies the Clog interface but doesn't output anything.
+ * Creates a no-op logger that satisfies the Clog interface but doesn't output.
  * Useful for testing scenarios where console output is not desired.
  * All methods return the first argument as a string (same as regular clog).
  *
- * @param namespace - Optional namespace for the logger (accessible via `.ns` property)
- * @returns A no-op logger that satisfies the Clog interface
- *
- * @example
- * ```typescript
- * // In tests where you don't want console output
- * const clog = createNoopClog("test");
- * clog.log("silent"); // returns "silent", but doesn't output anything
- * clog.error("fail"); // returns "fail", but doesn't output anything
- *
- * // Return value pattern still works
- * throw new Error(clog.error("Something failed"));
- * ```
+ * @param namespace - Optional namespace (accessible via `.ns`). Accepts
+ *                    `string | false | null` for legacy compatibility; any
+ *                    falsy value disables the namespace.
  */
-export function createNoopClog(namespace?: string | null): Clog {
+export function createNoopClog(namespace?: string | false | null): Clog {
 	// deno-lint-ignore no-explicit-any
 	const _return = (...args: any[]) => String(args[0] ?? "");
 	const clog = _return as Clog;
@@ -815,33 +825,34 @@ export function createNoopClog(namespace?: string | null): Clog {
 }
 
 /**
- * Wraps a console-compatible logger with an additional namespace prefix.
- * Works with any logger (clog instances, native console, or custom loggers).
+ * Wraps a logger with an additional namespace. Two behaviors:
  *
- * The returned logger prepends `[namespace]` to all log calls, enabling
- * hierarchical namespacing when passing loggers to modules.
+ * 1. **Clog instance**: returns a *new* clog whose namespace is composed with
+ *    the parent (separator `:`), e.g. `withNamespace(createClog("app"), "module")`
+ *    has `ns === "app:module"`. This preserves `LogData.namespace` for
+ *    structured output (JSON mode) and propagates the parent's config.
+ * 2. **Non-clog logger** (e.g. native `console`): returns a wrapper that
+ *    prepends `[namespace]` as the first argument on each call (same as
+ *    before). This is the only path that can work without clog internals.
+ *
+ * In either case, text output renders `"app:module"` as `[app] [module]` via
+ * the shared namespace renderer, so visible formatting is unchanged.
  *
  * @param logger - Any console-compatible logger (clog, console, or custom)
- * @param namespace - Namespace string to prepend to all log output
- * @returns A wrapped logger with the same interface, plus callable signature
+ * @param namespace - Namespace string to prepend / compose
+ * @returns A wrapped logger. If the input is a clog instance, a fresh Clog is
+ *          returned (with readonly `.ns` composed). Otherwise, a wrapper with
+ *          the input's interface plus a callable signature.
  *
  * @example
  * ```typescript
- * // With clog - creates nested namespaces
  * const clog = createClog("app");
  * const moduleLogger = withNamespace(clog, "module");
- * moduleLogger.log("hello");  // [app] [module] hello
+ * moduleLogger.log("hello");   // [app] [module] hello
+ * moduleLogger.ns;             // "app:module"
  *
- * // With native console
  * const logger = withNamespace(console, "my-module");
- * logger.warn("warning");     // [my-module] warning
- *
- * // Deep nesting
- * const sub = withNamespace(moduleLogger, "sub");
- * sub.error("fail");          // [app] [module] [sub] fail
- *
- * // Return value pattern works
- * throw new Error(moduleLogger.error("Something failed"));
+ * logger.warn("warning");      // [my-module] warning
  * ```
  */
 export function withNamespace<T extends Logger>(
@@ -849,6 +860,19 @@ export function withNamespace<T extends Logger>(
 	namespace: string
 	// deno-lint-ignore no-explicit-any
 ): T & ((...args: any[]) => string) {
+	// deno-lint-ignore no-explicit-any
+	const marker = (logger as any)[CLOG_INSTANCE] as
+		| { ns: string | false; config?: ClogConfig }
+		| undefined;
+
+	if (marker) {
+		// Compose structurally: new clog with composed namespace + inherited config
+		const composed = marker.ns ? `${marker.ns}:${namespace}` : namespace;
+		// deno-lint-ignore no-explicit-any
+		return createClog(composed, marker.config) as any;
+	}
+
+	// Non-clog logger: preserve arg-prefix wrapping (for native console etc.)
 	const prefix = `[${namespace}]`;
 
 	// deno-lint-ignore no-explicit-any

@@ -4,7 +4,7 @@
 
 ```yaml
 name: "@marianmeres/clog"
-version: "3.2.3"
+version: "3.16.0"
 license: "MIT"
 author: "Marian Meres"
 repository: "https://github.com/marianmeres/clog"
@@ -38,23 +38,28 @@ deno.json               # Deno configuration, version, tasks
 
 ### Core Components
 
-1. **Runtime Detection** (`_detectRuntime`): Detects browser/node/deno/unknown
+1. **Runtime Detection** (`detectRuntime`): Detects browser/node/deno/unknown. Result is cached on first call (runtime never changes in a single process).
 2. **LEVEL_MAP**: RFC 5424 level mapping (debug→DEBUG, log→INFO, warn→WARNING, error→ERROR)
-3. **createClog Factory**: Creates callable logger instances with namespace support
-4. **Writers**: defaultWriter (environment-aware), colorWriter (browser/Deno %c styling)
+3. **createClog Factory**: Creates callable logger instances with namespace support. Each instance carries a non-enumerable `Symbol.for("@marianmeres/clog-instance")` marker so `withNamespace` can detect clog instances and compose structurally.
+4. **Writers**: defaultWriter (environment-aware), colorWriter (browser/Deno %c styling). Both share `formatStack`, `renderNs`, `CONSOLE_METHOD` and the styled-args helpers.
 5. **Global Config**: Truly global singleton using `Symbol.for()` + `globalThis` pattern (shared across multiple module instances)
-6. **Color Utilities** (colors.ts): `colored()` function, color shortcuts (red, green, etc.), `SAFE_COLORS` hex palette, `StyledText` interface with Symbol-tagged objects for clog integration
+6. **Color Utilities** (colors.ts): `colored()` function, color shortcuts (red, green, etc.), `SAFE_COLORS` hex palette, `StyledText` interface with Symbol-tagged objects for clog integration. `autoColor()` memoizes per-namespace results.
+7. **Stack capture**: `captureStackLines()` filters internal frames by file-path match (`clog.ts`, `colors.ts`) rather than a magic frame count — survives wrappers like `withNamespace`.
 
 ### Data Flow
 
 ```
 clog.log("msg")
   → _apply(level, args)
-    → create LogData {level, namespace, args, timestamp}
+    → clone args (shallow) so hooks cannot mutate caller's array
+    → capture stack lines if stacktrace enabled
+    → build LogData {level, namespace, args, timestamp, stack}
+    → attach lazy `.meta` getter if getMeta configured (swallows throws)
     → call GLOBAL.hook(data) if set
+      → if hook returns CLOG_SKIP, suppress writer
     → select writer (global > instance > color > default)
     → call writer(data)
-    → return String(args[0])
+    → return firstArgAsString(args, config)  // matches logged form under stringify/concat
 ```
 
 ### Writer Precedence (highest to lowest)
@@ -67,12 +72,17 @@ clog.log("msg")
 ## Critical Conventions
 
 1. No log level filtering - control at source, not runtime
-2. All log methods return first argument as string (for `throw new Error(clog.error("msg"))`)
+2. All log methods return first argument as string (for `throw new Error(clog.error("msg"))`). Under `stringify` or `concat` modes, the returned string is the JSON-rendered form so it matches what was logged.
 3. Console-compatible API - can replace `console` with any `Logger`
 4. Global config uses `Symbol.for()` + `globalThis` for true global state
 5. Writer precedence: global.writer > config.writer > colorWriter > defaultWriter
 6. Config precedence: instance config > global config > defaults
 7. Colors work in browser/Deno only (use %c formatting)
+8. `LogData.args` is a *shallow clone* of the caller's arguments — hooks/writers may mutate it without affecting the caller
+9. `LogData.meta` is a lazy getter: `getMeta()` runs only when a consumer reads `.meta`, exactly once, and its exceptions are swallowed (meta becomes `undefined`)
+10. `withNamespace` composes namespaces structurally: `withNamespace(createClog("app"), "module").ns === "app:module"`. Text output splits on `:` and renders each segment in its own brackets (`[app] [module]`). JSON output uses the composed string as-is in the `namespace` field.
+11. Stack capture lives in `_apply` (not the writers), so custom writers receive `LogData.stack: string[] | undefined`. Use the exported `formatStack()` to produce the same rendering as the default writer.
+12. A hook returning `CLOG_SKIP` suppresses the writer for that call; all other return values are ignored.
 
 ## Before Making Changes
 
@@ -94,16 +104,18 @@ clog.log("msg")
 | `createClog.global` | GlobalConfig | Global configuration object |
 | `createClog.reset` | Function | Reset global config to defaults |
 | `createNoopClog` | Function | Factory for no-op logger instances (for testing) |
-| `withNamespace` | Function | Wrap logger with additional namespace prefix |
+| `withNamespace` | Function | Wrap logger: composes structurally for clog instances, arg-prefix for others |
 | `stringifyValue` | Function | Stringify a single value for logging (for custom writers) |
+| `formatStack` | Function | Render an array of stack frame lines the same way the default writer does |
+| `CLOG_SKIP` | Symbol | Sentinel — hooks return this to suppress the writer for a single log call |
 | `LEVEL_MAP` | Const Object | RFC 5424 level mapping |
 | `LogLevel` | Type | `"debug" \| "log" \| "warn" \| "error"` |
-| `LogData` | Type | Normalized log data structure |
+| `LogData` | Type | Normalized log data structure (now includes optional `stack: string[]`) |
 | `WriterFn` | Type | Writer function signature |
-| `HookFn` | Type | Hook function signature (alias of WriterFn) |
+| `HookFn` | Type | `(data: LogData) => void \| typeof CLOG_SKIP` |
 | `Logger` | Interface | Console-compatible logger interface |
 | `Clog` | Interface | Callable Logger with namespace |
-| `ClogConfig` | Interface | Instance configuration options |
+| `ClogConfig` | Interface | Instance configuration options (now includes `jsonOutput`) |
 | `GlobalConfig` | Interface | Global configuration options |
 
 **From colors.ts:**
@@ -135,11 +147,21 @@ function createClog(namespace?: string | false, config?: ClogConfig): Clog
 createClog.global: GlobalConfig
 createClog.reset: () => void
 
-function createNoopClog(namespace?: string | null): Clog
+// Widened from `string | null` to also accept `false` for symmetry with createClog.
+// Any falsy value still disables the namespace.
+function createNoopClog(namespace?: string | false | null): Clog
 
+// When `logger` is a clog instance, returns a fresh Clog whose `.ns` is
+// the composed namespace ("parent:child") with parent's config inherited.
+// When `logger` is any other logger (e.g. native console), returns a wrapper
+// that prepends `[namespace]` as an arg on each call.
 function withNamespace<T extends Logger>(logger: T, namespace: string): T & ((...args: any[]) => string)
 
 function stringifyValue(arg: any): string
+
+function formatStack(lines: string[]): string
+
+const CLOG_SKIP: unique symbol;  // hook return sentinel
 
 // From @marianmeres/clog/forward
 function createLogForwarder(
@@ -156,15 +178,16 @@ type LogLevel = "debug" | "log" | "warn" | "error";
 
 type LogData = {
   level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
-  namespace: string | false;
-  args: any[];
-  timestamp: string; // ISO 8601
-  config?: ClogConfig; // Instance config (for custom writers)
-  meta?: Record<string, unknown>; // Metadata from getMeta()
+  namespace: string | false;        // composed with ":" when via withNamespace
+  args: any[];                      // shallow clone of caller's args
+  timestamp: string;                // ISO 8601
+  config?: ClogConfig;              // Instance config (for custom writers)
+  meta?: Record<string, unknown>;   // Lazy: getMeta invoked on first .meta read (throws swallowed)
+  stack?: string[];                 // Raw stack frames when stacktrace is enabled
 };
 
 type WriterFn = (data: LogData) => void;
-type HookFn = WriterFn;
+type HookFn = (data: LogData) => void | typeof CLOG_SKIP;
 
 interface Logger {
   debug: (...args: any[]) => string;
@@ -181,10 +204,11 @@ interface Clog extends Logger {
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
-  debug?: boolean;              // when false, .debug() is a no-op (overrides global)
-  stringify?: boolean;          // when true, JSON.stringify non-primitive args
-  concat?: boolean;             // when true, concatenate all args into single string
-  stacktrace?: boolean | number; // when enabled, append call stack (dev only!)
+  debug?: boolean;                  // when false, .debug() is a no-op (overrides global)
+  stringify?: boolean;              // when true, JSON.stringify non-primitive args
+  concat?: boolean;                 // when true, concatenate all args into single string
+  stacktrace?: boolean | number;    // when enabled, capture call stack (dev only!)
+  jsonOutput?: boolean;             // when set, overrides global.jsonOutput for this instance
   getMeta?: () => Record<string, unknown>; // metadata injection (overrides global)
 }
 
@@ -277,7 +301,7 @@ Error stacks preserved as `arg_N` with stack string value.
 
 ## Test Coverage
 
-94 tests covering:
+119 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -301,6 +325,7 @@ Error stacks preserved as `arg_N` with stack string value.
 - getMeta mode (9 tests: global/instance config, override precedence, hook/writer access, JSON output, all log levels)
 - withNamespace wrapper (9 tests: basic wrapping, callable interface, all log levels, return values, throw pattern, deep nesting, console wrapping, debug inheritance)
 - createNoopClog (7 tests: return values, callable interface, no console output, no hook triggers, namespace property, readonly namespace, throw pattern)
+- Regressions (25 tests: B1 throwing getMeta, B2 return value under stringify/concat, B3 structural withNamespace composition + JSON output, B4 stack capture through wrappers, D2 arg cloning, D4 instance jsonOutput override, D7 namespace omission in JSON when false, D10 lazy getMeta, I1 autoColor memoization, I4 CLOG_SKIP sentinel)
 
 ## Design Principles
 
@@ -372,16 +397,19 @@ const dbLog = createClog("db");
 ### Nested Namespaces
 
 ```typescript
-// Wrap any console-compatible logger with additional namespace
+// Wrap a clog instance: composes structurally (ns = "app:module")
 const appLog = createClog("app");
 const moduleLog = withNamespace(appLog, "module");
-moduleLog.log("hello");  // [app] [module] hello
+moduleLog.log("hello");          // [app] [module] hello
+moduleLog.ns;                    // "app:module"
+// JSON output: {"namespace":"app:module","message":"hello",...}
 
 // Deep nesting
 const subLog = withNamespace(moduleLog, "sub");
-subLog.error("fail");    // [app] [module] [sub] fail
+subLog.ns;                       // "app:module:sub"
+subLog.error("fail");            // [app] [module] [sub] fail
 
-// Works with native console
+// Works with native console (arg-prefix wrapper)
 const consoleLog = withNamespace(console, "my-module");
 
 // Dependency injection pattern
@@ -390,6 +418,33 @@ class AuthService {
   login() { this.log.log("Login"); }  // [app] [auth] Login
 }
 const authService = new AuthService(withNamespace(appLog, "auth"));
+```
+
+### Suppressing individual logs via a hook
+
+```typescript
+import { createClog, CLOG_SKIP } from "@marianmeres/clog";
+
+createClog.global.hook = (data) => {
+  if (data.args[0] === "suppress-me") return CLOG_SKIP;  // writer is skipped
+  if (isNoisy(data)) return CLOG_SKIP;
+};
+```
+
+### Custom writer consuming `data.stack`
+
+```typescript
+import { createClog, formatStack } from "@marianmeres/clog";
+
+createClog.global.writer = (data) => {
+  send({
+    level: data.level,
+    ns: data.namespace,
+    msg: data.args[0],
+    stack: data.stack ? formatStack(data.stack) : undefined,
+  });
+};
+createClog.global.stacktrace = 10;   // capture up to 10 frames
 ```
 
 ### Debug Mode
@@ -548,10 +603,30 @@ const msg = "Status: " + green("OK"); // "Status: OK"
 
 | Version | Changes |
 |---------|---------|
+| 3.16.0 | Correctness pass: throwing `getMeta` no longer crashes logs; return value matches logged form under `stringify`/`concat`; `withNamespace` composes structurally for clog instances; stack capture survives wrappers; added `CLOG_SKIP` + instance `jsonOutput` + `formatStack`. See "Behavior changes in v3.16" below. |
 | 3.2.x | JSDoc improvements, documentation updates |
 | 3.2.0 | Color support for Deno |
 | 3.1.0 | Callable support, type improvements |
 | 3.0.0 | Major refactor, simplified API |
+
+### Behavior changes in v3.16
+
+**No API removals.** All existing names and signatures still work. The following behaviors changed:
+
+| Area | Before | After | BC risk |
+|------|--------|-------|---------|
+| `clog.log(obj)` return value under `stringify: true` or `concat: true` | `"[object Object]"` | `JSON.stringify(obj)` (matches what was logged) | Medium — code that relied on the old `"[object Object]"` return breaks. The new behavior is what the docs promised. |
+| `withNamespace(clog, "child")` → `LogData.namespace` | parent's ns only; child went into `args[0]` as `"[child]"` | composed ns string (`"parent:child"`); child no longer appears in args | High for JSON-output consumers — JSON `namespace` field now carries the composed value and `message` contains the real first arg. (Before, `message` was `"[child]"` and the real message was shifted to `arg_0`.) |
+| `withNamespace(clog, "child")` text output | `[parent] [child] msg` (because `[child]` was an arg) | `[parent] [child] msg` (renderer splits composed ns on `:`) | Low — visible format is identical. |
+| `withNamespace` return type | closure wrapping the parent | a new `createClog`-produced Clog when wrapping a clog instance (native-console path unchanged) | Low — still satisfies the declared `T & callable` type. Users who held an identity reference to the wrapper expecting pointer equality with the parent now see distinct objects. |
+| `LogData.args` | reference to caller's array | shallow clone of caller's array | Low — hooks/writers that *mutated* `data.args` to affect the caller must switch to returning `CLOG_SKIP` + re-logging, or accept that mutations now stay local. |
+| `LogData.meta` | eagerly computed every log; `getMeta` throws propagated | lazy getter (computed once on first read); throws are swallowed | Low — consumers that check `"meta" in data` will still see the property (defined via `Object.defineProperty`). Consumers that depended on eager failure of a broken `getMeta` lose that signal. |
+| JSON output when `namespace === false` | `{"namespace": false, ...}` | `namespace` field omitted | Medium — downstream parsers expecting the key to always exist. Mirrors existing handling of `meta`. |
+| `HookFn` return type | `void` (any return ignored) | `void \| typeof CLOG_SKIP` (CLOG_SKIP suppresses writer) | Low — hooks accidentally returning `false`/other values still work; only `CLOG_SKIP` is meaningful. |
+| `createNoopClog` parameter type | `string \| null` | `string \| false \| null` | None — widening only. |
+| `ClogConfig.jsonOutput` | did not exist | added (overrides `GlobalConfig.jsonOutput` per-instance) | None — additive. |
+| Stack capture site | inside the writer | inside `_apply`; custom writers receive `LogData.stack: string[] \| undefined` | None — additive for custom writers; default and color writers still render identically. |
+| Stack frame filtering | skipped a fixed 5 frames | skips by file-path match (`clog.ts`, `colors.ts`) | Low — one more frame is now correctly preserved when calling through `withNamespace` or custom wrappers. Users pinning on specific frame counts in tests may see one more useful frame. |
 
 ### Breaking Changes in v3.0
 
@@ -584,6 +659,7 @@ Removed:
 | getMeta tests | [tests/get-meta.test.ts](tests/get-meta.test.ts) |
 | withNamespace tests | [tests/with-namespace.test.ts](tests/with-namespace.test.ts) |
 | createNoopClog tests | [tests/noop-clog.test.ts](tests/noop-clog.test.ts) |
+| Regression tests (v3.16) | [tests/regressions.test.ts](tests/regressions.test.ts) |
 | Forwarder tests | [tests/forward.test.ts](tests/forward.test.ts) |
 | Color examples | [tests/deno-raw.ts](tests/deno-raw.ts) |
 | Build script | [scripts/build-npm.ts](scripts/build-npm.ts) |

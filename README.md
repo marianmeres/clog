@@ -132,7 +132,7 @@ dbLog.error("Connection failed");  // [database] Connection failed
 
 ### Nested Namespaces
 
-Use `withNamespace()` to wrap any console-compatible logger with an additional namespace. This is useful when passing loggers to modules that want their own namespace while preserving the parent context:
+Use `withNamespace()` to attach an additional namespace to a logger:
 
 ```typescript
 import { createClog, withNamespace } from "@marianmeres/clog";
@@ -141,12 +141,14 @@ const appLog = createClog("app");
 const moduleLog = withNamespace(appLog, "auth");
 
 moduleLog.log("User logged in");   // [app] [auth] User logged in
+moduleLog.ns;                      // "app:auth" — composed namespace
 
-// Deep nesting works too
+// Deep nesting composes further
 const subLog = withNamespace(moduleLog, "oauth");
+subLog.ns;                         // "app:auth:oauth"
 subLog.warn("Token expired");      // [app] [auth] [oauth] Token expired
 
-// Works with native console
+// Works with native console (arg-prefix mode)
 const consoleLog = withNamespace(console, "my-module");
 consoleLog.error("Something failed");  // [my-module] Something failed
 
@@ -154,7 +156,7 @@ consoleLog.error("Something failed");  // [my-module] Something failed
 throw new Error(moduleLog.error("Authentication failed"));
 ```
 
-**Note:** When using `color` config, only the original logger's namespace is colored. Namespaces added via `withNamespace()` appear as plain text.
+**How it composes.** When the wrapped target is a clog instance, `withNamespace` returns a *fresh* clog whose `ns` is the parent's namespace joined with `:`. The renderer splits that back into `[parent] [child]` for readable text output and uses the composed string as-is in JSON (`"namespace":"app:auth"`). When the target is any other logger (e.g. native `console`), the wrapper prepends `[namespace]` as the first argument on every call, as before.
 
 ### Auto-Environment Detection
 
@@ -180,15 +182,18 @@ clog.log("Request received", { method: "GET" });
 Enable JSON output for server logs:
 
 ```typescript
-// Enable JSON output globally
+// Enable globally
 createClog.global.jsonOutput = true;
 
-const clog = createClog("api");
+// …or per-instance (since v3.16). Instance setting wins if defined.
+const clog = createClog("api", { jsonOutput: true });
 clog.log("Request received", { method: "GET", path: "/users" });
 
 // Output (single line):
 // {"timestamp":"2025-11-29T10:30:45.123Z","level":"INFO","namespace":"api","message":"Request received","arg_0":{"method":"GET","path":"/users"}}
 ```
+
+When the logger has no namespace, the `namespace` field is **omitted** (instead of being emitted as `false`), matching how `meta` is handled.
 
 ### Log Levels
 
@@ -212,10 +217,17 @@ const clog = createClog("auth");
 
 // Convenient error throwing
 throw new Error(clog.error("Authentication failed"));
+```
 
-// Or for validation
-const userId = validateUser() ||
-  throw new Error(clog.error("Invalid user"));
+Under `stringify` or `concat` modes, the return value is the JSON-rendered form, so it **matches what was logged**:
+
+```typescript
+const clog = createClog("api", { stringify: true });
+const ret = clog.error({ code: 500, msg: "boom" });
+// ret === '{"code":500,"msg":"boom"}'
+// (pre-3.16 returned "[object Object]")
+
+throw new Error(ret);  // Error message carries the full JSON
 ```
 
 ### Global Hook (Batching/Collection)
@@ -249,11 +261,27 @@ Hook receives normalized data:
 ```typescript
 type LogData = {
   level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
-  namespace: string | false;
-  args: any[];
-  timestamp: string;  // ISO 8601 format
+  namespace: string | false;       // composed with ":" when via withNamespace
+  args: any[];                     // shallow clone — safe to mutate
+  timestamp: string;               // ISO 8601 format
+  meta?: Record<string, unknown>;  // lazy; computed on first read
+  stack?: string[];                // present when stacktrace is enabled
 };
 ```
+
+#### Suppressing individual logs
+
+Return the `CLOG_SKIP` sentinel from a hook to suppress the writer for that single call (useful for filtering):
+
+```typescript
+import { createClog, CLOG_SKIP } from "@marianmeres/clog";
+
+createClog.global.hook = (data) => {
+  if (isNoisy(data)) return CLOG_SKIP;   // writer is not called
+};
+```
+
+All other return values are ignored.
 
 ### Custom Writer
 
@@ -412,6 +440,17 @@ createClog.global.stacktrace = 3;
 
 With JSON output enabled, the stack trace is included as a `"stack"` field in the JSON object.
 
+Custom writers receive the raw frames via `LogData.stack: string[] | undefined` and can render them with the exported `formatStack(lines)` helper to match the default output:
+
+```typescript
+import { createClog, formatStack } from "@marianmeres/clog";
+
+createClog.global.stacktrace = 10;
+createClog.global.writer = (data) => {
+  mySink({ msg: data.args[0], stack: data.stack ? formatStack(data.stack) : undefined });
+};
+```
+
 **Precedence:** Instance `config.stacktrace` → Global `createClog.global.stacktrace` → Default (`undefined`/disabled)
 
 ### Metadata Injection (getMeta)
@@ -472,10 +511,11 @@ clog.log("Request");
 ```
 
 **Key points:**
-- `getMeta` is called synchronously on every log call
+- `getMeta` is called **lazily** — only when a hook or writer actually reads `data.meta`. Result is cached per log call, so repeated reads run the function once.
+- If `getMeta` throws, the exception is **swallowed** and `data.meta` becomes `undefined`. Logging never fails because of metadata.
 - Returns `Record<string, unknown>` for flexibility
 - Instance `getMeta` overrides global `getMeta`
-- If `getMeta` returns `undefined`, no `meta` field is added to `LogData`
+- If `getMeta` returns `undefined`, no `meta` field is added to JSON output
 
 **Precedence:** Instance `config.getMeta` → Global `createClog.global.getMeta` → Default (`undefined`)
 
@@ -500,11 +540,16 @@ clog.error(...args);   // ERROR level
 clog(...args);         // Callable, same as clog.log()
 
 // Instance properties
-clog.ns;               // readonly namespace
+clog.ns;               // readonly namespace ("app" or "app:module" when composed)
 
-// Nested namespaces (wrap any console-compatible logger)
+// Nested namespaces (clog instance → composed; native console → arg prefix)
 const nested = withNamespace(clog, "module");
 nested.log("msg");     // [original-ns] [module] msg
+nested.ns;             // "original-ns:module"
+
+// Hook suppression sentinel
+import { CLOG_SKIP } from "@marianmeres/clog";
+createClog.global.hook = (data) => { if (drop(data)) return CLOG_SKIP; };
 
 // Global configuration
 createClog.global.hook = (data: LogData) => { /* ... */ };
@@ -526,10 +571,11 @@ createClog.reset();
 interface ClogConfig {
   writer?: WriterFn;
   color?: string | null;
-  debug?: boolean;              // when false, .debug() is a no-op
-  stringify?: boolean;          // JSON.stringify non-primitive args
-  concat?: boolean;             // concatenate all args into single string
-  stacktrace?: boolean | number; // append call stack (dev only!)
+  debug?: boolean;                  // when false, .debug() is a no-op
+  stringify?: boolean;              // JSON.stringify non-primitive args
+  concat?: boolean;                 // concatenate all args into single string
+  stacktrace?: boolean | number;    // capture call stack (dev only!)
+  jsonOutput?: boolean;             // overrides global.jsonOutput (v3.16+)
   getMeta?: () => Record<string, unknown>; // metadata injection
 }
 
@@ -537,21 +583,24 @@ interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
-  debug?: boolean;              // can be overridden per-instance
-  stringify?: boolean;          // can be overridden per-instance
-  concat?: boolean;             // can be overridden per-instance
-  stacktrace?: boolean | number; // can be overridden per-instance (dev only!)
+  debug?: boolean;                  // can be overridden per-instance
+  stringify?: boolean;              // can be overridden per-instance
+  concat?: boolean;                 // can be overridden per-instance
+  stacktrace?: boolean | number;    // can be overridden per-instance (dev only!)
   getMeta?: () => Record<string, unknown>; // can be overridden per-instance
 }
 
 type LogData = {
   level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
-  namespace: string | false;
-  args: any[];
+  namespace: string | false;        // composed with ":" when via withNamespace
+  args: any[];                      // shallow clone of caller's arguments
   timestamp: string;
-  config?: ClogConfig;  // instance config (for custom writers)
-  meta?: Record<string, unknown>; // metadata from getMeta()
+  config?: ClogConfig;              // instance config (for custom writers)
+  meta?: Record<string, unknown>;   // lazy getter; getMeta throws are swallowed
+  stack?: string[];                 // set when stacktrace is enabled (v3.16+)
 };
+
+type HookFn = (data: LogData) => void | typeof CLOG_SKIP;
 ```
 
 ## Examples
@@ -702,6 +751,20 @@ createClog.global.hook = (data) => sendToAnalytics(data);
 // Any dependency using @marianmeres/clog will automatically
 // use JSON output and trigger your hook
 ```
+
+## Upgrade notes (v3.15 → v3.16)
+
+No API was removed or renamed. A handful of behaviors changed — most are bug fixes:
+
+- **`clog.log(obj)` return value** under `stringify`/`concat` now matches the logged form (JSON instead of `"[object Object]"`). If you relied on the old `"[object Object]"` return, update accordingly.
+- **`withNamespace(clog, "child")`** now composes structurally. `ns` becomes `"parent:child"`, `LogData.namespace` carries that string, and JSON output's `namespace` field finally contains the real composition (previously, the child's name was dropped into `message`). Visible text output is unchanged. Native-`console` wrapping is unchanged.
+- **`LogData.args`** is now a shallow clone of the caller's arguments. Hooks and writers can still mutate it, but the mutation no longer leaks back to the caller.
+- **`LogData.meta`** is a lazy getter. `getMeta()` only runs when a consumer reads `.meta`, and a throwing `getMeta()` is now swallowed — your logs no longer crash when metadata fails.
+- **JSON output when `namespace === false`** no longer emits the `namespace` field (matches how `meta` is handled).
+- **`stacktrace`** now also populates `LogData.stack: string[]` so custom writers can consume it. Stack frame filtering uses path matching, so wrapped call sites (e.g. through `withNamespace`) no longer show internal `_apply`/writer frames.
+- **New:** `CLOG_SKIP` symbol (return from a hook to suppress the writer), `formatStack(lines)` helper, `ClogConfig.jsonOutput` (per-instance override), and `createNoopClog` now accepts `false` in addition to `null`.
+
+See `AGENTS.md` → "Behavior changes in v3.16" for the full BC-risk table.
 
 ## Migrating from v2.x
 
