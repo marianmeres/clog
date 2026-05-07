@@ -57,7 +57,7 @@ Deno.test("text output format in server mode", () => {
 	// Format: [timestamp] [LEVEL] [namespace] message
 	assertMatch(
 		output,
-		/^\[\d{4}-\d{2}-\d{2}T.*\] \[WARNING\] \[api\] Slow query/
+		/^\[\d{4}-\d{2}-\d{2}T.*\] \[WARNING\] \[api\] Slow query/,
 	);
 
 	restoreConsole();
