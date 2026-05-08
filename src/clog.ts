@@ -44,6 +44,56 @@ export type LogLevel = keyof typeof LEVEL_MAP;
 export const CLOG_SKIP: unique symbol = Symbol.for("@marianmeres/clog-skip");
 
 /**
+ * Conceptual identifiers for the top-level fields emitted in JSON output mode.
+ * Used as keys in {@link JsonFieldNames} to remap the actual emitted property
+ * name. `arg` is special — it is used as a prefix for sequenced extra args
+ * (`arg_0`, `arg_1`, …), so renaming it to e.g. `"extra"` produces
+ * `extra_0`, `extra_1`, …
+ */
+export type JsonFieldKey =
+	| "timestamp"
+	| "level"
+	| "logger"
+	| "message"
+	| "meta"
+	| "arg"
+	| "stack";
+
+/**
+ * Per-field rename map for JSON output. Any key omitted falls back to the
+ * default name. Resolution is per-key: instance config > global config >
+ * default.
+ *
+ * @example
+ * ```typescript
+ * // Restore the pre-3.18 default for the namespace field:
+ * createClog.global.jsonFieldNames = { logger: "namespace" };
+ *
+ * // Datadog-friendly subset:
+ * createClog.global.jsonFieldNames = {
+ *   timestamp: "@timestamp",
+ *   level: "status",
+ *   logger: "logger.name",
+ * };
+ * ```
+ */
+export type JsonFieldNames = Partial<Record<JsonFieldKey, string>>;
+
+/**
+ * Default JSON field names. The `logger` slot replaces the pre-3.18
+ * `"namespace"` field name.
+ */
+const DEFAULT_JSON_FIELD_NAMES: Required<JsonFieldNames> = {
+	timestamp: "timestamp",
+	level: "level",
+	logger: "logger",
+	message: "message",
+	meta: "meta",
+	arg: "arg",
+	stack: "stack",
+};
+
+/**
  * Internal marker placed on Clog instances so `withNamespace` can detect them
  * and compose a structured child namespace instead of prefixing an arg.
  */
@@ -241,6 +291,22 @@ export interface ClogConfig {
 	jsonOutput?: boolean;
 
 	/**
+	 * Per-field rename map for JSON output. Any omitted key falls back to the
+	 * default name (per-key resolution: instance > global > default). Useful
+	 * for matching the field names expected by your log aggregator.
+	 *
+	 * Default names: `timestamp`, `level`, `logger`, `message`, `meta`, `arg`
+	 * (used as prefix for `arg_0`, `arg_1`, …), `stack`.
+	 *
+	 * @example
+	 * ```typescript
+	 * // Restore the pre-3.18 "namespace" field name:
+	 * const clog = createClog("api", { jsonFieldNames: { logger: "namespace" } });
+	 * ```
+	 */
+	jsonFieldNames?: JsonFieldNames;
+
+	/**
 	 * Function called lazily on each log to return metadata. Metadata is
 	 * available in `LogData.meta` for custom writers/hooks. If this function
 	 * throws, the error is swallowed and meta stays `undefined` — logging
@@ -267,6 +333,13 @@ export interface GlobalConfig {
 
 	/** Enable structured JSON output for server environments. */
 	jsonOutput?: boolean;
+
+	/**
+	 * Per-field rename map for JSON output (can be overridden per-instance via
+	 * `ClogConfig.jsonFieldNames`). Resolution is per-key: instance > global >
+	 * default. See {@link JsonFieldNames}.
+	 */
+	jsonFieldNames?: JsonFieldNames;
 
 	/** Global debug mode. When `false`, `.debug()` calls become no-ops. */
 	debug?: boolean;
@@ -544,18 +617,25 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	// Server (Node / Deno / unknown) output path
 	const useJson = config?.jsonOutput ?? GLOBAL.jsonOutput;
 	if (useJson) {
+		// Per-key resolution: instance > global > default. Spread merges only
+		// the keys the user supplied, so a partial map keeps unrelated names.
+		const fieldNames = {
+			...DEFAULT_JSON_FIELD_NAMES,
+			...GLOBAL.jsonFieldNames,
+			...config?.jsonFieldNames,
+		};
 		// deno-lint-ignore no-explicit-any
 		const output: Record<string, any> = {
-			timestamp,
-			level,
-			...(namespace ? { namespace } : {}),
-			message: cleanedArgs[0],
-			...(data.meta && { meta: data.meta }),
+			[fieldNames.timestamp]: timestamp,
+			[fieldNames.level]: level,
+			...(namespace ? { [fieldNames.logger]: namespace } : {}),
+			[fieldNames.message]: cleanedArgs[0],
+			...(data.meta && { [fieldNames.meta]: data.meta }),
 		};
 		cleanedArgs.slice(1).forEach((arg, i) => {
-			output[`arg_${i}`] = arg?.stack ?? arg;
+			output[`${fieldNames.arg}_${i}`] = arg?.stack ?? arg;
 		});
-		if (stackStr) output.stack = stackStr;
+		if (stackStr) output[fieldNames.stack] = stackStr;
 		console[consoleMethod](JSON.stringify(output));
 		return;
 	}
@@ -769,6 +849,7 @@ export function createClog(
  * - `hook` - Function called before every log (return `CLOG_SKIP` to drop)
  * - `writer` - Global writer that overrides all instance writers
  * - `jsonOutput` - Enable JSON output format for server environments
+ * - `jsonFieldNames` - Per-field rename map for JSON output
  * - `debug` - Global debug mode (can be overridden per-instance)
  *
  * @example
@@ -793,6 +874,7 @@ createClog.reset = (): void => {
 	createClog.global.hook = undefined;
 	createClog.global.writer = undefined;
 	createClog.global.jsonOutput = false;
+	createClog.global.jsonFieldNames = undefined;
 	createClog.global.debug = undefined;
 	createClog.global.stringify = undefined;
 	createClog.global.concat = undefined;

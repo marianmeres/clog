@@ -162,7 +162,8 @@ Deno.test("B3: withNamespace JSON output has composed namespace", () => {
 
 	assertEquals(consoleOutput.log.length, 1);
 	const parsed = JSON.parse(consoleOutput.log[0]);
-	assertEquals(parsed.namespace, "app:module");
+	// 3.18: default JSON field is "logger" (was "namespace")
+	assertEquals(parsed.logger, "app:module");
 	assertEquals(parsed.message, "hello");
 
 	restoreConsole();
@@ -290,7 +291,8 @@ Deno.test("D4: instance jsonOutput true overrides global false", () => {
 	// Must be parseable JSON
 	const parsed = JSON.parse(consoleOutput.log[0]);
 	assertEquals(parsed.message, "msg");
-	assertEquals(parsed.namespace, "api");
+	// 3.18: default JSON field is "logger" (was "namespace")
+	assertEquals(parsed.logger, "api");
 
 	restoreConsole();
 });
@@ -316,9 +318,9 @@ Deno.test("D4: instance jsonOutput false overrides global true", () => {
 	restoreConsole();
 });
 
-// --- D7: namespace field omitted from JSON when false -------------------
+// --- D7: logger field omitted from JSON when namespace is false ---------
 
-Deno.test("D7: JSON output omits namespace field when namespace is false", () => {
+Deno.test("D7: JSON output omits logger field when namespace is false", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 
@@ -326,7 +328,9 @@ Deno.test("D7: JSON output omits namespace field when namespace is false", () =>
 	clog.log("msg");
 
 	const parsed = JSON.parse(consoleOutput.log[0]);
-	assert(!("namespace" in parsed), "namespace field must be absent");
+	assert(!("logger" in parsed), "logger field must be absent");
+	// And the legacy "namespace" must not sneak back in either.
+	assert(!("namespace" in parsed));
 	assertEquals(parsed.message, "msg");
 
 	restoreConsole();

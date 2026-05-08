@@ -4,7 +4,7 @@
 
 ```yaml
 name: "@marianmeres/clog"
-version: "3.16.0"
+version: "3.18.0"
 license: "MIT"
 author: "Marian Meres"
 repository: "https://github.com/marianmeres/clog"
@@ -115,8 +115,10 @@ clog.log("msg")
 | `HookFn` | Type | `(data: LogData) => void \| typeof CLOG_SKIP` |
 | `Logger` | Interface | Console-compatible logger interface |
 | `Clog` | Interface | Callable Logger with namespace |
-| `ClogConfig` | Interface | Instance configuration options (now includes `jsonOutput`) |
-| `GlobalConfig` | Interface | Global configuration options |
+| `ClogConfig` | Interface | Instance configuration options (now includes `jsonOutput`, `jsonFieldNames`) |
+| `GlobalConfig` | Interface | Global configuration options (now includes `jsonFieldNames`) |
+| `JsonFieldKey` | Type | Conceptual JSON field identifier (`"timestamp" \| "level" \| "logger" \| "message" \| "meta" \| "arg" \| "stack"`) |
+| `JsonFieldNames` | Type | `Partial<Record<JsonFieldKey, string>>` — per-field rename map for JSON output |
 
 **From colors.ts:**
 
@@ -209,6 +211,7 @@ interface ClogConfig {
   concat?: boolean;                 // when true, concatenate all args into single string
   stacktrace?: boolean | number;    // when enabled, capture call stack (dev only!)
   jsonOutput?: boolean;             // when set, overrides global.jsonOutput for this instance
+  jsonFieldNames?: JsonFieldNames;  // per-field rename map for JSON output (overrides global per-key)
   getMeta?: () => Record<string, unknown>; // metadata injection (overrides global)
 }
 
@@ -216,12 +219,20 @@ interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
+  jsonFieldNames?: JsonFieldNames; // per-field rename map for JSON output (can be overridden per-instance per-key)
   debug?: boolean;              // when false, .debug() is a no-op (can be overridden per-instance)
   stringify?: boolean;          // when true, JSON.stringify non-primitive args
   concat?: boolean;             // when true, concatenate all args into single string
   stacktrace?: boolean | number; // when enabled, append call stack (dev only!)
   getMeta?: () => Record<string, unknown>; // metadata injection (can be overridden per-instance)
 }
+
+// Conceptual identifiers for top-level JSON output fields. The `arg` key is a
+// prefix for sequenced extra args (`arg_0`, `arg_1`, …) — renaming it to
+// `"extra"` produces `extra_0`, `extra_1`, …
+type JsonFieldKey =
+  | "timestamp" | "level" | "logger" | "message" | "meta" | "arg" | "stack";
+type JsonFieldNames = Partial<Record<JsonFieldKey, string>>;
 
 // From colors.ts
 const CLOG_STYLED: unique symbol = Symbol.for("@marianmeres/clog-styled");
@@ -274,10 +285,12 @@ interface LogForwarder {
 ### Server JSON Mode (jsonOutput=true)
 
 ```json
-{"timestamp":"ISO","level":"LEVEL","namespace":"ns","message":"arg0","arg_0":"arg1","arg_1":"arg2"}
+{"timestamp":"ISO","level":"LEVEL","logger":"ns","message":"arg0","arg_0":"arg1","arg_1":"arg2"}
 ```
 
-Error stacks preserved as `arg_N` with stack string value.
+Default field names: `timestamp`, `level`, `logger`, `message`, `meta`, `stack`, plus the `arg` prefix for sequenced extras (`arg_0`, `arg_1`, …). Any of them are renameable via `ClogConfig.jsonFieldNames` / `GlobalConfig.jsonFieldNames` (per-key resolution: instance > global > default). The `logger` field (under whatever name) is omitted when the logger has no namespace.
+
+Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the stack string value.
 
 ## Commands
 
@@ -301,7 +314,7 @@ Error stacks preserved as `arg_N` with stack string value.
 
 ## Test Coverage
 
-119 tests covering:
+127 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -310,7 +323,7 @@ Error stacks preserved as `arg_N` with stack string value.
 - Instance writers
 - Writer precedence (global > instance)
 - Hook execution order (before writer)
-- JSON and text output formats
+- JSON and text output formats (incl. `jsonFieldNames` rename map: instance/global precedence, `arg` prefix, `logger` omission when namespace is `false`, all 7 renamable keys, `reset()` clearing global)
 - Error stack preservation in JSON
 - Color configuration
 - Configuration reset
@@ -385,6 +398,28 @@ createClog.global.hook = (data) => {
 ```typescript
 createClog.global.writer = (data) => sendToExternalService(data);
 ```
+
+### Renaming JSON Output Fields (no custom writer needed)
+
+```typescript
+// Restore the pre-3.18 "namespace" key:
+createClog.global.jsonFieldNames = { logger: "namespace" };
+
+// ECS-style:
+createClog.global.jsonFieldNames = {
+  timestamp: "@timestamp",
+  level: "log.level",
+  logger: "log.logger",
+};
+
+// Per-instance (only the keys you specify; others fall back per-key to global / default):
+const clog = createClog("api", {
+  jsonOutput: true,
+  jsonFieldNames: { logger: "service", arg: "extra" }, // arg becomes the prefix → extra_0, extra_1
+});
+```
+
+Renamable keys: `timestamp`, `level`, `logger`, `message`, `meta`, `arg` (prefix), `stack`. The `logger` field is still omitted when the logger has no namespace, regardless of rename.
 
 ### Module Namespacing
 
@@ -590,7 +625,7 @@ const msg = "Status: " + green("OK"); // "Status: OK"
 ### Modify Output Format
 
 - Text format: Edit `defaultWriter` function (non-jsonOutput branch)
-- JSON format: Edit `defaultWriter` function (jsonOutput branch)
+- JSON format: Edit `defaultWriter` function (jsonOutput branch). Top-level field names are looked up through the merged `DEFAULT_JSON_FIELD_NAMES` + global + instance `jsonFieldNames`, so consumers can already rename any of them without touching the writer. Add a new conceptual key here only if you're emitting a *new* field — otherwise prefer renaming via `jsonFieldNames`.
 - Color format: Edit `colorWriter` function
 
 ### Add Runtime Support
@@ -603,11 +638,19 @@ const msg = "Status: " + green("OK"); // "Status: OK"
 
 | Version | Changes |
 |---------|---------|
+| 3.18.0 | JSON output: default `"namespace"` field renamed to `"logger"` (matches OTel/ECS/Datadog conventions); added `jsonFieldNames` (instance + global) for per-field renames of all JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). See "Behavior changes in v3.18" below. |
 | 3.16.0 | Correctness pass: throwing `getMeta` no longer crashes logs; return value matches logged form under `stringify`/`concat`; `withNamespace` composes structurally for clog instances; stack capture survives wrappers; added `CLOG_SKIP` + instance `jsonOutput` + `formatStack`. See "Behavior changes in v3.16" below. |
 | 3.2.x | JSDoc improvements, documentation updates |
 | 3.2.0 | Color support for Deno |
 | 3.1.0 | Callable support, type improvements |
 | 3.0.0 | Major refactor, simplified API |
+
+### Behavior changes in v3.18
+
+| Area | Before | After | BC risk |
+|------|--------|-------|---------|
+| JSON output: namespace field name | `"namespace"` | `"logger"` (matches OTel `logger.name`, ECS `log.logger`, Datadog) | Medium — downstream parsers grepping the literal `"namespace"` field break. Restore in one line: `createClog.global.jsonFieldNames = { logger: "namespace" }`. Visible text output and `LogData.namespace` (the type field) are unchanged. |
+| `ClogConfig.jsonFieldNames` / `GlobalConfig.jsonFieldNames` | did not exist | `Partial<Record<JsonFieldKey, string>>` — per-key rename map for all JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). Per-key resolution: instance > global > default. The `arg` key is the prefix for sequenced extras (`arg_0`, `arg_1`, …). | None — additive. |
 
 ### Behavior changes in v3.16
 

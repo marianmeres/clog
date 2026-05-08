@@ -98,7 +98,8 @@ Deno.test("works with JSON output", () => {
 	assertEquals(consoleOutput.log.length, 1);
 	const parsed = JSON.parse(consoleOutput.log[0]);
 	assertEquals(parsed.message, "msg");
-	assertEquals(parsed.namespace, "test");
+	// 3.18: default JSON field is "logger" (was "namespace")
+	assertEquals(parsed.logger, "test");
 	assert(parsed.stack, "Stack field should be present in JSON output");
 	assert(parsed.stack.includes("at "), "Stack should contain 'at ' frames");
 

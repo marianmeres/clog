@@ -190,10 +190,37 @@ const clog = createClog("api", { jsonOutput: true });
 clog.log("Request received", { method: "GET", path: "/users" });
 
 // Output (single line):
-// {"timestamp":"2025-11-29T10:30:45.123Z","level":"INFO","namespace":"api","message":"Request received","arg_0":{"method":"GET","path":"/users"}}
+// {"timestamp":"2025-11-29T10:30:45.123Z","level":"INFO","logger":"api","message":"Request received","arg_0":{"method":"GET","path":"/users"}}
 ```
 
-When the logger has no namespace, the `namespace` field is **omitted** (instead of being emitted as `false`), matching how `meta` is handled.
+When the logger has no namespace, the `logger` field is **omitted** (instead of being emitted as `false`), matching how `meta` is handled.
+
+> **BC note (v3.18):** the namespace field is now emitted as `"logger"` (was `"namespace"`). `"logger"` matches the convention used by OpenTelemetry, Elastic Common Schema, Datadog, and most JVM-ecosystem tools. To restore the old name (or any other field name), use `jsonFieldNames` — see below.
+
+#### Renaming JSON fields (`jsonFieldNames`)
+
+Most log aggregators expect specific top-level field names. Use `jsonFieldNames` to rename any of them without writing a custom writer. Resolution is **per-key**: instance config > global config > default. Any key you omit keeps its default name.
+
+```typescript
+// Restore the pre-3.18 default for the namespace field:
+createClog.global.jsonFieldNames = { logger: "namespace" };
+
+// Or pick the convention your aggregator wants (e.g. ECS-ish):
+createClog.global.jsonFieldNames = {
+  timestamp: "@timestamp",
+  level: "log.level",
+  logger: "log.logger",
+  message: "message",
+};
+
+// Per-instance override (only the keys you specify; others fall back to global / default):
+const clog = createClog("api", {
+  jsonOutput: true,
+  jsonFieldNames: { logger: "service" },
+});
+```
+
+The full set of renamable keys is `timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`. The `arg` key is special — it's the **prefix** used for sequenced extra args (`arg_0`, `arg_1`, …); renaming it to `"extra"` produces `extra_0`, `extra_1`, … When the logger has no namespace, the `logger` field (under whatever name you chose) is still omitted — same as before.
 
 ### Log Levels
 
@@ -507,7 +534,7 @@ createClog.global.getMeta = () => ({ userId: "user-123" });
 const clog = createClog("api");
 clog.log("Request");
 
-// Output: {"timestamp":"...","level":"INFO","namespace":"api","message":"Request","meta":{"userId":"user-123"}}
+// Output: {"timestamp":"...","level":"INFO","logger":"api","message":"Request","meta":{"userId":"user-123"}}
 ```
 
 **Key points:**
@@ -555,6 +582,7 @@ createClog.global.hook = (data) => { if (drop(data)) return CLOG_SKIP; };
 createClog.global.hook = (data: LogData) => { /* ... */ };
 createClog.global.writer = (data: LogData) => { /* ... */ };
 createClog.global.jsonOutput = true;
+createClog.global.jsonFieldNames = { logger: "service" }; // rename JSON keys
 createClog.global.debug = false;     // disable debug globally
 createClog.global.stringify = true;  // JSON.stringify objects
 createClog.global.concat = true;     // single string output
@@ -576,6 +604,7 @@ interface ClogConfig {
   concat?: boolean;                 // concatenate all args into single string
   stacktrace?: boolean | number;    // capture call stack (dev only!)
   jsonOutput?: boolean;             // overrides global.jsonOutput (v3.16+)
+  jsonFieldNames?: JsonFieldNames;  // rename JSON output keys (v3.18+)
   getMeta?: () => Record<string, unknown>; // metadata injection
 }
 
@@ -583,12 +612,17 @@ interface GlobalConfig {
   hook?: HookFn;
   writer?: WriterFn;
   jsonOutput?: boolean;
+  jsonFieldNames?: JsonFieldNames;  // rename JSON output keys (v3.18+)
   debug?: boolean;                  // can be overridden per-instance
   stringify?: boolean;              // can be overridden per-instance
   concat?: boolean;                 // can be overridden per-instance
   stacktrace?: boolean | number;    // can be overridden per-instance (dev only!)
   getMeta?: () => Record<string, unknown>; // can be overridden per-instance
 }
+
+type JsonFieldKey =
+  | "timestamp" | "level" | "logger" | "message" | "meta" | "arg" | "stack";
+type JsonFieldNames = Partial<Record<JsonFieldKey, string>>;
 
 type LogData = {
   level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
@@ -646,7 +680,7 @@ clog.log("Request received");
 createClog.global.jsonOutput = true;
 const clog2 = createClog("api");
 clog2.log("Request received", { userId: 123 });
-// {"timestamp":"2025-11-29T10:30:45.123Z","level":"INFO","namespace":"api","message":"Request received","arg_0":{"userId":123}}
+// {"timestamp":"2025-11-29T10:30:45.123Z","level":"INFO","logger":"api","message":"Request received","arg_0":{"userId":123}}
 ```
 
 ### Testing with No-Op Logger
@@ -751,6 +785,17 @@ createClog.global.hook = (data) => sendToAnalytics(data);
 // Any dependency using @marianmeres/clog will automatically
 // use JSON output and trigger your hook
 ```
+
+## Upgrade notes (v3.17 → v3.18)
+
+**One BC change** to a JSON output default, plus one additive feature:
+
+- **JSON output: `"namespace"` field renamed to `"logger"`.** This brings the default in line with OpenTelemetry / ECS / Datadog conventions and removes the need consumers had to rewrite the JSON shape downstream. If your aggregator pipeline expects the literal field name `"namespace"`, restore it with one line:
+  ```typescript
+  createClog.global.jsonFieldNames = { logger: "namespace" };
+  ```
+  Visible text output (`[ns] message`) and `LogData.namespace` (the type field) are unchanged — only the JSON output key renamed.
+- **New: `jsonFieldNames`** (instance + global) — a `Partial<Record<JsonFieldKey, string>>` map for renaming any of the JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). See "Renaming JSON fields" above.
 
 ## Upgrade notes (v3.15 → v3.16)
 
