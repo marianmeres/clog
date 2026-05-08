@@ -788,6 +788,15 @@ type HookFn = (data: LogData) => void | typeof CLOG_SKIP
 
 Used for collecting, batching, analytics, or filtering. Hooks are called before writers. Return the [`CLOG_SKIP`](#clog_skip) symbol to suppress the writer for that single log call; any other return value is ignored.
 
+**Transforming via mutation.** The `data` object passed to the hook is the same reference the writer receives next. Mutating it in place (e.g. prefixing `data.namespace`, redacting strings in `data.args`, augmenting `data.meta`) is a supported way to transform what the writer sees without replacing the writer. `data.args` is already a shallow clone of the caller's arguments, so mutating or replacing it is safe and does not affect the caller. A hook may both transform and return `CLOG_SKIP`.
+
+```typescript
+// Prefix the namespace — surfaces in text output and JSON "logger" field
+createClog.global.hook = (data) => {
+  if (data.namespace) data.namespace = `svc:${data.namespace}`;
+};
+```
+
 ### ClogConfig
 
 Instance-level configuration options.

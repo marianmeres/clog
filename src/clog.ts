@@ -150,13 +150,27 @@ export type WriterFn = (data: LogData) => void;
  * writer for the current log call (all other logs continue normally). Any
  * other return value is ignored.
  *
- * @param data - Normalized log data being logged
+ * Hooks may also **mutate `data` in place** to transform what the writer sees.
+ * The same object reference is passed to the writer next, so changes to
+ * `namespace`, `args`, `meta`, etc. propagate to both default and custom
+ * writers. Use this for value-level transforms (e.g. prefixing the namespace,
+ * which becomes the JSON `logger` field) without rewriting the writer. Note
+ * that `args` is already a shallow clone of the caller's array, so mutating
+ * `data.args` is safe.
+ *
+ * @param data - Normalized log data being logged. Mutations propagate to the writer.
  * @returns `CLOG_SKIP` to skip the writer, anything else to continue.
  *
  * @example
  * ```typescript
+ * // Observation: collect logs into a batch
  * const batch: LogData[] = [];
  * createClog.global.hook = (data) => batch.push(data);
+ *
+ * // Transformation: prefix the namespace (affects text and JSON output)
+ * createClog.global.hook = (data) => {
+ *   if (data.namespace) data.namespace = `myprefix:${data.namespace}`;
+ * };
  * ```
  */
 export type HookFn = (data: LogData) => void | typeof CLOG_SKIP;

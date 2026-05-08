@@ -310,6 +310,29 @@ createClog.global.hook = (data) => {
 
 All other return values are ignored.
 
+#### Transforming log data
+
+The `data` object passed to the hook is the **same reference** the writer receives next, so mutating it in the hook is a supported way to transform what gets written — without rewriting the writer. Useful for value-level rewrites like prefixing the namespace (which becomes the JSON `logger` field):
+
+```typescript
+// Prefix the namespace — affects both text output ("[svc] [api] ...")
+// and JSON output ({ "logger": "svc:api", ... })
+createClog.global.hook = (data) => {
+  if (data.namespace) data.namespace = `svc:${data.namespace}`;
+};
+
+// Redact a sensitive arg before it reaches the writer
+createClog.global.hook = (data) => {
+  data.args = data.args.map((a) =>
+    typeof a === "string" ? a.replace(/token=\S+/g, "token=***") : a,
+  );
+};
+```
+
+Notes:
+- `data.args` is already a shallow clone of the caller's array, so mutating it (or replacing it) is safe — the caller's original array is unaffected.
+- A hook can both transform *and* return `CLOG_SKIP`. Return values other than `CLOG_SKIP` are ignored; the transform happens via the mutation, not the return value.
+
 ### Custom Writer
 
 Replace the default output completely:

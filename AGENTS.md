@@ -83,6 +83,7 @@ clog.log("msg")
 10. `withNamespace` composes namespaces structurally: `withNamespace(createClog("app"), "module").ns === "app:module"`. Text output splits on `:` and renders each segment in its own brackets (`[app] [module]`). JSON output uses the composed string as-is in the `namespace` field.
 11. Stack capture lives in `_apply` (not the writers), so custom writers receive `LogData.stack: string[] | undefined`. Use the exported `formatStack()` to produce the same rendering as the default writer.
 12. A hook returning `CLOG_SKIP` suppresses the writer for that call; all other return values are ignored.
+13. The hook receives the same `data` reference passed to the writer next, so **mutating `data` in the hook is a supported transform mechanism** (e.g. prefixing `namespace`, redacting `args`). `args` is already a shallow clone, so mutating it is safe.
 
 ## Before Making Changes
 
@@ -314,7 +315,7 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 
 ## Test Coverage
 
-127 tests covering:
+132 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -323,6 +324,7 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 - Instance writers
 - Writer precedence (global > instance)
 - Hook execution order (before writer)
+- Hook data mutation as transform mechanism (5 tests: namespace prefix → text and JSON outputs, args replacement isolated from caller, meta augmentation surfacing in writer, mutation + CLOG_SKIP suppresses writer)
 - JSON and text output formats (incl. `jsonFieldNames` rename map: instance/global precedence, `arg` prefix, `logger` omission when namespace is `false`, all 7 renamable keys, `reset()` clearing global)
 - Error stack preservation in JSON
 - Color configuration
@@ -465,6 +467,27 @@ createClog.global.hook = (data) => {
   if (isNoisy(data)) return CLOG_SKIP;
 };
 ```
+
+### Transforming log data via a hook
+
+The hook receives the *same* `data` reference the writer gets next, so mutating it in place is a supported way to transform what the writer sees — no need to replace the writer.
+
+```typescript
+// Prefix the namespace (becomes the JSON "logger" field value)
+createClog.global.hook = (data) => {
+  if (data.namespace) data.namespace = `svc:${data.namespace}`;
+};
+
+// Redact sensitive args; data.args is already a shallow clone so this
+// is safe and does not affect the caller's array.
+createClog.global.hook = (data) => {
+  data.args = data.args.map((a) =>
+    typeof a === "string" ? a.replace(/token=\S+/g, "token=***") : a,
+  );
+};
+```
+
+A hook can both transform *and* return `CLOG_SKIP`. Non-`CLOG_SKIP` return values are ignored; the transform takes effect via the mutation, not the return value.
 
 ### Custom writer consuming `data.stack`
 
