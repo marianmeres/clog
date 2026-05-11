@@ -780,6 +780,37 @@ The forwarder wraps [@marianmeres/batch](https://github.com/marianmeres/batch) a
 
 Full API: `hook`, `add`, `flush`, `drain`, `start`, `stop`, `reset`, `dump`, `configure`, `subscribe`, `size`, `isRunning`, `isFlushing`
 
+### Web Preset (Included Battery)
+
+For typical frontend setups (browser apps that ship logs to a backend), the `@marianmeres/clog/web` subpath bundles the usual wiring: forwarder + global error/rejection capture + `getMeta` installation + a persistent agent-id helper. You provide the `send` callback that encodes your own server contract.
+
+```typescript
+import { configureWebLogger, getOrCreateAgentId } from "@marianmeres/clog/web";
+
+const agentId = getOrCreateAgentId({ storageKey: "my-app-agent-id" });
+
+const forwarder = configureWebLogger({
+  send: async (logs) => {
+    await fetch("/api/logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries: logs }),
+      keepalive: true,
+    });
+  },
+  flushIntervalMs: 2000,
+  getMeta: () => ({ agentId, userId: getCurrentUserId() }),
+});
+
+// Pause forwarding (console logging continues):
+forwarder?.stop();
+
+// Flush remaining buffer on unload:
+globalThis.addEventListener("beforeunload", () => forwarder?.drain());
+```
+
+Omitting `send` runs in console-only mode — `getMeta` and the error handlers still install, but nothing is shipped over the network. Returns `undefined` outside a browser-style runtime (no `addEventListener`).
+
 ## Global Configuration Across Bundled Dependencies
 
 When using `@marianmeres/clog` in an application with multiple dependencies that each bundle their own copy of the library, the global configuration (`createClog.global`) is **truly shared** across all instances.

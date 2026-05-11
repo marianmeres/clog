@@ -14,6 +14,8 @@ Complete API documentation for `@marianmeres/clog`.
 - [createNoopClog()](#createnoopclog)
 - [withNamespace()](#withnamespace)
 - [createLogForwarder()](#createlogforwarder)
+- [configureWebLogger()](#configurewebLogger)
+- [getOrCreateAgentId()](#getorcreateagentid)
 - [LEVEL_MAP](#level_map)
 - [stringifyValue()](#stringifyvalue)
 - [formatStack()](#formatstack)
@@ -405,6 +407,91 @@ process.on("SIGTERM", async () => {
   await forwarder.drain();
   process.exit(0);
 });
+```
+
+---
+
+## configureWebLogger()
+
+Bundles the typical frontend logger bootstrap: batched log forwarding, browser error / unhandled-rejection capture, and `getMeta` installation. Available from `@marianmeres/clog/web`.
+
+```typescript
+import { configureWebLogger } from "@marianmeres/clog/web";
+
+function configureWebLogger(
+  opts?: ConfigureWebLoggerOptions
+): LogForwarder | undefined
+```
+
+### Config Options (ConfigureWebLoggerOptions)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `send` | `(logs: LogData[]) => Promise<void> \| void` | - | Async function that ships a batch. Throwing marks the flush as failed (BatchFlusher retries). Omit for console-only mode. |
+| `flushIntervalMs` | `number` | `1000` | Passed through to `createLogForwarder`. |
+| `maxBatchSize` | `number` | `100` | Passed through to `createLogForwarder`. |
+| `getMeta` | `() => Record<string, unknown>` | - | Installed as `createClog.global.getMeta` (called lazily per log). |
+| `uncaughtErrorFilter` | `(e: ErrorEvent) => void \| false` | - | Return `false` to drop the event before logging. |
+| `unhandledRejectionFilter` | `(e: PromiseRejectionEvent) => void \| false` | - | Return `false` to drop the event before logging. |
+| `onUncaughtError` | `boolean \| (e: ErrorEvent) => void` | `true` | `true` = default handler, `false` = none, function = custom. |
+| `onUnhandledRejection` | `boolean \| (e: PromiseRejectionEvent) => void` | `true` | `true` = default handler, `false` = none, function = custom. |
+
+### Returns
+
+The underlying `LogForwarder` when `send` is provided (so consumers can `drain()`, `stop()` / `start()`, or `subscribe()`). Returns `undefined` in console-only mode (no `send`) or in environments without `addEventListener`.
+
+### Example
+
+```typescript
+import { configureWebLogger, getOrCreateAgentId } from "@marianmeres/clog/web";
+
+const agentId = getOrCreateAgentId({ storageKey: "my-app-agent-id" });
+
+const forwarder = configureWebLogger({
+  send: async (logs) => {
+    await fetch("/api/logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries: logs }),
+      keepalive: true,
+    });
+  },
+  flushIntervalMs: 2000,
+  getMeta: () => ({ agentId, userId: getCurrentUserId() }),
+  uncaughtErrorFilter: (e) => !e.filename?.includes("third-party"),
+});
+
+// Toggle forwarding at runtime
+forwarder?.stop();
+forwarder?.start();
+
+// Flush on unload
+globalThis.addEventListener("beforeunload", () => forwarder?.drain());
+```
+
+---
+
+## getOrCreateAgentId()
+
+Browser-only helper that returns a persistent client identifier from `localStorage`, generating one on first call. Returns `"n/a"` outside a browser.
+
+```typescript
+import { getOrCreateAgentId } from "@marianmeres/clog/web";
+
+function getOrCreateAgentId(opts?: { storageKey?: string }): string
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `storageKey` | `string` | `"clog-agent-id"` (exported as `DEFAULT_AGENT_ID_STORAGE_KEY`) | localStorage key under which the id is persisted. |
+
+### Example
+
+```typescript
+import { configureWebLogger, getOrCreateAgentId } from "@marianmeres/clog/web";
+
+const agentId = getOrCreateAgentId({ storageKey: "myapp-agent" });
+configureWebLogger({ getMeta: () => ({ agentId }) });
 ```
 
 ---

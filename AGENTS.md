@@ -25,10 +25,12 @@ src/
 ├── mod.ts              # Entry point (re-exports from clog.ts and colors.ts)
 ├── clog.ts             # Main logger implementation
 ├── colors.ts           # Color utilities (colored, shortcuts, SAFE_COLORS)
-└── forward.ts          # Log forwarder utility (batching/forwarding)
+├── forward.ts          # Log forwarder utility (batching/forwarding)
+└── web.ts              # Web preset (forwarder + error capture + getMeta wiring)
 tests/
 ├── clog.test.ts        # Main test suite
 ├── forward.test.ts     # Log forwarder tests
+├── web.test.ts         # Web preset tests
 └── deno-raw.ts         # Manual color examples
 scripts/
 └── build-npm.ts        # npm build script
@@ -141,6 +143,15 @@ clog.log("msg")
 | `LogForwarder` | Interface | Log forwarder instance interface |
 | `LogForwarderConfig` | Type | Configuration options (wraps BatchFlusherConfig) |
 | `LogFlusherFn` | Type | Flusher function signature |
+
+**From web.ts (import from `@marianmeres/clog/web`):**
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `configureWebLogger` | Function | Web-preset bootstrap: wires forwarder, browser error handlers, and `getMeta`. Returns the underlying `LogForwarder` (or `undefined` in console-only / non-browser). |
+| `getOrCreateAgentId` | Function | Browser-only helper returning a persistent agent id from localStorage; `"n/a"` outside browser. |
+| `DEFAULT_AGENT_ID_STORAGE_KEY` | Const string | `"clog-agent-id"` — default localStorage key used by `getOrCreateAgentId`. |
+| `ConfigureWebLoggerOptions` | Interface | Configuration shape for `configureWebLogger`. |
 
 ### Function Signatures
 
@@ -267,6 +278,22 @@ interface LogForwarder {
   readonly isRunning: boolean;
   readonly isFlushing: boolean;
 }
+
+// From @marianmeres/clog/web
+interface ConfigureWebLoggerOptions {
+  send?: (logs: LogData[]) => Promise<void> | void;
+  flushIntervalMs?: number;
+  maxBatchSize?: number;
+  getMeta?: () => Record<string, unknown>;
+  uncaughtErrorFilter?: (e: ErrorEvent) => void | false;
+  unhandledRejectionFilter?: (e: PromiseRejectionEvent) => void | false;
+  onUncaughtError?: boolean | ((e: ErrorEvent) => void);
+  onUnhandledRejection?: boolean | ((e: PromiseRejectionEvent) => void);
+}
+
+function configureWebLogger(opts?: ConfigureWebLoggerOptions): LogForwarder | undefined;
+function getOrCreateAgentId(opts?: { storageKey?: string }): string;
+const DEFAULT_AGENT_ID_STORAGE_KEY = "clog-agent-id";
 ```
 
 ## Output Formats
@@ -315,7 +342,7 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 
 ## Test Coverage
 
-132 tests covering:
+142 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -380,6 +407,31 @@ process.on("SIGTERM", async () => {
   await forwarder.drain();
   process.exit(0);
 });
+```
+
+### Web App Bootstrap (Recommended for Frontends)
+
+```typescript
+import { configureWebLogger, getOrCreateAgentId } from "@marianmeres/clog/web";
+
+const agentId = getOrCreateAgentId({ storageKey: "my-app-agent-id" });
+
+const forwarder = configureWebLogger({
+  send: async (logs) => {
+    await fetch("/api/logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries: logs }),
+      keepalive: true,
+    });
+  },
+  flushIntervalMs: 2000,
+  getMeta: () => ({ agentId, userId: getCurrentUserId() }),
+});
+
+// Pause/resume forwarding (console still logs):
+forwarder?.stop();
+forwarder?.start();
 ```
 
 ### Manual Log Batching
@@ -713,6 +765,7 @@ Removed:
 | Main logger implementation | [src/clog.ts](src/clog.ts) |
 | Color utilities | [src/colors.ts](src/colors.ts) |
 | Log forwarder | [src/forward.ts](src/forward.ts) |
+| Web preset | [src/web.ts](src/web.ts) |
 | Entry point | [src/mod.ts](src/mod.ts) |
 | Test helpers | [tests/_helpers.ts](tests/_helpers.ts) |
 | Basic tests | [tests/basic.test.ts](tests/basic.test.ts) |
@@ -727,6 +780,7 @@ Removed:
 | createNoopClog tests | [tests/noop-clog.test.ts](tests/noop-clog.test.ts) |
 | Regression tests (v3.16) | [tests/regressions.test.ts](tests/regressions.test.ts) |
 | Forwarder tests | [tests/forward.test.ts](tests/forward.test.ts) |
+| Web preset tests | [tests/web.test.ts](tests/web.test.ts) |
 | Color examples | [tests/deno-raw.ts](tests/deno-raw.ts) |
 | Build script | [scripts/build-npm.ts](scripts/build-npm.ts) |
 | Package config | [deno.json](deno.json) |
