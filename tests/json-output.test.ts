@@ -243,3 +243,75 @@ Deno.test("jsonFieldNames: createClog.reset() clears global jsonFieldNames", () 
 
 	restoreConsole();
 });
+
+// Regression: colorWriter previously ignored jsonOutput, so loggers created with
+// a `color` option emitted bracketed text even when JSON output was requested.
+Deno.test("color + global jsonOutput emits JSON", () => {
+	reset();
+	createClog.global.jsonOutput = true;
+
+	const clog = createClog("COLORED", { color: "green" });
+	clog.log({ hello: "world" });
+
+	assertEquals(consoleOutput.log.length, 1);
+	const line = consoleOutput.log[0];
+
+	const output = JSON.parse(line);
+	assertEquals(output.logger, "COLORED");
+	assertEquals(output.level, "INFO");
+	assertEquals(output.message, { hello: "world" });
+
+	assert(!line.includes("[INFO]"));
+	assert(!line.includes("%c"));
+	assert(!line.includes("color:"));
+
+	restoreConsole();
+});
+
+Deno.test("color + per-instance jsonOutput:true overrides global false", () => {
+	reset();
+	createClog.global.jsonOutput = false;
+
+	const clog = createClog("COLORED", { color: "green", jsonOutput: true });
+	clog.log({ hello: "world" });
+
+	assertEquals(consoleOutput.log.length, 1);
+	const output = JSON.parse(consoleOutput.log[0]);
+	assertEquals(output.logger, "COLORED");
+	assertEquals(output.message, { hello: "world" });
+
+	restoreConsole();
+});
+
+Deno.test("color + per-instance jsonOutput:false still emits colored text", () => {
+	reset();
+	createClog.global.jsonOutput = true;
+
+	const clog = createClog("COLORED", { color: "green", jsonOutput: false });
+	clog.log("hello");
+
+	assertEquals(consoleOutput.log.length, 1);
+	const line = consoleOutput.log[0];
+
+	assertMatch(line, /^\[\d{4}-\d{2}-\d{2}T.*\] \[INFO\] /);
+	assert(line.includes("COLORED"));
+
+	restoreConsole();
+});
+
+Deno.test("color + jsonOutput preserves Error stacks", () => {
+	reset();
+	createClog.global.jsonOutput = true;
+
+	const clog = createClog("COLORED", { color: "green" });
+	clog.error("Failed", new Error("boom"));
+
+	assertEquals(consoleOutput.error.length, 1);
+	const output = JSON.parse(consoleOutput.error[0]);
+	assertEquals(output.logger, "COLORED");
+	assertEquals(output.message, "Failed");
+	assert(output.arg_0.includes("Error: boom"));
+	assert(output.arg_0.includes("at "));
+
+	restoreConsole();
+});

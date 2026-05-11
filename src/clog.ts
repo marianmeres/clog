@@ -672,10 +672,13 @@ const colorWriter =
 
 		// %c coloring only applies to browser/deno with an actual namespace;
 		// concat mode emits plain text and also delegates.
+		// jsonOutput also delegates — colors have no meaning in structured logs,
+		// and defaultWriter is the single source of truth for JSON shape.
 		if (
 			(runtime !== "browser" && runtime !== "deno") ||
 			!namespace ||
-			(config?.concat ?? GLOBAL.concat)
+			(config?.concat ?? GLOBAL.concat) ||
+			(config?.jsonOutput ?? GLOBAL.jsonOutput)
 		) {
 			return defaultWriter(data);
 		}
