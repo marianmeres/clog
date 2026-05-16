@@ -748,6 +748,21 @@ Deno.test("logs correct message", () => {
 
 ### Log Forwarder (Included Battery)
 
+> **Installation note for `/forward` and `/web`**
+>
+> Both `@marianmeres/clog/forward` and `@marianmeres/clog/web` depend on
+> [`@marianmeres/batch`](https://github.com/marianmeres/batch) at runtime.
+> Because batch and clog are intentionally decoupled, batch is declared as an
+> **optional peer dependency** — install it directly in projects that use
+> either subpath:
+>
+> ```bash
+> npm install @marianmeres/batch
+> ```
+>
+> Projects using only the main `@marianmeres/clog` API (logging without
+> forwarding) do not need batch.
+
 For production log batching and forwarding, use the included `createLogForwarder` utility:
 
 ```typescript
