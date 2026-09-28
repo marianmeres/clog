@@ -367,3 +367,45 @@ Deno.test("flushThreshold triggers immediate flush", async () => {
 
 	await forwarder.drain();
 });
+
+Deno.test("hook resolves meta at log time, not at flush time", async () => {
+	reset();
+	const received: LogData[] = [];
+
+	const forwarder = createLogForwarder(
+		async (logs) => {
+			received.push(...logs);
+			return true;
+		},
+		{ flushIntervalMs: 0 }
+	);
+	forwarder.stop();
+
+	createClog.global.hook = forwarder.hook;
+	createClog.global.writer = () => {}; // silent, and does not read meta
+
+	let requestId = "r1";
+	createClog.global.getMeta = () => ({ requestId });
+	let attempt = 1;
+	const clog = createClog("test", { meta: () => ({ attempt }) });
+
+	clog.log("first");
+	requestId = "r2";
+	attempt = 2;
+	clog.log("second");
+	requestId = "after";
+	attempt = 99;
+
+	await forwarder.flush();
+
+	assertEquals(
+		received.map((d) => d.meta),
+		[
+			{ requestId: "r1", attempt: 1 },
+			{ requestId: "r2", attempt: 2 },
+		]
+	);
+
+	reset();
+	await forwarder.drain();
+});

@@ -83,7 +83,7 @@ clog.log("msg")
 6. Config precedence: instance config > global config > defaults
 7. Colors work in browser/Deno only (use %c formatting)
 8. `LogData.args` is a *shallow clone* of the caller's arguments — hooks/writers may mutate it without affecting the caller
-9. `LogData.meta` is a lazy getter: the sources are resolved only when a consumer reads `.meta`, exactly once per line (so it reflects their state at first read, not at the log call). The base is `config.getMeta ?? global.getMeta` (instance **replaces** global), read per log call so a global installed later still applies. `config.meta` (object or function) is **added on top**: shallow-merged into a fresh object, wins on key conflicts. Each source is isolated — a throwing one is swallowed and contributes nothing; `meta` is `undefined` only when no source contributes. Without `config.meta`, the `getMeta` result is passed through untouched.
+9. `LogData.meta` is a lazy getter: the sources are resolved only when a consumer reads `.meta`, exactly once per line (so it reflects their state at first read, not at the log call). The base is `config.getMeta ?? global.getMeta` (instance **replaces** global), read per log call so a global installed later still applies. `config.meta` (object or function) is **added on top**: shallow-merged into a fresh object, wins on key conflicts. Each source is isolated — a throwing one is swallowed and contributes nothing; `meta` is `undefined` only when no source contributes. Without `config.meta`, the `getMeta` result is passed through untouched. The forwarder's `hook`/`add` read `data.meta` before queuing, so forwarded entries carry log-time meta (a request-scoped `getMeta` read at flush time would return nothing).
 10. `withMeta(logger, meta)` derives a same-namespace child whose `config.meta` layers `meta` over the parent's `config.meta` (inner wins, each layer isolated). Non-clog loggers (`console`, `createNoopClog()`) are returned unchanged — never throw.
 11. `withNamespace` composes namespaces structurally: `withNamespace(createClog("app"), "module").ns === "app:module"`. Text output splits on `:` and renders each segment in its own brackets (`[app] [module]`). JSON output uses the composed string as-is in the `namespace` field.
 12. Stack capture lives in `_apply` (not the writers), so custom writers receive `LogData.stack: string[] | undefined`. Use the exported `formatStack()` to produce the same rendering as the default writer.
@@ -355,7 +355,7 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 
 ## Test Coverage
 
-172 tests covering:
+173 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -372,6 +372,7 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 - Readonly namespace property
 - Multiple instances
 - Batching pattern
+- Forwarder resolves lazy meta at log time, not flush time
 - Debug mode (instance and global)
 - Debug precedence (instance > global > default)
 - Stringify mode (9 tests: global/instance flags, precedence, JSON output mode, circular refs)

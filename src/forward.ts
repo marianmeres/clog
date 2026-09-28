@@ -32,7 +32,10 @@ export type LogForwarderConfig = Partial<BatchFlusherConfig>;
  * Log forwarder interface - wraps BatchFlusher for clog hook usage.
  */
 export interface LogForwarder {
-	/** Hook function to assign to createClog.global.hook */
+	/**
+	 * Hook function to assign to createClog.global.hook. Resolves the lazy
+	 * `data.meta` on the spot, so batched entries carry log-time meta.
+	 */
 	hook: (data: LogData) => void;
 	/** Add log entry to batch (alias for hook) */
 	add: (data: LogData) => void;
@@ -102,9 +105,17 @@ export function createLogForwarder(
 	const mergedConfig = { logger: noopLogger, ...config };
 	const batcher = new BatchFlusher<LogData>(flusher, mergedConfig, autostart);
 
+	const add = (data: LogData) => {
+		// Resolve the lazy meta getter now, still inside the log call. Read at
+		// flush time, context-dependent sources (e.g. a request-scoped getMeta
+		// backed by AsyncLocalStorage) would return later or empty values.
+		void data.meta;
+		batcher.add(data);
+	};
+
 	return {
-		hook: (data: LogData) => batcher.add(data),
-		add: (data: LogData) => batcher.add(data),
+		hook: add,
+		add,
 		flush: () => batcher.flush(),
 		drain: () => batcher.drain(),
 		start: () => batcher.start(),

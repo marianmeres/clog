@@ -588,7 +588,7 @@ callLog.ns; // "worker"
 
 **Key points:**
 - `getMeta` and `meta` are resolved **lazily** — only when a hook or writer actually reads `data.meta`. The result is cached per log call, so repeated reads resolve the sources once.
-- Because it is lazy, `data.meta` reflects the state at **first read**, not at the log call. A hook that stores `data` for later (e.g. a batching forwarder) and reads `.meta` at flush time gets flush-time values from function sources. Read `data.meta` inside the hook if you need log-time values.
+- Because it is lazy, `data.meta` reflects the state at **first read**, not at the log call. The built-in forwarder (`createLogForwarder`, and so `configureWebLogger`) reads it in its hook, so forwarded entries carry log-time meta. A custom hook that stores `data` for a later flush should do the same (`void data.meta`) — otherwise function sources run at flush time, where e.g. a request-scoped `getMeta` backed by `AsyncLocalStorage` returns nothing.
 - Every source is isolated: a throwing `getMeta` or `meta` is **swallowed** and contributes nothing, and the other source still does. Logging never fails because of metadata.
 - `meta` is shallow-merged over the base into a fresh object, so a hook mutating `data.meta` never changes a static `meta` object.
 - The base (`getMeta`) is read per log call, so a global `getMeta` installed after a logger was created still applies to it.

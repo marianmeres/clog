@@ -414,7 +414,7 @@ A `LogForwarder` instance with the following interface:
 
 | Member | Type | Description |
 |--------|------|-------------|
-| `hook` | `(data: LogData) => void` | Hook function to assign to `createClog.global.hook` |
+| `hook` | `(data: LogData) => void` | Hook function to assign to `createClog.global.hook`. Reads the lazy `data.meta` before queuing, so batched entries carry log-time meta (not flush-time). |
 | `add` | `(data: LogData) => void` | Add log entry to batch (alias for `hook`) |
 | `flush` | `() => Promise<boolean>` | Flush current buffer immediately |
 | `drain` | `() => Promise<boolean>` | Flush remaining items and stop interval |
@@ -891,7 +891,7 @@ type LogData = {
 | `args` | `any[]` | **Shallow clone** of the arguments passed to the log method. Hooks/writers can mutate this freely without affecting the caller. |
 | `timestamp` | `string` | ISO 8601 formatted timestamp |
 | `config` | `ClogConfig \| undefined` | Instance-level config (useful for custom writers to check settings) |
-| `meta` | `Record<string, unknown> \| undefined` | Metadata from `getMeta()` (instance, else global), with `config.meta` shallow-merged on top when set. **Lazy**: the getter runs on first read and caches the result, so it reflects the sources' state at first read, not at the log call. A throwing source is swallowed and contributes nothing; `undefined` when no source contributes. |
+| `meta` | `Record<string, unknown> \| undefined` | Metadata from `getMeta()` (instance, else global), with `config.meta` shallow-merged on top when set. **Lazy**: the getter runs on first read and caches the result, so it reflects the sources' state at first read, not at the log call. The built-in forwarder's hook reads it before queuing; a custom hook that defers work should too. A throwing source is swallowed and contributes nothing; `undefined` when no source contributes. |
 | `stack` | `string[] \| undefined` | Raw captured stack frames when `stacktrace` is enabled. Use `formatStack(lines)` to produce the same rendering as the default writer. |
 
 ### LogLevel
