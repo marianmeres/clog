@@ -98,7 +98,7 @@ export interface LogForwarder {
 export function createLogForwarder(
 	flusher: LogFlusherFn,
 	config?: LogForwarderConfig,
-	autostart?: boolean
+	autostart?: boolean,
 ): LogForwarder {
 	// Default to noopLogger to prevent circular dependency when used with createClog.global.hook
 	// (BatchFlusher uses clog internally for debug output)

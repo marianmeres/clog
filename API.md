@@ -47,15 +47,15 @@ Complete API documentation for `@marianmeres/clog`.
 Creates a Clog logger instance with optional namespace and configuration.
 
 ```typescript
-function createClog(namespace?: string | false, config?: ClogConfig): Clog
+function createClog(namespace?: string | false, config?: ClogConfig): Clog;
 ```
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `namespace` | `string \| false` | `false` | Logger namespace for prefixing log output |
-| `config` | `ClogConfig` | `undefined` | Optional instance-level configuration |
+| Parameter   | Type              | Default     | Description                               |
+| ----------- | ----------------- | ----------- | ----------------------------------------- |
+| `namespace` | `string \| false` | `false`     | Logger namespace for prefixing log output |
+| `config`    | `ClogConfig`      | `undefined` | Optional instance-level configuration     |
 
 ### Returns
 
@@ -68,19 +68,19 @@ import { createClog } from "@marianmeres/clog";
 
 // Basic usage with namespace
 const clog = createClog("my-app");
-clog.log("Hello");           // [my-app] Hello
-clog("Hello");               // Same as above (callable)
+clog.log("Hello"); // [my-app] Hello
+clog("Hello"); // Same as above (callable)
 
 // Without namespace
 const logger = createClog();
-logger.warn("Warning!");     // Warning!
+logger.warn("Warning!"); // Warning!
 
 // With color (browser/Deno only)
 const colored = createClog("ui", { color: "blue" });
 
 // With custom writer
 const custom = createClog("test", {
-  writer: (data) => console.log(`[${data.level}] ${data.args[0]}`)
+	writer: (data) => console.log(`[${data.level}] ${data.args[0]}`),
 });
 
 // Error throwing pattern
@@ -101,17 +101,17 @@ createClog.global: GlobalConfig
 
 ### Properties
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `hook` | `HookFn \| undefined` | `undefined` | Function called before every log (for batching/analytics) |
-| `writer` | `WriterFn \| undefined` | `undefined` | Global writer that overrides all instance writers |
-| `jsonOutput` | `boolean` | `false` | Enable JSON output format for server environments |
-| `jsonFieldNames` | `JsonFieldNames \| undefined` | `undefined` | Per-field rename map for JSON output (per-key resolution: instance > global > default). See [JsonFieldNames](#jsonfieldnames). |
-| `debug` | `boolean \| undefined` | `undefined` | Global debug mode (can be overridden per-instance) |
-| `stringify` | `boolean \| undefined` | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance) |
-| `concat` | `boolean \| undefined` | `undefined` | Concatenate all args into single string (can be overridden per-instance) |
-| `stacktrace` | `boolean \| number \| undefined` | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only - not for production!** |
-| `getMeta` | `(() => Record<string, unknown>) \| undefined` | `undefined` | Function returning metadata to include in LogData (can be overridden per-instance) |
+| Property         | Type                                           | Default     | Description                                                                                                                    |
+| ---------------- | ---------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `hook`           | `HookFn \| undefined`                          | `undefined` | Function called before every log (for batching/analytics)                                                                      |
+| `writer`         | `WriterFn \| undefined`                        | `undefined` | Global writer that overrides all instance writers                                                                              |
+| `jsonOutput`     | `boolean`                                      | `false`     | Enable JSON output format for server environments                                                                              |
+| `jsonFieldNames` | `JsonFieldNames \| undefined`                  | `undefined` | Per-field rename map for JSON output (per-key resolution: instance > global > default). See [JsonFieldNames](#jsonfieldnames). |
+| `debug`          | `boolean \| undefined`                         | `undefined` | Global debug mode (can be overridden per-instance)                                                                             |
+| `stringify`      | `boolean \| undefined`                         | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance)                                                             |
+| `concat`         | `boolean \| undefined`                         | `undefined` | Concatenate all args into single string (can be overridden per-instance)                                                       |
+| `stacktrace`     | `boolean \| number \| undefined`               | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only - not for production!**                               |
+| `getMeta`        | `(() => Record<string, unknown>) \| undefined` | `undefined` | Function returning metadata to include in LogData (can be overridden per-instance)                                             |
 
 ### Examples
 
@@ -142,15 +142,15 @@ createClog.global.stacktrace = 3;
 
 // Inject metadata into all logs
 createClog.global.getMeta = () => ({
-  userId: getCurrentUserId(),
-  requestId: getRequestId()
+	userId: getCurrentUserId(),
+	requestId: getRequestId(),
 });
 
 // Rename JSON output keys (e.g. for log aggregator compatibility)
 createClog.global.jsonFieldNames = {
-  timestamp: "@timestamp",
-  level: "log.level",
-  logger: "log.logger",
+	timestamp: "@timestamp",
+	level: "log.level",
+	logger: "log.logger",
 };
 ```
 
@@ -180,7 +180,7 @@ Clears `hook`, `writer`, `jsonFieldNames`, `debug`, `stringify`, `concat`, `stac
 ```typescript
 // In test teardown
 afterEach(() => {
-  createClog.reset();
+	createClog.reset();
 });
 ```
 
@@ -191,15 +191,15 @@ afterEach(() => {
 Creates a no-op logger that satisfies the `Clog` interface but doesn't output anything. Useful for testing scenarios where console output is not desired.
 
 ```typescript
-function createNoopClog(namespace?: string | false | null): Clog
+function createNoopClog(namespace?: string | false | null): Clog;
 ```
 
 Signature widened in v3.16 to accept `false` (for symmetry with `createClog`) alongside `null`. Any falsy value disables the namespace.
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
+| Parameter   | Type                      | Default     | Description                                        |
+| ----------- | ------------------------- | ----------- | -------------------------------------------------- |
 | `namespace` | `string \| false \| null` | `undefined` | Optional namespace (accessible via `.ns` property) |
 
 ### Returns
@@ -221,19 +221,19 @@ import { createNoopClog } from "@marianmeres/clog";
 // Create a silent logger for testing
 const clog = createNoopClog("test");
 
-clog.log("silent");        // returns "silent", outputs nothing
-clog.error("fail");        // returns "fail", outputs nothing
-clog("callable");          // returns "callable", outputs nothing
+clog.log("silent"); // returns "silent", outputs nothing
+clog.error("fail"); // returns "fail", outputs nothing
+clog("callable"); // returns "callable", outputs nothing
 
 // Return value pattern works
 throw new Error(clog.error("Something failed"));
 
 // Namespace property
-console.log(clog.ns);      // "test"
+console.log(clog.ns); // "test"
 
 // Without namespace
 const noNs = createNoopClog();
-console.log(noNs.ns);      // false
+console.log(noNs.ns); // false
 ```
 
 ### Use Cases
@@ -248,21 +248,24 @@ console.log(noNs.ns);      // false
 
 Attaches an additional namespace to a logger. Two behaviors, chosen automatically:
 
-1. **Clog instance** — returns a fresh `Clog` whose `ns` is the *composed* namespace (parent joined with the new segment via `:`), inheriting the parent's config. `LogData.namespace` carries the composed string, so JSON output gets the full namespace in its `"namespace"` field.
+1. **Clog instance** — returns a fresh `Clog` whose `ns` is the _composed_ namespace (parent joined with the new segment via `:`), inheriting the parent's config. `LogData.namespace` carries the composed string, so JSON output gets the full namespace in its `"namespace"` field.
 2. **Any other logger** (e.g. native `console`, or a custom implementation) — returns a wrapper that prepends `[namespace]` as the first argument on each call.
 
 In both cases, text rendering shows each segment in its own brackets (`[app] [module]`) so visible output is identical to pre-3.16 behavior.
 
 ```typescript
-function withNamespace<T extends Logger>(logger: T, namespace: string): T & ((...args: any[]) => string)
+function withNamespace<T extends Logger>(
+	logger: T,
+	namespace: string,
+): T & ((...args: any[]) => string);
 ```
 
 ### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `logger` | `Logger` | Any console-compatible logger (clog, console, or custom) |
-| `namespace` | `string` | Namespace segment to attach |
+| Parameter   | Type     | Description                                              |
+| ----------- | -------- | -------------------------------------------------------- |
+| `logger`    | `Logger` | Any console-compatible logger (clog, console, or custom) |
+| `namespace` | `string` | Namespace segment to attach                              |
 
 ### Returns
 
@@ -277,20 +280,20 @@ import { createClog, withNamespace } from "@marianmeres/clog";
 // Clog wrapping — composes structurally
 const clog = createClog("app");
 const moduleLogger = withNamespace(clog, "module");
-moduleLogger.log("hello");    // [app] [module] hello
-moduleLogger.ns;              // "app:module"
+moduleLogger.log("hello"); // [app] [module] hello
+moduleLogger.ns; // "app:module"
 
 // Native console — arg-prefix wrapper
 const logger = withNamespace(console, "my-module");
-logger.warn("warning");       // [my-module] warning
+logger.warn("warning"); // [my-module] warning
 
 // Deep nesting composes further
 const sub = withNamespace(moduleLogger, "sub");
-sub.ns;                       // "app:module:sub"
-sub.error("fail");            // [app] [module] [sub] fail
+sub.ns; // "app:module:sub"
+sub.error("fail"); // [app] [module] [sub] fail
 
 // Callable interface
-moduleLogger("direct call");  // [app] [module] direct call
+moduleLogger("direct call"); // [app] [module] direct call
 
 // Return value pattern works at any depth
 throw new Error(moduleLogger.error("Something failed"));
@@ -318,11 +321,11 @@ const dbModule = new DbModule(withNamespace(appLog, "db"));
 
 // auth-module.ts
 class AuthModule {
-  constructor(private log: Logger) {}
+	constructor(private log: Logger) {}
 
-  login(user: string) {
-    this.log.log("Login attempt", { user });  // [app] [auth] Login attempt { user: "..." }
-  }
+	login(user: string) {
+		this.log.log("Login attempt", { user }); // [app] [auth] Login attempt { user: "..." }
+	}
 }
 ```
 
@@ -337,17 +340,17 @@ Derives a child logger with extra metadata and the **same** namespace — the si
 
 ```typescript
 function withMeta<T extends Logger>(
-  logger: T,
-  meta: Record<string, unknown> | (() => Record<string, unknown>),
-): T
+	logger: T,
+	meta: Record<string, unknown> | (() => Record<string, unknown>),
+): T;
 ```
 
 ### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `logger` | `Logger` | Any console-compatible logger (clog, console, or custom) |
-| `meta` | `Record<string, unknown> \| (() => Record<string, unknown>)` | Extra metadata, or a function returning it (called lazily, at most once per line) |
+| Parameter | Type                                                         | Description                                                                       |
+| --------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `logger`  | `Logger`                                                     | Any console-compatible logger (clog, console, or custom)                          |
+| `meta`    | `Record<string, unknown> \| (() => Record<string, unknown>)` | Extra metadata, or a function returning it (called lazily, at most once per line) |
 
 ### Returns
 
@@ -386,47 +389,47 @@ Creates a log forwarder for batching and sending logs to remote services. Availa
 import { createLogForwarder } from "@marianmeres/clog/forward";
 
 function createLogForwarder(
-  flusher: (logs: LogData[]) => Promise<boolean>,
-  config?: LogForwarderConfig,
-  autostart?: boolean
-): LogForwarder
+	flusher: (logs: LogData[]) => Promise<boolean>,
+	config?: LogForwarderConfig,
+	autostart?: boolean,
+): LogForwarder;
 ```
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `flusher` | `(logs: LogData[]) => Promise<boolean>` | - | Async function to send batched logs, returns `true` on success |
-| `config` | `LogForwarderConfig` | `undefined` | BatchFlusher configuration options |
-| `autostart` | `boolean` | `true` | Start interval-based flushing immediately |
+| Parameter   | Type                                    | Default     | Description                                                    |
+| ----------- | --------------------------------------- | ----------- | -------------------------------------------------------------- |
+| `flusher`   | `(logs: LogData[]) => Promise<boolean>` | -           | Async function to send batched logs, returns `true` on success |
+| `config`    | `LogForwarderConfig`                    | `undefined` | BatchFlusher configuration options                             |
+| `autostart` | `boolean`                               | `true`      | Start interval-based flushing immediately                      |
 
 ### Config Options (LogForwarderConfig)
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `flushIntervalMs` | `number` | `1000` | Auto-flush interval in milliseconds |
-| `flushThreshold` | `number` | - | Flush immediately when buffer reaches this size |
-| `maxBatchSize` | `number` | `100` | Maximum buffer size (oldest items discarded if exceeded) |
+| Option            | Type     | Default | Description                                              |
+| ----------------- | -------- | ------- | -------------------------------------------------------- |
+| `flushIntervalMs` | `number` | `1000`  | Auto-flush interval in milliseconds                      |
+| `flushThreshold`  | `number` | -       | Flush immediately when buffer reaches this size          |
+| `maxBatchSize`    | `number` | `100`   | Maximum buffer size (oldest items discarded if exceeded) |
 
 ### Returns
 
 A `LogForwarder` instance with the following interface:
 
-| Member | Type | Description |
-|--------|------|-------------|
-| `hook` | `(data: LogData) => void` | Hook function to assign to `createClog.global.hook`. Reads the lazy `data.meta` before queuing, so batched entries carry log-time meta (not flush-time). |
-| `add` | `(data: LogData) => void` | Add log entry to batch (alias for `hook`) |
-| `flush` | `() => Promise<boolean>` | Flush current buffer immediately |
-| `drain` | `() => Promise<boolean>` | Flush remaining items and stop interval |
-| `start` | `() => void` | Start auto-flush interval |
-| `stop` | `() => void` | Stop auto-flush interval |
-| `reset` | `() => void` | Clear buffer and state |
-| `dump` | `() => LogData[]` | Get current buffer contents |
-| `configure` | `(config) => void` | Update configuration |
-| `subscribe` | `(fn) => () => void` | Subscribe to state changes, returns unsubscribe |
-| `size` | `number` | Current buffer size (readonly) |
-| `isRunning` | `boolean` | Whether interval flushing is active (readonly) |
-| `isFlushing` | `boolean` | Whether flush operation is in progress (readonly) |
+| Member       | Type                      | Description                                                                                                                                              |
+| ------------ | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hook`       | `(data: LogData) => void` | Hook function to assign to `createClog.global.hook`. Reads the lazy `data.meta` before queuing, so batched entries carry log-time meta (not flush-time). |
+| `add`        | `(data: LogData) => void` | Add log entry to batch (alias for `hook`)                                                                                                                |
+| `flush`      | `() => Promise<boolean>`  | Flush current buffer immediately                                                                                                                         |
+| `drain`      | `() => Promise<boolean>`  | Flush remaining items and stop interval                                                                                                                  |
+| `start`      | `() => void`              | Start auto-flush interval                                                                                                                                |
+| `stop`       | `() => void`              | Stop auto-flush interval                                                                                                                                 |
+| `reset`      | `() => void`              | Clear buffer and state                                                                                                                                   |
+| `dump`       | `() => LogData[]`         | Get current buffer contents                                                                                                                              |
+| `configure`  | `(config) => void`        | Update configuration                                                                                                                                     |
+| `subscribe`  | `(fn) => () => void`      | Subscribe to state changes, returns unsubscribe                                                                                                          |
+| `size`       | `number`                  | Current buffer size (readonly)                                                                                                                           |
+| `isRunning`  | `boolean`                 | Whether interval flushing is active (readonly)                                                                                                           |
+| `isFlushing` | `boolean`                 | Whether flush operation is in progress (readonly)                                                                                                        |
 
 ### Example
 
@@ -435,14 +438,14 @@ import { createClog } from "@marianmeres/clog";
 import { createLogForwarder } from "@marianmeres/clog/forward";
 
 const forwarder = createLogForwarder(
-  async (logs) => {
-    const res = await fetch("/api/logs", {
-      method: "POST",
-      body: JSON.stringify(logs)
-    });
-    return res.ok;
-  },
-  { flushIntervalMs: 5000, flushThreshold: 50, maxBatchSize: 1000 }
+	async (logs) => {
+		const res = await fetch("/api/logs", {
+			method: "POST",
+			body: JSON.stringify(logs),
+		});
+		return res.ok;
+	},
+	{ flushIntervalMs: 5000, flushThreshold: 50, maxBatchSize: 1000 },
 );
 
 // Wire up to clog
@@ -450,13 +453,13 @@ createClog.global.hook = forwarder.hook;
 
 // Monitor buffer state
 forwarder.subscribe((state) => {
-  if (state.size > 800) console.warn("Buffer getting full");
+	if (state.size > 800) console.warn("Buffer getting full");
 });
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  await forwarder.drain();
-  process.exit(0);
+	await forwarder.drain();
+	process.exit(0);
 });
 ```
 
@@ -470,22 +473,22 @@ Bundles the typical frontend logger bootstrap: batched log forwarding, browser e
 import { configureWebLogger } from "@marianmeres/clog/web";
 
 function configureWebLogger(
-  opts?: ConfigureWebLoggerOptions
-): LogForwarder | undefined
+	opts?: ConfigureWebLoggerOptions,
+): LogForwarder | undefined;
 ```
 
 ### Config Options (ConfigureWebLoggerOptions)
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `send` | `(logs: LogData[]) => Promise<void> \| void` | - | Async function that ships a batch. Throwing marks the flush as failed (BatchFlusher retries). Omit for console-only mode. |
-| `flushIntervalMs` | `number` | `1000` | Passed through to `createLogForwarder`. |
-| `maxBatchSize` | `number` | `100` | Passed through to `createLogForwarder`. |
-| `getMeta` | `() => Record<string, unknown>` | - | Installed as `createClog.global.getMeta` (called lazily per log). |
-| `uncaughtErrorFilter` | `(e: ErrorEvent) => void \| false` | - | Return `false` to drop the event before logging. |
-| `unhandledRejectionFilter` | `(e: PromiseRejectionEvent) => void \| false` | - | Return `false` to drop the event before logging. |
-| `onUncaughtError` | `boolean \| (e: ErrorEvent) => void` | `true` | `true` = default handler, `false` = none, function = custom. |
-| `onUnhandledRejection` | `boolean \| (e: PromiseRejectionEvent) => void` | `true` | `true` = default handler, `false` = none, function = custom. |
+| Option                     | Type                                            | Default | Description                                                                                                               |
+| -------------------------- | ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `send`                     | `(logs: LogData[]) => Promise<void> \| void`    | -       | Async function that ships a batch. Throwing marks the flush as failed (BatchFlusher retries). Omit for console-only mode. |
+| `flushIntervalMs`          | `number`                                        | `1000`  | Passed through to `createLogForwarder`.                                                                                   |
+| `maxBatchSize`             | `number`                                        | `100`   | Passed through to `createLogForwarder`.                                                                                   |
+| `getMeta`                  | `() => Record<string, unknown>`                 | -       | Installed as `createClog.global.getMeta` (called lazily per log).                                                         |
+| `uncaughtErrorFilter`      | `(e: ErrorEvent) => void \| false`              | -       | Return `false` to drop the event before logging.                                                                          |
+| `unhandledRejectionFilter` | `(e: PromiseRejectionEvent) => void \| false`   | -       | Return `false` to drop the event before logging.                                                                          |
+| `onUncaughtError`          | `boolean \| (e: ErrorEvent) => void`            | `true`  | `true` = default handler, `false` = none, function = custom.                                                              |
+| `onUnhandledRejection`     | `boolean \| (e: PromiseRejectionEvent) => void` | `true`  | `true` = default handler, `false` = none, function = custom.                                                              |
 
 ### Returns
 
@@ -499,17 +502,17 @@ import { configureWebLogger, getOrCreateAgentId } from "@marianmeres/clog/web";
 const agentId = getOrCreateAgentId({ storageKey: "my-app-agent-id" });
 
 const forwarder = configureWebLogger({
-  send: async (logs) => {
-    await fetch("/api/logs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entries: logs }),
-      keepalive: true,
-    });
-  },
-  flushIntervalMs: 2000,
-  getMeta: () => ({ agentId, userId: getCurrentUserId() }),
-  uncaughtErrorFilter: (e) => !e.filename?.includes("third-party"),
+	send: async (logs) => {
+		await fetch("/api/logs", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ entries: logs }),
+			keepalive: true,
+		});
+	},
+	flushIntervalMs: 2000,
+	getMeta: () => ({ agentId, userId: getCurrentUserId() }),
+	uncaughtErrorFilter: (e) => !e.filename?.includes("third-party"),
 });
 
 // Toggle forwarding at runtime
@@ -531,11 +534,11 @@ The id is memoized in memory per `storageKey`, so it is stable for the page's li
 ```typescript
 import { getOrCreateAgentId } from "@marianmeres/clog/web";
 
-function getOrCreateAgentId(opts?: { storageKey?: string }): string
+function getOrCreateAgentId(opts?: { storageKey?: string }): string;
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| Option       | Type     | Default                                                        | Description                                       |
+| ------------ | -------- | -------------------------------------------------------------- | ------------------------------------------------- |
 | `storageKey` | `string` | `"clog-agent-id"` (exported as `DEFAULT_AGENT_ID_STORAGE_KEY`) | localStorage key under which the id is persisted. |
 
 ### Example
@@ -555,21 +558,21 @@ Standard log levels mapping based on syslog/RFC 5424.
 
 ```typescript
 const LEVEL_MAP: {
-  readonly debug: "DEBUG";
-  readonly log: "INFO";
-  readonly warn: "WARNING";
-  readonly error: "ERROR";
-}
+	readonly debug: "DEBUG";
+	readonly log: "INFO";
+	readonly warn: "WARNING";
+	readonly error: "ERROR";
+};
 ```
 
 Maps console-style method names to RFC 5424 severity level names:
 
 | Console Method | RFC 5424 Level |
-|----------------|----------------|
-| `debug` | `"DEBUG"` |
-| `log` | `"INFO"` |
-| `warn` | `"WARNING"` |
-| `error` | `"ERROR"` |
+| -------------- | -------------- |
+| `debug`        | `"DEBUG"`      |
+| `log`          | `"INFO"`       |
+| `warn`         | `"WARNING"`    |
+| `error`        | `"ERROR"`      |
 
 ### Example
 
@@ -577,7 +580,7 @@ Maps console-style method names to RFC 5424 severity level names:
 import { LEVEL_MAP } from "@marianmeres/clog";
 
 console.log(LEVEL_MAP.debug); // "DEBUG"
-console.log(LEVEL_MAP.log);   // "INFO"
+console.log(LEVEL_MAP.log); // "INFO"
 ```
 
 ---
@@ -587,18 +590,19 @@ console.log(LEVEL_MAP.log);   // "INFO"
 Stringify a single value for logging output. Handles null, undefined, primitives, StyledText, and objects. Useful for custom writers that need to convert values to strings.
 
 ```typescript
-function stringifyValue(arg: any): string
+function stringifyValue(arg: any): string;
 ```
 
 ### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `arg` | `any` | Any value to stringify |
+| Parameter | Type  | Description            |
+| --------- | ----- | ---------------------- |
+| `arg`     | `any` | Any value to stringify |
 
 ### Returns
 
 String representation of the value:
+
 - `null` → `"null"`
 - `undefined` → `"undefined"`
 - primitives → `String(value)`
@@ -611,22 +615,22 @@ String representation of the value:
 import { stringifyValue } from "@marianmeres/clog";
 
 // Basic usage
-stringifyValue(null);           // "null"
-stringifyValue(undefined);      // "undefined"
-stringifyValue(42);             // "42"
-stringifyValue("hello");        // "hello"
-stringifyValue({ a: 1 });       // '{"a":1}'
-stringifyValue([1, 2, 3]);      // '[1,2,3]'
+stringifyValue(null); // "null"
+stringifyValue(undefined); // "undefined"
+stringifyValue(42); // "42"
+stringifyValue("hello"); // "hello"
+stringifyValue({ a: 1 }); // '{"a":1}'
+stringifyValue([1, 2, 3]); // '[1,2,3]'
 
 // In a custom writer
 const customWriter: WriterFn = (data) => {
-  const message = data.args.map(stringifyValue).join(" ");
-  myLoggingService.send(message);
+	const message = data.args.map(stringifyValue).join(" ");
+	myLoggingService.send(message);
 };
 
 // With StyledText (extracts plain text)
 import { green } from "@marianmeres/clog";
-stringifyValue(green("OK"));    // "OK"
+stringifyValue(green("OK")); // "OK"
 ```
 
 ---
@@ -636,14 +640,14 @@ stringifyValue(green("OK"));    // "OK"
 Renders an array of raw stack frame lines into the same human-readable block the default writer appends to log output. Useful for custom writers that want to include stack traces consistently.
 
 ```typescript
-function formatStack(lines: string[]): string
+function formatStack(lines: string[]): string;
 ```
 
 ### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lines` | `string[]` | Stack frame lines (e.g. from `LogData.stack`) |
+| Parameter | Type       | Description                                   |
+| --------- | ---------- | --------------------------------------------- |
+| `lines`   | `string[]` | Stack frame lines (e.g. from `LogData.stack`) |
 
 ### Returns
 
@@ -656,10 +660,10 @@ import { createClog, formatStack } from "@marianmeres/clog";
 
 createClog.global.stacktrace = 5;
 createClog.global.writer = (data) => {
-  mySink({
-    msg: data.args[0],
-    stack: data.stack ? formatStack(data.stack) : undefined,
-  });
+	mySink({
+		msg: data.args[0],
+		stack: data.stack ? formatStack(data.stack) : undefined,
+	});
 };
 ```
 
@@ -670,21 +674,21 @@ createClog.global.writer = (data) => {
 A globally-shared symbol used as a sentinel: return it from a hook to **suppress the writer** for that single log call. Any other return value is ignored.
 
 ```typescript
-const CLOG_SKIP: unique symbol = Symbol.for("@marianmeres/clog-skip")
+const CLOG_SKIP: unique symbol = Symbol.for("@marianmeres/clog-skip");
 ```
 
 ### Example
 
 ```typescript
-import { createClog, CLOG_SKIP } from "@marianmeres/clog";
+import { CLOG_SKIP, createClog } from "@marianmeres/clog";
 
 createClog.global.hook = (data) => {
-  if (data.args[0] === "shhh") return CLOG_SKIP;  // dropped
+	if (data.args[0] === "shhh") return CLOG_SKIP; // dropped
 };
 
 const clog = createClog("app");
-clog.log("shhh");   // returns "shhh" but does not reach any writer
-clog.log("hello");  // normal output
+clog.log("shhh"); // returns "shhh" but does not reach any writer
+clog.log("hello"); // normal output
 ```
 
 ---
@@ -696,15 +700,15 @@ clog.log("hello");  // normal output
 Creates a styled text object that works with both `console.log` and `clog`.
 
 ```typescript
-function colored(str: string, color?: string): StyledText
+function colored(str: string, color?: string): StyledText;
 ```
 
 #### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `str` | `string` | - | The text to style |
-| `color` | `string` | `"auto"` | CSS color string or `"auto"` for hash-based color |
+| Parameter | Type     | Default  | Description                                       |
+| --------- | -------- | -------- | ------------------------------------------------- |
+| `str`     | `string` | -        | The text to style                                 |
+| `color`   | `string` | `"auto"` | CSS color string or `"auto"` for hash-based color |
 
 #### Returns
 
@@ -754,7 +758,7 @@ grey(text: string): StyledText  // alias for gray
 #### Examples
 
 ```typescript
-import { createClog, red, green, blue, yellow } from "@marianmeres/clog";
+import { blue, createClog, green, red, yellow } from "@marianmeres/clog";
 
 const clog = createClog("app", { color: "auto" });
 
@@ -774,33 +778,33 @@ Object containing safe hex color values optimized for readability on both light 
 
 ```typescript
 const SAFE_COLORS: {
-  readonly gray: "#969696";
-  readonly grey: "#969696";
-  readonly red: "#d26565";
-  readonly orange: "#cba14d";
-  readonly yellow: "#cba14d";
-  readonly green: "#3dc73d";
-  readonly teal: "#4dcba1";
-  readonly cyan: "#4dcba1";
-  readonly blue: "#67afd3";
-  readonly purple: "#8e8ed4";
-  readonly magenta: "#b080c8";
-  readonly pink: "#be5b9d";
-}
+	readonly gray: "#969696";
+	readonly grey: "#969696";
+	readonly red: "#d26565";
+	readonly orange: "#cba14d";
+	readonly yellow: "#cba14d";
+	readonly green: "#3dc73d";
+	readonly teal: "#4dcba1";
+	readonly cyan: "#4dcba1";
+	readonly blue: "#67afd3";
+	readonly purple: "#8e8ed4";
+	readonly magenta: "#b080c8";
+	readonly pink: "#be5b9d";
+};
 ```
 
-| Name | Hex | Notes |
-|------|-----|-------|
-| gray/grey | `#969696` | Neutral gray |
-| red | `#d26565` | Muted red |
-| orange | `#cba14d` | Warm orange |
-| yellow | `#cba14d` | Same as orange (pure yellow too bright on light bg) |
-| green | `#3dc73d` | Bright green |
-| teal/cyan | `#4dcba1` | Blue-green |
-| blue | `#67afd3` | Light blue |
-| purple | `#8e8ed4` | Blue-purple |
-| magenta | `#b080c8` | Pink-purple |
-| pink | `#be5b9d` | Bright pink |
+| Name      | Hex       | Notes                                               |
+| --------- | --------- | --------------------------------------------------- |
+| gray/grey | `#969696` | Neutral gray                                        |
+| red       | `#d26565` | Muted red                                           |
+| orange    | `#cba14d` | Warm orange                                         |
+| yellow    | `#cba14d` | Same as orange (pure yellow too bright on light bg) |
+| green     | `#3dc73d` | Bright green                                        |
+| teal/cyan | `#4dcba1` | Blue-green                                          |
+| blue      | `#67afd3` | Light blue                                          |
+| purple    | `#8e8ed4` | Blue-purple                                         |
+| magenta   | `#b080c8` | Pink-purple                                         |
+| pink      | `#be5b9d` | Bright pink                                         |
 
 ---
 
@@ -809,14 +813,14 @@ const SAFE_COLORS: {
 Auto-picks a consistent color for a given string using a hash function. The same string always produces the same color.
 
 ```typescript
-function autoColor(str: string): string
+function autoColor(str: string): string;
 ```
 
 #### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `str` | `string` | The string to generate a color for (typically a namespace) |
+| Parameter | Type     | Description                                                |
+| --------- | -------- | ---------------------------------------------------------- |
+| `str`     | `string` | The string to generate a color for (typically a namespace) |
 
 #### Returns
 
@@ -840,12 +844,13 @@ Callable Logger interface with namespace support.
 
 ```typescript
 interface Clog extends Logger {
-  (...args: any[]): string;      // Callable, proxies to log()
-  readonly ns: string | false;   // Logger namespace
+	(...args: any[]): string; // Callable, proxies to log()
+	readonly ns: string | false; // Logger namespace
 }
 ```
 
 The `Clog` interface extends `Logger` and adds:
+
 - **Callable signature**: Can be invoked directly as a function, which proxies to `log()`
 - **`ns` property**: Readonly namespace of this logger instance
 
@@ -855,10 +860,10 @@ Console-compatible logger interface.
 
 ```typescript
 interface Logger {
-  debug: (...args: any[]) => string;
-  log: (...args: any[]) => string;
-  warn: (...args: any[]) => string;
-  error: (...args: any[]) => string;
+	debug: (...args: any[]) => string;
+	log: (...args: any[]) => string;
+	warn: (...args: any[]) => string;
+	error: (...args: any[]) => string;
 }
 ```
 
@@ -874,32 +879,32 @@ Normalized log data structure passed to writers and hooks.
 
 ```typescript
 type LogData = {
-  level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
-  namespace: string | false;              // composed with ":" via withNamespace
-  args: any[];                            // shallow clone of caller's args
-  timestamp: string;                      // ISO 8601 format
-  config?: ClogConfig;                    // Instance config (for custom writers)
-  meta?: Record<string, unknown>;         // lazy: getMeta() + config.meta, resolved on first read
-  stack?: string[];                       // raw frames, when stacktrace enabled
-}
+	level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
+	namespace: string | false; // composed with ":" via withNamespace
+	args: any[]; // shallow clone of caller's args
+	timestamp: string; // ISO 8601 format
+	config?: ClogConfig; // Instance config (for custom writers)
+	meta?: Record<string, unknown>; // lazy: getMeta() + config.meta, resolved on first read
+	stack?: string[]; // raw frames, when stacktrace enabled
+};
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `level` | `string` | RFC 5424 level name |
-| `namespace` | `string \| false` | Logger namespace or `false`. Composed namespaces from `withNamespace` use `:` (e.g. `"app:module"`). |
-| `args` | `any[]` | **Shallow clone** of the arguments passed to the log method. Hooks/writers can mutate this freely without affecting the caller. |
-| `timestamp` | `string` | ISO 8601 formatted timestamp |
-| `config` | `ClogConfig \| undefined` | Instance-level config (useful for custom writers to check settings) |
-| `meta` | `Record<string, unknown> \| undefined` | Metadata from `getMeta()` (instance, else global), with `config.meta` shallow-merged on top when set. **Lazy**: the getter runs on first read and caches the result, so it reflects the sources' state at first read, not at the log call. The built-in forwarder's hook reads it before queuing; a custom hook that defers work should too. A throwing source is swallowed and contributes nothing; `undefined` when no source contributes. |
-| `stack` | `string[] \| undefined` | Raw captured stack frames when `stacktrace` is enabled. Use `formatStack(lines)` to produce the same rendering as the default writer. |
+| Property    | Type                                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `level`     | `string`                               | RFC 5424 level name                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `namespace` | `string \| false`                      | Logger namespace or `false`. Composed namespaces from `withNamespace` use `:` (e.g. `"app:module"`).                                                                                                                                                                                                                                                                                                                                         |
+| `args`      | `any[]`                                | **Shallow clone** of the arguments passed to the log method. Hooks/writers can mutate this freely without affecting the caller.                                                                                                                                                                                                                                                                                                              |
+| `timestamp` | `string`                               | ISO 8601 formatted timestamp                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `config`    | `ClogConfig \| undefined`              | Instance-level config (useful for custom writers to check settings)                                                                                                                                                                                                                                                                                                                                                                          |
+| `meta`      | `Record<string, unknown> \| undefined` | Metadata from `getMeta()` (instance, else global), with `config.meta` shallow-merged on top when set. **Lazy**: the getter runs on first read and caches the result, so it reflects the sources' state at first read, not at the log call. The built-in forwarder's hook reads it before queuing; a custom hook that defers work should too. A throwing source is swallowed and contributes nothing; `undefined` when no source contributes. |
+| `stack`     | `string[] \| undefined`                | Raw captured stack frames when `stacktrace` is enabled. Use `formatStack(lines)` to produce the same rendering as the default writer.                                                                                                                                                                                                                                                                                                        |
 
 ### LogLevel
 
 Log level type representing available console-style log methods.
 
 ```typescript
-type LogLevel = "debug" | "log" | "warn" | "error"
+type LogLevel = "debug" | "log" | "warn" | "error";
 ```
 
 ### WriterFn
@@ -907,14 +912,14 @@ type LogLevel = "debug" | "log" | "warn" | "error"
 Writer function signature for custom log output handlers.
 
 ```typescript
-type WriterFn = (data: LogData) => void
+type WriterFn = (data: LogData) => void;
 ```
 
 ### Example
 
 ```typescript
 const myWriter: WriterFn = (data) => {
-  console.log(`[${data.level}] ${data.args.join(" ")}`);
+	console.log(`[${data.level}] ${data.args.join(" ")}`);
 };
 ```
 
@@ -923,7 +928,7 @@ const myWriter: WriterFn = (data) => {
 Hook function signature for intercepting log calls.
 
 ```typescript
-type HookFn = (data: LogData) => void | typeof CLOG_SKIP
+type HookFn = (data: LogData) => void | typeof CLOG_SKIP;
 ```
 
 Used for collecting, batching, analytics, or filtering. Hooks are called before writers. Return the [`CLOG_SKIP`](#clog_skip) symbol to suppress the writer for that single log call; any other return value is ignored.
@@ -933,7 +938,7 @@ Used for collecting, batching, analytics, or filtering. Hooks are called before 
 ```typescript
 // Prefix the namespace — surfaces in text output and JSON "logger" field
 createClog.global.hook = (data) => {
-  if (data.namespace) data.namespace = `svc:${data.namespace}`;
+	if (data.namespace) data.namespace = `svc:${data.namespace}`;
 };
 ```
 
@@ -943,31 +948,31 @@ Instance-level configuration options.
 
 ```typescript
 interface ClogConfig {
-  writer?: WriterFn;
-  color?: string | null;
-  debug?: boolean;
-  stringify?: boolean;
-  concat?: boolean;
-  stacktrace?: boolean | number;
-  jsonOutput?: boolean;
-  jsonFieldNames?: JsonFieldNames;
-  getMeta?: () => Record<string, unknown>;
-  meta?: Record<string, unknown> | (() => Record<string, unknown>);
+	writer?: WriterFn;
+	color?: string | null;
+	debug?: boolean;
+	stringify?: boolean;
+	concat?: boolean;
+	stacktrace?: boolean | number;
+	jsonOutput?: boolean;
+	jsonFieldNames?: JsonFieldNames;
+	getMeta?: () => Record<string, unknown>;
+	meta?: Record<string, unknown> | (() => Record<string, unknown>);
 }
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `writer` | `WriterFn` | Custom writer for this instance (overridden by global writer) |
-| `color` | `string \| null` | CSS color for namespace styling (browser/Deno only) |
-| `debug` | `boolean` | When `false`, `.debug()` is a no-op (overrides global setting) |
-| `stringify` | `boolean` | When `true`, JSON.stringify non-primitive args (overrides global setting) |
-| `concat` | `boolean` | When `true`, concatenate all args into single string (overrides global setting). Concat always stringifies non-primitive args regardless of `stringify`. |
-| `stacktrace` | `boolean \| number` | When enabled, capture call stack and expose via `LogData.stack` + render in output (overrides global). **Dev only!** |
-| `jsonOutput` | `boolean` | When set, overrides `GlobalConfig.jsonOutput` for this instance. Added in v3.16. |
-| `jsonFieldNames` | `JsonFieldNames` | Per-field rename map for JSON output. Per-key resolution: instance > global > default. Added in v3.18. See [JsonFieldNames](#jsonfieldnames). |
-| `getMeta` | `() => Record<string, unknown>` | Function returning metadata to include in `LogData.meta`. **Replaces** the global `getMeta` for this instance. Lazy; throws are swallowed. |
-| `meta` | `Record<string, unknown> \| (() => Record<string, unknown>)` | Extra metadata **added on top of** the base meta (instance `getMeta`, else global `getMeta`), shallow-merged into a fresh object; wins on key conflicts. A function is called lazily, at most once per line. Each source is isolated: if one throws, the other still contributes. Inherited by `withNamespace` children; layered by [`withMeta()`](#withmeta). |
+| Property         | Type                                                         | Description                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `writer`         | `WriterFn`                                                   | Custom writer for this instance (overridden by global writer)                                                                                                                                                                                                                                                                                                  |
+| `color`          | `string \| null`                                             | CSS color for namespace styling (browser/Deno only)                                                                                                                                                                                                                                                                                                            |
+| `debug`          | `boolean`                                                    | When `false`, `.debug()` is a no-op (overrides global setting)                                                                                                                                                                                                                                                                                                 |
+| `stringify`      | `boolean`                                                    | When `true`, JSON.stringify non-primitive args (overrides global setting)                                                                                                                                                                                                                                                                                      |
+| `concat`         | `boolean`                                                    | When `true`, concatenate all args into single string (overrides global setting). Concat always stringifies non-primitive args regardless of `stringify`.                                                                                                                                                                                                       |
+| `stacktrace`     | `boolean \| number`                                          | When enabled, capture call stack and expose via `LogData.stack` + render in output (overrides global). **Dev only!**                                                                                                                                                                                                                                           |
+| `jsonOutput`     | `boolean`                                                    | When set, overrides `GlobalConfig.jsonOutput` for this instance. Added in v3.16.                                                                                                                                                                                                                                                                               |
+| `jsonFieldNames` | `JsonFieldNames`                                             | Per-field rename map for JSON output. Per-key resolution: instance > global > default. Added in v3.18. See [JsonFieldNames](#jsonfieldnames).                                                                                                                                                                                                                  |
+| `getMeta`        | `() => Record<string, unknown>`                              | Function returning metadata to include in `LogData.meta`. **Replaces** the global `getMeta` for this instance. Lazy; throws are swallowed.                                                                                                                                                                                                                     |
+| `meta`           | `Record<string, unknown> \| (() => Record<string, unknown>)` | Extra metadata **added on top of** the base meta (instance `getMeta`, else global `getMeta`), shallow-merged into a fresh object; wins on key conflicts. A function is called lazily, at most once per line. Each source is isolated: if one throws, the other still contributes. Inherited by `withNamespace` children; layered by [`withMeta()`](#withmeta). |
 
 ### GlobalConfig
 
@@ -975,29 +980,29 @@ Global configuration options.
 
 ```typescript
 interface GlobalConfig {
-  hook?: HookFn;
-  writer?: WriterFn;
-  jsonOutput?: boolean;
-  jsonFieldNames?: JsonFieldNames;
-  debug?: boolean;
-  stringify?: boolean;
-  concat?: boolean;
-  stacktrace?: boolean | number;
-  getMeta?: () => Record<string, unknown>;
+	hook?: HookFn;
+	writer?: WriterFn;
+	jsonOutput?: boolean;
+	jsonFieldNames?: JsonFieldNames;
+	debug?: boolean;
+	stringify?: boolean;
+	concat?: boolean;
+	stacktrace?: boolean | number;
+	getMeta?: () => Record<string, unknown>;
 }
 ```
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `hook` | `HookFn` | `undefined` | Global hook called before every log. Return `CLOG_SKIP` to suppress the writer. |
-| `writer` | `WriterFn` | `undefined` | Global writer overriding all instances |
-| `jsonOutput` | `boolean` | `false` | Enable JSON output for server environments (per-instance override available via `ClogConfig.jsonOutput`) |
-| `jsonFieldNames` | `JsonFieldNames` | `undefined` | Per-field rename map for JSON output (can be overridden per-instance per-key). Added in v3.18. See [JsonFieldNames](#jsonfieldnames). |
-| `debug` | `boolean` | `undefined` | Global debug mode (can be overridden per-instance) |
-| `stringify` | `boolean` | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance) |
-| `concat` | `boolean` | `undefined` | Concatenate all args into single string (can be overridden per-instance) |
-| `stacktrace` | `boolean \| number` | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only!** |
-| `getMeta` | `() => Record<string, unknown>` | `undefined` | Function returning metadata to include in `LogData.meta` (can be overridden per-instance). Lazy; throws are swallowed. |
+| Property         | Type                            | Default     | Description                                                                                                                           |
+| ---------------- | ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `hook`           | `HookFn`                        | `undefined` | Global hook called before every log. Return `CLOG_SKIP` to suppress the writer.                                                       |
+| `writer`         | `WriterFn`                      | `undefined` | Global writer overriding all instances                                                                                                |
+| `jsonOutput`     | `boolean`                       | `false`     | Enable JSON output for server environments (per-instance override available via `ClogConfig.jsonOutput`)                              |
+| `jsonFieldNames` | `JsonFieldNames`                | `undefined` | Per-field rename map for JSON output (can be overridden per-instance per-key). Added in v3.18. See [JsonFieldNames](#jsonfieldnames). |
+| `debug`          | `boolean`                       | `undefined` | Global debug mode (can be overridden per-instance)                                                                                    |
+| `stringify`      | `boolean`                       | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance)                                                                    |
+| `concat`         | `boolean`                       | `undefined` | Concatenate all args into single string (can be overridden per-instance)                                                              |
+| `stacktrace`     | `boolean \| number`             | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only!**                                                           |
+| `getMeta`        | `() => Record<string, unknown>` | `undefined` | Function returning metadata to include in `LogData.meta` (can be overridden per-instance). Lazy; throws are swallowed.                |
 
 ### JsonFieldKey
 
@@ -1005,13 +1010,13 @@ Conceptual identifiers for the top-level fields emitted in JSON output mode. Add
 
 ```typescript
 type JsonFieldKey =
-  | "timestamp"
-  | "level"
-  | "logger"
-  | "message"
-  | "meta"
-  | "arg"
-  | "stack";
+	| "timestamp"
+	| "level"
+	| "logger"
+	| "message"
+	| "meta"
+	| "arg"
+	| "stack";
 ```
 
 The `arg` key is special — it's the **prefix** used for sequenced extra args (`arg_0`, `arg_1`, …). Renaming it via [JsonFieldNames](#jsonfieldnames) changes the prefix accordingly (e.g. `{ arg: "extra" }` → `extra_0`, `extra_1`, …).
@@ -1036,16 +1041,16 @@ createClog.global.jsonFieldNames = { logger: "namespace" };
 
 // ECS-style names:
 const ecs: JsonFieldNames = {
-  timestamp: "@timestamp",
-  level: "log.level",
-  logger: "log.logger",
+	timestamp: "@timestamp",
+	level: "log.level",
+	logger: "log.logger",
 };
 createClog.global.jsonFieldNames = ecs;
 
 // Per-instance — only the keys you specify; others fall back to global / default:
 const clog = createClog("api", {
-  jsonOutput: true,
-  jsonFieldNames: { logger: "service", arg: "extra" },
+	jsonOutput: true,
+	jsonFieldNames: { logger: "service", arg: "extra" },
 });
 clog.log("hello", { a: 1 }, { b: 2 });
 // {"timestamp":"...","level":"INFO","service":"api","message":"hello","extra_0":{"a":1},"extra_1":{"b":2}}
@@ -1059,19 +1064,19 @@ Styled text object that works with both `console.log(...obj)` and `clog(obj)`.
 
 ```typescript
 interface StyledText extends Iterable<string> {
-  [CLOG_STYLED]: true;
-  text: string;
-  style: string;
-  toString(): string;
+	[CLOG_STYLED]: true;
+	text: string;
+	style: string;
+	toString(): string;
 }
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `[CLOG_STYLED]` | `true` | Symbol marker for identifying styled text objects |
-| `text` | `string` | The plain text content |
-| `style` | `string` | CSS style string (e.g., `"color:#d26565"`) |
-| `toString()` | `() => string` | Returns plain text for safe string concatenation |
+| Property        | Type           | Description                                       |
+| --------------- | -------------- | ------------------------------------------------- |
+| `[CLOG_STYLED]` | `true`         | Symbol marker for identifying styled text objects |
+| `text`          | `string`       | The plain text content                            |
+| `style`         | `string`       | CSS style string (e.g., `"color:#d26565"`)        |
+| `toString()`    | `() => string` | Returns plain text for safe string concatenation  |
 
 The `Iterable<string>` implementation yields `["%ctext", "style"]` for spread syntax compatibility with `console.log`.
 
@@ -1080,8 +1085,19 @@ The `Iterable<string>` implementation yields `["%ctext", "style"]` for spread sy
 Union type of available color names in `SAFE_COLORS`.
 
 ```typescript
-type ColorName = "gray" | "grey" | "red" | "orange" | "yellow" | "green"
-               | "teal" | "cyan" | "blue" | "purple" | "magenta" | "pink"
+type ColorName =
+	| "gray"
+	| "grey"
+	| "red"
+	| "orange"
+	| "yellow"
+	| "green"
+	| "teal"
+	| "cyan"
+	| "blue"
+	| "purple"
+	| "magenta"
+	| "pink";
 ```
 
 ### CLOG_STYLED
@@ -1089,7 +1105,7 @@ type ColorName = "gray" | "grey" | "red" | "orange" | "yellow" | "green"
 Symbol used to identify styled text objects created by `colored()`.
 
 ```typescript
-const CLOG_STYLED: symbol = Symbol.for("@marianmeres/clog-styled")
+const CLOG_STYLED: symbol = Symbol.for("@marianmeres/clog-styled");
 ```
 
 Using `Symbol.for()` ensures the same symbol across module instances.
@@ -1126,11 +1142,11 @@ When `createClog.global.jsonOutput = true` (or `ClogConfig.jsonOutput = true` on
 
 ```json
 {
-  "timestamp": "2025-01-15T10:30:45.123Z",
-  "level": "INFO",
-  "logger": "api",
-  "message": "Request received",
-  "arg_0": { "method": "GET" }
+	"timestamp": "2025-01-15T10:30:45.123Z",
+	"level": "INFO",
+	"logger": "api",
+	"message": "Request received",
+	"arg_0": { "method": "GET" }
 }
 ```
 

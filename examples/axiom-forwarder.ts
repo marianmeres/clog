@@ -128,7 +128,7 @@ export function createAxiomFlusher(config: AxiomConfig) {
 			if (!response.ok) {
 				// Log error but avoid using clog (circular dependency!)
 				console.error(
-					`[axiom-forwarder] Ingest failed: ${response.status} ${response.statusText}`
+					`[axiom-forwarder] Ingest failed: ${response.status} ${response.statusText}`,
 				);
 				return false;
 			}
@@ -139,7 +139,7 @@ export function createAxiomFlusher(config: AxiomConfig) {
 			if (result.failed > 0) {
 				console.error(
 					`[axiom-forwarder] Partial failure: ${result.failed}/${logs.length} events failed`,
-					result.failures
+					result.failures,
 				);
 			}
 
@@ -198,14 +198,14 @@ if (import.meta.main) {
 	if (!dataset || !token) {
 		console.log("Usage:");
 		console.log(
-			"  AXIOM_TOKEN=your-token AXIOM_DATASET=your-dataset deno run --allow-net --allow-env examples/axiom-forwarder.ts"
+			"  AXIOM_TOKEN=your-token AXIOM_DATASET=your-dataset deno run --allow-net --allow-env examples/axiom-forwarder.ts",
 		);
 		console.log("");
 		console.log("Environment variables:");
 		console.log("  AXIOM_TOKEN    - Your Axiom API token");
 		console.log("  AXIOM_DATASET  - Your Axiom dataset name");
 		console.log(
-			"  AXIOM_API_URL  - (Optional) API URL for EU region or self-hosted"
+			"  AXIOM_API_URL  - (Optional) API URL for EU region or self-hosted",
 		);
 		Deno.exit(1);
 	}

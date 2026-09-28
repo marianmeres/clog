@@ -173,7 +173,7 @@ Deno.test("hook mutation: data.args replacement reaches the writer without touch
 	};
 	createClog.global.hook = (data: LogData) => {
 		data.args = data.args.map((a) =>
-			typeof a === "string" ? a.replace(/token=\S+/g, "token=***") : a,
+			typeof a === "string" ? a.replace(/token=\S+/g, "token=***") : a
 		);
 	};
 

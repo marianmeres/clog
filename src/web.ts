@@ -166,19 +166,17 @@ export function configureWebLogger(
 		return forwarder;
 	}
 
-	const errorHandler =
-		onUncaughtError === true
-			? makeDefaultUncaughtErrorHandler(uncaughtErrorFilter)
-			: onUncaughtError === false
-				? undefined
-				: onUncaughtError;
+	const errorHandler = onUncaughtError === true
+		? makeDefaultUncaughtErrorHandler(uncaughtErrorFilter)
+		: onUncaughtError === false
+		? undefined
+		: onUncaughtError;
 
-	const rejectionHandler =
-		onUnhandledRejection === true
-			? makeDefaultUnhandledRejectionHandler(unhandledRejectionFilter)
-			: onUnhandledRejection === false
-				? undefined
-				: onUnhandledRejection;
+	const rejectionHandler = onUnhandledRejection === true
+		? makeDefaultUnhandledRejectionHandler(unhandledRejectionFilter)
+		: onUnhandledRejection === false
+		? undefined
+		: onUnhandledRejection;
 
 	if (errorHandler) {
 		globalThis.addEventListener("error", errorHandler);

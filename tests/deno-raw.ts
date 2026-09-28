@@ -1,12 +1,4 @@
-import {
-	colored,
-	red,
-	green,
-	blue,
-	yellow,
-	pink,
-	SAFE_COLORS,
-} from "../src/colors.ts";
+import { blue, colored, green, pink, red, SAFE_COLORS, yellow } from "../src/colors.ts";
 import { createClog, withNamespace } from "../src/clog.ts";
 import { assertEquals } from "@std/assert/equals";
 
@@ -25,7 +17,7 @@ plainClog(
 	"No color config, but",
 	green("this is green"),
 	"and",
-	red("this is red")
+	red("this is red"),
 );
 
 // Works with console.log (spread syntax)

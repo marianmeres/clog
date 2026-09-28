@@ -35,17 +35,17 @@ import { createClog } from "@marianmeres/clog";
 const clog = createClog("my-app");
 
 // Use like console
-clog.log("Hello", "world");        // [my-app] Hello world
-clog.debug("Debug info");          // [my-app] Debug info
-clog.warn("Warning message");      // [my-app] Warning message
-clog.error("Error occurred");      // [my-app] Error occurred
+clog.log("Hello", "world"); // [my-app] Hello world
+clog.debug("Debug info"); // [my-app] Debug info
+clog.warn("Warning message"); // [my-app] Warning message
+clog.error("Error occurred"); // [my-app] Error occurred
 
 // Or call directly (proxies to .log)
-clog("Hello", "world");            // [my-app] Hello world
+clog("Hello", "world"); // [my-app] Hello world
 
 // Without namespace
 const logger = createClog();
-logger.log("No namespace");        // No namespace
+logger.log("No namespace"); // No namespace
 
 // Return value useful for throwing
 throw new Error(clog.error("Something failed"));
@@ -55,7 +55,7 @@ throw new Error(clog.error("Something failed"));
 
 **No filtering by log level** - This library intentionally does not include `LOG_LEVEL` filtering. If you don't want certain logs, don't write them. Use your hook to filter if really needed.
 
-**No enable/disable switches** -  Control what you log at the source.
+**No enable/disable switches** - Control what you log at the source.
 
 **Console-compatible** - You can replace `console.log` with `clog.log` without changing anything else. The `Logger` interface is designed so that `console` itself satisfies it.
 
@@ -66,12 +66,14 @@ throw new Error(clog.error("Something failed"));
 This library operates in **two fundamentally different modes** based on runtime detection:
 
 ### Browser Mode
+
 - Rich, interactive output using native browser console features
 - Colored namespace labels via `%c` formatting
 - Inline colored text with color shortcuts
 - Objects displayed with expandable inspection
 
 ### Server Mode (Node.js, Deno)
+
 - **Machine-friendly output by design**
 - ISO timestamps prepended to every line
 - Structured plain text: `[timestamp] [LEVEL] [namespace] message`
@@ -86,17 +88,19 @@ This is an **intentional, pragmatic design decision**. Server logs serve a diffe
 - They need consistent, predictable structure
 - Timestamps are essential for debugging distributed systems
 
-Fancy colors, complex formatting, and visual embellishments on the server provide no value - they actually make logs *harder* to process and search.
+Fancy colors, complex formatting, and visual embellishments on the server provide no value - they actually make logs _harder_ to process and search.
 
 ### Is This Library Right for You?
 
 ✅ **Good fit if you want:**
+
 - Single API that works everywhere
 - Browser logs with colors and rich formatting
 - Server logs optimized for machine consumption
 - JSON output for log aggregation
 
 ❌ **Not the best fit if you want:**
+
 - Colorful, visually styled output in server terminals
 - ASCII art, box drawing, or rich formatting in CLI tools
 - The same visual experience in both environments
@@ -107,8 +111,8 @@ The `Logger` interface methods return `any` instead of `string` to ensure true c
 
 ```typescript
 // This works because Logger uses `any` return type
-const logger: Logger = console;  // ✓ console methods return void
-const clog: Logger = createClog("app");  // ✓ clog methods return string
+const logger: Logger = console; // ✓ console methods return void
+const clog: Logger = createClog("app"); // ✓ clog methods return string
 ```
 
 Console methods return `void`, but clog returns the first argument as a string (useful for patterns like `throw new Error(clog.error("msg"))`). Using `any` as the return type allows both implementations to satisfy the same interface, enabling polymorphic use of loggers throughout your codebase.
@@ -125,9 +129,9 @@ const authLog = createClog("auth");
 const apiLog = createClog("api");
 const dbLog = createClog("database");
 
-authLog.log("User logged in");     // [auth] User logged in
-apiLog.warn("Slow request");       // [api] Slow request
-dbLog.error("Connection failed");  // [database] Connection failed
+authLog.log("User logged in"); // [auth] User logged in
+apiLog.warn("Slow request"); // [api] Slow request
+dbLog.error("Connection failed"); // [database] Connection failed
 ```
 
 ### Nested Namespaces
@@ -140,23 +144,23 @@ import { createClog, withNamespace } from "@marianmeres/clog";
 const appLog = createClog("app");
 const moduleLog = withNamespace(appLog, "auth");
 
-moduleLog.log("User logged in");   // [app] [auth] User logged in
-moduleLog.ns;                      // "app:auth" — composed namespace
+moduleLog.log("User logged in"); // [app] [auth] User logged in
+moduleLog.ns; // "app:auth" — composed namespace
 
 // Deep nesting composes further
 const subLog = withNamespace(moduleLog, "oauth");
-subLog.ns;                         // "app:auth:oauth"
-subLog.warn("Token expired");      // [app] [auth] [oauth] Token expired
+subLog.ns; // "app:auth:oauth"
+subLog.warn("Token expired"); // [app] [auth] [oauth] Token expired
 
 // Works with native console (arg-prefix mode)
 const consoleLog = withNamespace(console, "my-module");
-consoleLog.error("Something failed");  // [my-module] Something failed
+consoleLog.error("Something failed"); // [my-module] Something failed
 
 // Return value pattern works at any nesting depth
 throw new Error(moduleLog.error("Authentication failed"));
 ```
 
-**How it composes.** When the wrapped target is a clog instance, `withNamespace` returns a *fresh* clog whose `ns` is the parent's namespace joined with `:`. The renderer splits that back into `[parent] [child]` for readable text output and uses the composed string as-is in JSON (`"namespace":"app:auth"`). When the target is any other logger (e.g. native `console`), the wrapper prepends `[namespace]` as the first argument on every call, as before.
+**How it composes.** When the wrapped target is a clog instance, `withNamespace` returns a _fresh_ clog whose `ns` is the parent's namespace joined with `:`. The renderer splits that back into `[parent] [child]` for readable text output and uses the composed string as-is in JSON (`"namespace":"app:auth"`). When the target is any other logger (e.g. native `console`), the wrapper prepends `[namespace]` as the first argument on every call, as before.
 
 ### Auto-Environment Detection
 
@@ -207,16 +211,16 @@ createClog.global.jsonFieldNames = { logger: "namespace" };
 
 // Or pick the convention your aggregator wants (e.g. ECS-ish):
 createClog.global.jsonFieldNames = {
-  timestamp: "@timestamp",
-  level: "log.level",
-  logger: "log.logger",
-  message: "message",
+	timestamp: "@timestamp",
+	level: "log.level",
+	logger: "log.logger",
+	message: "message",
 };
 
 // Per-instance override (only the keys you specify; others fall back to global / default):
 const clog = createClog("api", {
-  jsonOutput: true,
-  jsonFieldNames: { logger: "service" },
+	jsonOutput: true,
+	jsonFieldNames: { logger: "service" },
 });
 ```
 
@@ -229,10 +233,10 @@ Maps console methods to standard log levels (RFC 5424):
 ```typescript
 import { LEVEL_MAP } from "@marianmares/clog";
 
-clog.debug("Debug");  // DEBUG
-clog.log("Info");     // INFO
+clog.debug("Debug"); // DEBUG
+clog.log("Info"); // INFO
 clog.warn("Warning"); // WARNING
-clog.error("Error");  // ERROR
+clog.error("Error"); // ERROR
 ```
 
 ### Return Value Pattern
@@ -254,7 +258,7 @@ const ret = clog.error({ code: 500, msg: "boom" });
 // ret === '{"code":500,"msg":"boom"}'
 // (pre-3.16 returned "[object Object]")
 
-throw new Error(ret);  // Error message carries the full JSON
+throw new Error(ret); // Error message carries the full JSON
 ```
 
 ### Global Hook (Batching/Collection)
@@ -266,33 +270,33 @@ Capture all logs across your application for batching, analytics, or remote logg
 const logBatch = [];
 
 createClog.global.hook = (data) => {
-  logBatch.push(data);
+	logBatch.push(data);
 
-  // Flush batch every 100 logs
-  if (logBatch.length >= 100) {
-    sendToLogServer(logBatch);
-    logBatch.length = 0;
-  }
+	// Flush batch every 100 logs
+	if (logBatch.length >= 100) {
+		sendToLogServer(logBatch);
+		logBatch.length = 0;
+	}
 };
 
 // Now all logger instances will trigger the hook
 const auth = createClog("auth");
 const api = createClog("api");
 
-auth.log("Login attempt");  // Added to batch
-api.warn("Slow query");     // Added to batch
+auth.log("Login attempt"); // Added to batch
+api.warn("Slow query"); // Added to batch
 ```
 
 Hook receives normalized data:
 
 ```typescript
 type LogData = {
-  level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
-  namespace: string | false;       // composed with ":" when via withNamespace
-  args: any[];                     // shallow clone — safe to mutate
-  timestamp: string;               // ISO 8601 format
-  meta?: Record<string, unknown>;  // lazy; computed on first read
-  stack?: string[];                // present when stacktrace is enabled
+	level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
+	namespace: string | false; // composed with ":" when via withNamespace
+	args: any[]; // shallow clone — safe to mutate
+	timestamp: string; // ISO 8601 format
+	meta?: Record<string, unknown>; // lazy; computed on first read
+	stack?: string[]; // present when stacktrace is enabled
 };
 ```
 
@@ -301,10 +305,10 @@ type LogData = {
 Return the `CLOG_SKIP` sentinel from a hook to suppress the writer for that single call (useful for filtering):
 
 ```typescript
-import { createClog, CLOG_SKIP } from "@marianmeres/clog";
+import { CLOG_SKIP, createClog } from "@marianmeres/clog";
 
 createClog.global.hook = (data) => {
-  if (isNoisy(data)) return CLOG_SKIP;   // writer is not called
+	if (isNoisy(data)) return CLOG_SKIP; // writer is not called
 };
 ```
 
@@ -318,20 +322,21 @@ The `data` object passed to the hook is the **same reference** the writer receiv
 // Prefix the namespace — affects both text output ("[svc] [api] ...")
 // and JSON output ({ "logger": "svc:api", ... })
 createClog.global.hook = (data) => {
-  if (data.namespace) data.namespace = `svc:${data.namespace}`;
+	if (data.namespace) data.namespace = `svc:${data.namespace}`;
 };
 
 // Redact a sensitive arg before it reaches the writer
 createClog.global.hook = (data) => {
-  data.args = data.args.map((a) =>
-    typeof a === "string" ? a.replace(/token=\S+/g, "token=***") : a,
-  );
+	data.args = data.args.map((a) =>
+		typeof a === "string" ? a.replace(/token=\S+/g, "token=***") : a
+	);
 };
 ```
 
 Notes:
+
 - `data.args` is already a shallow clone of the caller's array, so mutating it (or replacing it) is safe — the caller's original array is unaffected.
-- A hook can both transform *and* return `CLOG_SKIP`. Return values other than `CLOG_SKIP` are ignored; the transform happens via the mutation, not the return value.
+- A hook can both transform _and_ return `CLOG_SKIP`. Return values other than `CLOG_SKIP` are ignored; the transform happens via the mutation, not the return value.
 
 ### Custom Writer
 
@@ -340,19 +345,19 @@ Replace the default output completely:
 ```typescript
 // Global writer (affects all instances)
 createClog.global.writer = (data) => {
-  myCustomLogSystem.write({
-    time: data.timestamp,
-    severity: data.level,
-    module: data.namespace,
-    message: data.args.join(" ")
-  });
+	myCustomLogSystem.write({
+		time: data.timestamp,
+		severity: data.level,
+		module: data.namespace,
+		message: data.args.join(" "),
+	});
 };
 
 // Instance-level writer
 const clog = createClog("test", {
-  writer: (data) => {
-    console.log(`Custom: ${data.level} - ${data.args[0]}`);
-  }
+	writer: (data) => {
+		console.log(`Custom: ${data.level} - ${data.args[0]}`);
+	},
 });
 ```
 
@@ -377,7 +382,7 @@ Colors work in browser and Deno environments (uses `%c` formatting). Use `color:
 For **inline colored text** within log messages, use the color shortcut functions:
 
 ```typescript
-import { createClog, red, green, blue, yellow } from "@marianmeres/clog";
+import { blue, createClog, green, red, yellow } from "@marianmeres/clog";
 
 // namespace "app" will be auto-colored
 const clog = createClog("app", { color: "auto" });
@@ -403,16 +408,16 @@ createClog.global.debug = process.env.NODE_ENV !== "development";
 const apiLog = createClog("api");
 const dbLog = createClog("db");
 
-apiLog.debug("skipped in production");  // Respects global setting
-dbLog.debug("also skipped");            // Respects global setting
+apiLog.debug("skipped in production"); // Respects global setting
+dbLog.debug("also skipped"); // Respects global setting
 
 // Per-instance: override global setting
 const verboseLog = createClog("verbose", { debug: true });
-verboseLog.debug("always outputs");     // Overrides global
+verboseLog.debug("always outputs"); // Overrides global
 
 // Or disable for specific logger
 const quietLog = createClog("quiet", { debug: false });
-quietLog.debug("never outputs");        // Overrides global
+quietLog.debug("never outputs"); // Overrides global
 ```
 
 **Precedence:** Instance `config.debug` → Global `createClog.global.debug` → Default (`true`)
@@ -453,17 +458,18 @@ clog(1, { hey: "ho" });
 ```
 
 This is useful when you need:
+
 - Single-line log output for easier parsing/grep
 - Guaranteed flat string output (no object expansion in console)
 - Integration with log systems expecting single-string messages
 
 **Precedence:** Instance `config.concat` → Global `createClog.global.concat` → Default (`false`)
 
-| Config | Objects | Console args |
-|--------|---------|--------------|
-| neither | as-is | multiple |
-| `stringify: true` | JSON.stringify | multiple |
-| `concat: true` | JSON.stringify | **single string** |
+| Config            | Objects        | Console args      |
+| ----------------- | -------------- | ----------------- |
+| neither           | as-is          | multiple          |
+| `stringify: true` | JSON.stringify | multiple          |
+| `concat: true`    | JSON.stringify | **single string** |
 
 ### Stacktrace Mode
 
@@ -497,7 +503,10 @@ import { createClog, formatStack } from "@marianmeres/clog";
 
 createClog.global.stacktrace = 10;
 createClog.global.writer = (data) => {
-  mySink({ msg: data.args[0], stack: data.stack ? formatStack(data.stack) : undefined });
+	mySink({
+		msg: data.args[0],
+		stack: data.stack ? formatStack(data.stack) : undefined,
+	});
 };
 ```
 
@@ -510,10 +519,10 @@ Inject contextual metadata (like user ID, request ID, session info) into log ent
 ```typescript
 // Instance-level getMeta
 const clog = createClog("api", {
-  getMeta: () => ({
-    userId: getCurrentUserId(),
-    requestId: getRequestId()
-  })
+	getMeta: () => ({
+		userId: getCurrentUserId(),
+		requestId: getRequestId(),
+	}),
 });
 
 clog.log("Request received");
@@ -522,8 +531,8 @@ clog.log("Request received");
 
 // Global getMeta (affects all instances)
 createClog.global.getMeta = () => ({
-  sessionId: getSessionId(),
-  env: process.env.NODE_ENV
+	sessionId: getSessionId(),
+	env: process.env.NODE_ENV,
 });
 ```
 
@@ -532,19 +541,19 @@ Access metadata in custom writers or hooks:
 ```typescript
 // In a custom writer
 const clog = createClog("app", {
-  getMeta: () => ({ traceId: "abc-123" }),
-  writer: (data) => {
-    console.log("Meta:", data.meta);  // { traceId: "abc-123" }
-    console.log("Message:", data.args[0]);
-  }
+	getMeta: () => ({ traceId: "abc-123" }),
+	writer: (data) => {
+		console.log("Meta:", data.meta); // { traceId: "abc-123" }
+		console.log("Message:", data.args[0]);
+	},
 });
 
 // In a global hook for log collection
 createClog.global.hook = (data) => {
-  sendToAnalytics({
-    ...data,
-    meta: data.meta  // { userId: "...", requestId: "..." }
-  });
+	sendToAnalytics({
+		...data,
+		meta: data.meta, // { userId: "...", requestId: "..." }
+	});
 };
 ```
 
@@ -587,6 +596,7 @@ callLog.ns; // "worker"
 `withMeta` on a logger that is not a clog instance (native `console`, `createNoopClog()`) returns that logger unchanged — it has no meta channel.
 
 **Key points:**
+
 - `getMeta` and `meta` are resolved **lazily** — only when a hook or writer actually reads `data.meta`. The result is cached per log call, so repeated reads resolve the sources once.
 - Because it is lazy, `data.meta` reflects the state at **first read**, not at the log call. The built-in forwarder (`createLogForwarder`, and so `configureWebLogger`) reads it in its hook, so forwarded entries carry log-time meta. A custom hook that stores `data` for a later flush should do the same (`void data.meta`) — otherwise function sources run at flush time, where e.g. a request-scoped `getMeta` backed by `AsyncLocalStorage` returns nothing.
 - Every source is isolated: a throwing `getMeta` or `meta` is **swallowed** and contributes nothing, and the other source still does. Logging never fails because of metadata.
@@ -651,42 +661,48 @@ createClog.reset();
 
 ```typescript
 interface ClogConfig {
-  writer?: WriterFn;
-  color?: string | null;
-  debug?: boolean;                  // when false, .debug() is a no-op
-  stringify?: boolean;              // JSON.stringify non-primitive args
-  concat?: boolean;                 // concatenate all args into single string
-  stacktrace?: boolean | number;    // capture call stack (dev only!)
-  jsonOutput?: boolean;             // overrides global.jsonOutput (v3.16+)
-  jsonFieldNames?: JsonFieldNames;  // rename JSON output keys (v3.18+)
-  getMeta?: () => Record<string, unknown>; // metadata injection (replaces global)
-  meta?: Record<string, unknown> | (() => Record<string, unknown>); // merged over getMeta
+	writer?: WriterFn;
+	color?: string | null;
+	debug?: boolean; // when false, .debug() is a no-op
+	stringify?: boolean; // JSON.stringify non-primitive args
+	concat?: boolean; // concatenate all args into single string
+	stacktrace?: boolean | number; // capture call stack (dev only!)
+	jsonOutput?: boolean; // overrides global.jsonOutput (v3.16+)
+	jsonFieldNames?: JsonFieldNames; // rename JSON output keys (v3.18+)
+	getMeta?: () => Record<string, unknown>; // metadata injection (replaces global)
+	meta?: Record<string, unknown> | (() => Record<string, unknown>); // merged over getMeta
 }
 
 interface GlobalConfig {
-  hook?: HookFn;
-  writer?: WriterFn;
-  jsonOutput?: boolean;
-  jsonFieldNames?: JsonFieldNames;  // rename JSON output keys (v3.18+)
-  debug?: boolean;                  // can be overridden per-instance
-  stringify?: boolean;              // can be overridden per-instance
-  concat?: boolean;                 // can be overridden per-instance
-  stacktrace?: boolean | number;    // can be overridden per-instance (dev only!)
-  getMeta?: () => Record<string, unknown>; // can be overridden per-instance
+	hook?: HookFn;
+	writer?: WriterFn;
+	jsonOutput?: boolean;
+	jsonFieldNames?: JsonFieldNames; // rename JSON output keys (v3.18+)
+	debug?: boolean; // can be overridden per-instance
+	stringify?: boolean; // can be overridden per-instance
+	concat?: boolean; // can be overridden per-instance
+	stacktrace?: boolean | number; // can be overridden per-instance (dev only!)
+	getMeta?: () => Record<string, unknown>; // can be overridden per-instance
 }
 
 type JsonFieldKey =
-  | "timestamp" | "level" | "logger" | "message" | "meta" | "arg" | "stack";
+	| "timestamp"
+	| "level"
+	| "logger"
+	| "message"
+	| "meta"
+	| "arg"
+	| "stack";
 type JsonFieldNames = Partial<Record<JsonFieldKey, string>>;
 
 type LogData = {
-  level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
-  namespace: string | false;        // composed with ":" when via withNamespace
-  args: any[];                      // shallow clone of caller's arguments
-  timestamp: string;
-  config?: ClogConfig;              // instance config (for custom writers)
-  meta?: Record<string, unknown>;   // lazy getter: getMeta + config.meta; throws swallowed
-  stack?: string[];                 // set when stacktrace is enabled (v3.16+)
+	level: "DEBUG" | "INFO" | "WARNING" | "ERROR";
+	namespace: string | false; // composed with ":" when via withNamespace
+	args: any[]; // shallow clone of caller's arguments
+	timestamp: string;
+	config?: ClogConfig; // instance config (for custom writers)
+	meta?: Record<string, unknown>; // lazy getter: getMeta + config.meta; throws swallowed
+	stack?: string[]; // set when stacktrace is enabled (v3.16+)
 };
 
 type HookFn = (data: LogData) => void | typeof CLOG_SKIP;
@@ -748,8 +764,8 @@ import { createNoopClog } from "@marianmeres/clog";
 // Create a silent logger - no output at all
 const clog = createNoopClog("test");
 
-clog.log("silent");        // returns "silent", outputs nothing
-clog.error("fail");        // returns "fail", outputs nothing
+clog.log("silent"); // returns "silent", outputs nothing
+clog.error("fail"); // returns "fail", outputs nothing
 
 // Return value pattern still works
 throw new Error(clog.error("Something failed"));
@@ -763,18 +779,18 @@ import { createClog } from "@marianmeres/clog";
 import { assertEquals } from "@std/assert";
 
 Deno.test("logs correct message", () => {
-  const captured: string[] = [];
+	const captured: string[] = [];
 
-  createClog.global.writer = (data) => {
-    captured.push(data.args[0]);
-  };
+	createClog.global.writer = (data) => {
+		captured.push(data.args[0]);
+	};
 
-  const clog = createClog("test");
-  clog.log("Hello");
+	const clog = createClog("test");
+	clog.log("Hello");
 
-  assertEquals(captured[0], "Hello");
+	assertEquals(captured[0], "Hello");
 
-  createClog.reset(); // Clean up
+	createClog.reset(); // Clean up
 });
 ```
 
@@ -802,23 +818,24 @@ import { createClog } from "@marianmeres/clog";
 import { createLogForwarder } from "@marianmeres/clog/forward";
 
 const forwarder = createLogForwarder(
-  async (logs) => {
-    await fetch("/api/logs", { method: "POST", body: JSON.stringify(logs) });
-    return true;
-  },
-  { flushIntervalMs: 5000, flushThreshold: 50, maxBatchSize: 1000 }
+	async (logs) => {
+		await fetch("/api/logs", { method: "POST", body: JSON.stringify(logs) });
+		return true;
+	},
+	{ flushIntervalMs: 5000, flushThreshold: 50, maxBatchSize: 1000 },
 );
 
 createClog.global.hook = forwarder.hook;
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  await forwarder.drain();
-  process.exit(0);
+	await forwarder.drain();
+	process.exit(0);
 });
 ```
 
 The forwarder wraps [@marianmeres/batch](https://github.com/marianmeres/batch) and provides:
+
 - **Time-based flushing** (`flushIntervalMs`) - flush every N ms
 - **Threshold-based flushing** (`flushThreshold`) - flush when buffer reaches N items
 - **Buffer overflow protection** (`maxBatchSize`) - oldest items discarded if exceeded
@@ -837,16 +854,16 @@ import { configureWebLogger, getOrCreateAgentId } from "@marianmeres/clog/web";
 const agentId = getOrCreateAgentId({ storageKey: "my-app-agent-id" });
 
 const forwarder = configureWebLogger({
-  send: async (logs) => {
-    await fetch("/api/logs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entries: logs }),
-      keepalive: true,
-    });
-  },
-  flushIntervalMs: 2000,
-  getMeta: () => ({ agentId, userId: getCurrentUserId() }),
+	send: async (logs) => {
+		await fetch("/api/logs", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ entries: logs }),
+			keepalive: true,
+		});
+	},
+	flushIntervalMs: 2000,
+	getMeta: () => ({ agentId, userId: getCurrentUserId() }),
 });
 
 // Pause forwarding (console logging continues):
@@ -869,7 +886,7 @@ This works because the global state uses `Symbol.for()` + `globalThis`:
 ```typescript
 // Internally, clog stores global config like this:
 const GLOBAL_KEY = Symbol.for("@marianmeres/clog");
-const GLOBAL = (globalThis as any)[GLOBAL_KEY] ??= { /* defaults */ };
+const GLOBAL = (globalThis as any)[GLOBAL_KEY] ??= {/* defaults */};
 ```
 
 This means:
@@ -919,6 +936,7 @@ See `AGENTS.md` → "Behavior changes in v3.16" for the full BC-risk table.
 The v3.0 refactor simplified the API significantly:
 
 **Removed:**
+
 - `createLogger()` - Use `createClog()` instead
 - `createClogStr()` - No longer needed
 - `info()` method - Use `log()` (maps to INFO level)
@@ -958,4 +976,3 @@ createClog.global.writer = () => {};
 ## License
 
 [MIT](LICENSE)
-

@@ -580,7 +580,7 @@ function firstArgAsString(args: any[], config?: ClogConfig): string {
  * throwing source must never break logging.
  */
 function _resolveMetaSource(
-	src: ClogConfig["meta"]
+	src: ClogConfig["meta"],
 ): Record<string, unknown> | undefined {
 	if (!src) return undefined;
 	try {
@@ -597,7 +597,7 @@ function _resolveMetaSource(
  * `undefined` when no source contributes.
  */
 function _mergeMetaSources(
-	sources: ClogConfig["meta"][]
+	sources: ClogConfig["meta"][],
 ): Record<string, unknown> | undefined {
 	let out: Record<string, unknown> | undefined;
 	for (const src of sources) {
@@ -630,12 +630,9 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	const shouldConcat = config?.concat ?? GLOBAL.concat;
 	if (shouldConcat) {
 		const stringified = args.map(stringifyValue).join(" ");
-		const output =
-			runtime === "browser"
-				? nsText
-					? `${nsText} ${stringified}`
-					: stringified
-				: `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""} ${stringified}`;
+		const output = runtime === "browser"
+			? nsText ? `${nsText} ${stringified}` : stringified
+			: `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""} ${stringified}`;
 		console[consoleMethod](output, ...(stackStr ? [stackStr] : []));
 		return;
 	}
@@ -651,14 +648,14 @@ const defaultWriter: WriterFn = (data: LogData) => {
 			console[consoleMethod](
 				nsText ? `${nsText} ${content}` : content,
 				...contentValues,
-				...(stackStr ? [stackStr] : [])
+				...(stackStr ? [stackStr] : []),
 			);
 		} else {
 			const prefix = `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""}`;
 			console[consoleMethod](
 				`${prefix} ${content}`,
 				...contentValues,
-				...(stackStr ? [stackStr] : [])
+				...(stackStr ? [stackStr] : []),
 			);
 		}
 		return;
@@ -672,12 +669,12 @@ const defaultWriter: WriterFn = (data: LogData) => {
 			console[consoleMethod](
 				nsText,
 				...cleanedArgs,
-				...(stackStr ? [stackStr] : [])
+				...(stackStr ? [stackStr] : []),
 			);
 		} else {
 			console[consoleMethod](
 				...cleanedArgs,
-				...(stackStr ? [stackStr] : [])
+				...(stackStr ? [stackStr] : []),
 			);
 		}
 		return;
@@ -714,77 +711,74 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	console[consoleMethod](
 		prefix,
 		...cleanedArgs,
-		...(stackStr ? [stackStr] : [])
+		...(stackStr ? [stackStr] : []),
 	);
 };
 
 /** Default writer with color support (browser and deno) */
-const colorWriter =
-	(configuredColor: string): WriterFn =>
-	(data: LogData) => {
-		const { level, namespace, args, timestamp, config, stack } = data;
-		const runtime = detectRuntime();
+const colorWriter = (configuredColor: string): WriterFn => (data: LogData) => {
+	const { level, namespace, args, timestamp, config, stack } = data;
+	const runtime = detectRuntime();
 
-		// %c coloring only applies to browser/deno with an actual namespace;
-		// concat mode emits plain text and also delegates.
-		// jsonOutput also delegates — colors have no meaning in structured logs,
-		// and defaultWriter is the single source of truth for JSON shape.
-		if (
-			(runtime !== "browser" && runtime !== "deno") ||
-			!namespace ||
-			(config?.concat ?? GLOBAL.concat) ||
-			(config?.jsonOutput ?? GLOBAL.jsonOutput)
-		) {
-			return defaultWriter(data);
-		}
+	// %c coloring only applies to browser/deno with an actual namespace;
+	// concat mode emits plain text and also delegates.
+	// jsonOutput also delegates — colors have no meaning in structured logs,
+	// and defaultWriter is the single source of truth for JSON shape.
+	if (
+		(runtime !== "browser" && runtime !== "deno") ||
+		!namespace ||
+		(config?.concat ?? GLOBAL.concat) ||
+		(config?.jsonOutput ?? GLOBAL.jsonOutput)
+	) {
+		return defaultWriter(data);
+	}
 
-		const color =
-			configuredColor === "auto" ? autoColor(namespace) : configuredColor;
-		const processedArgs = _stringifyArgs(args, config);
-		const consoleMethod = CONSOLE_METHOD[level];
-		const stackStr = stack && stack.length ? formatStack(stack) : null;
-		const nsText = renderNs(namespace);
+	const color = configuredColor === "auto" ? autoColor(namespace) : configuredColor;
+	const processedArgs = _stringifyArgs(args, config);
+	const consoleMethod = CONSOLE_METHOD[level];
+	const stackStr = stack && stack.length ? formatStack(stack) : null;
+	const nsText = renderNs(namespace);
 
-		if (_hasStyledArgs(processedArgs)) {
-			const [content, contentValues] = _processStyledArgs(processedArgs);
-			if (runtime === "browser") {
-				console[consoleMethod](
-					`%c${nsText}%c ${content}`,
-					`color:${color}`,
-					"",
-					...contentValues,
-					...(stackStr ? [stackStr] : [])
-				);
-			} else {
-				const prefix = `[${timestamp}] [${level}] %c${nsText}%c`;
-				console[consoleMethod](
-					`${prefix} ${content}`,
-					`color:${color}`,
-					"",
-					...contentValues,
-					...(stackStr ? [stackStr] : [])
-				);
-			}
-			return;
-		}
-
+	if (_hasStyledArgs(processedArgs)) {
+		const [content, contentValues] = _processStyledArgs(processedArgs);
 		if (runtime === "browser") {
 			console[consoleMethod](
-				`%c${nsText}`,
+				`%c${nsText}%c ${content}`,
 				`color:${color}`,
-				...processedArgs,
-				...(stackStr ? [stackStr] : [])
+				"",
+				...contentValues,
+				...(stackStr ? [stackStr] : []),
 			);
 		} else {
-			const prefix = `[${timestamp}] [${level}] %c${nsText}`;
+			const prefix = `[${timestamp}] [${level}] %c${nsText}%c`;
 			console[consoleMethod](
-				prefix,
+				`${prefix} ${content}`,
 				`color:${color}`,
-				...processedArgs,
-				...(stackStr ? [stackStr] : [])
+				"",
+				...contentValues,
+				...(stackStr ? [stackStr] : []),
 			);
 		}
-	};
+		return;
+	}
+
+	if (runtime === "browser") {
+		console[consoleMethod](
+			`%c${nsText}`,
+			`color:${color}`,
+			...processedArgs,
+			...(stackStr ? [stackStr] : []),
+		);
+	} else {
+		const prefix = `[${timestamp}] [${level}] %c${nsText}`;
+		console[consoleMethod](
+			prefix,
+			`color:${color}`,
+			...processedArgs,
+			...(stackStr ? [stackStr] : []),
+		);
+	}
+};
 
 // --- Factory ---
 
@@ -818,7 +812,7 @@ const colorWriter =
  */
 export function createClog(
 	namespace?: string | false,
-	config?: ClogConfig
+	config?: ClogConfig,
 ): Clog {
 	const ns = namespace ?? false;
 
@@ -839,8 +833,8 @@ export function createClog(
 		const stacktraceConfig = config?.stacktrace ?? GLOBAL.stacktrace;
 		const stack = stacktraceConfig
 			? captureStackLines(
-					typeof stacktraceConfig === "number" ? stacktraceConfig : undefined
-				)
+				typeof stacktraceConfig === "number" ? stacktraceConfig : undefined,
+			)
 			: undefined;
 
 		const data: LogData = {
@@ -1013,7 +1007,7 @@ export function createNoopClog(namespace?: string | false | null): Clog {
  */
 export function withNamespace<T extends Logger>(
 	logger: T,
-	namespace: string
+	namespace: string,
 	// deno-lint-ignore no-explicit-any
 ): T & ((...args: any[]) => string) {
 	// deno-lint-ignore no-explicit-any
@@ -1090,7 +1084,7 @@ export function withNamespace<T extends Logger>(
  */
 export function withMeta<T extends Logger>(
 	logger: T,
-	meta: Record<string, unknown> | (() => Record<string, unknown>)
+	meta: Record<string, unknown> | (() => Record<string, unknown>),
 ): T {
 	// deno-lint-ignore no-explicit-any
 	const marker = (logger as any)[CLOG_INSTANCE] as

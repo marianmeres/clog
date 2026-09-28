@@ -48,7 +48,7 @@ Deno.test("instance true overrides global false", () => {
 	assertEquals(consoleOutput.log.length, 1);
 	assert(
 		consoleOutput.log[0].includes("at "),
-		"Stack trace should be present"
+		"Stack trace should be present",
 	);
 
 	restoreConsole();
@@ -65,7 +65,7 @@ Deno.test("instance false overrides global true", () => {
 	// Stack trace should NOT be present when instance config is false
 	assert(
 		!consoleOutput.log[0].includes("at "),
-		"Stack trace should not be present"
+		"Stack trace should not be present",
 	);
 
 	restoreConsole();

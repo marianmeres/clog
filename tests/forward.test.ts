@@ -38,7 +38,7 @@ Deno.test("hook adds items to batch", async () => {
 			received.push(logs);
 			return true;
 		},
-		{ flushIntervalMs: 0 } // disable auto-flush
+		{ flushIntervalMs: 0 }, // disable auto-flush
 	);
 
 	forwarder.stop(); // ensure no auto-flush
@@ -67,7 +67,7 @@ Deno.test("flush calls flusher function", async () => {
 			received.push([...logs]);
 			return true;
 		},
-		{ flushIntervalMs: 0 }
+		{ flushIntervalMs: 0 },
 	);
 
 	forwarder.stop();
@@ -107,7 +107,7 @@ Deno.test("drain flushes and stops", async () => {
 			received.push([...logs]);
 			return true;
 		},
-		{ flushIntervalMs: 1000 }
+		{ flushIntervalMs: 1000 },
 	);
 
 	assert(forwarder.isRunning);
@@ -128,8 +128,7 @@ Deno.test("drain flushes and stops", async () => {
 });
 
 Deno.test("subscribe receives state updates", async () => {
-	const states: { size: number; isRunning: boolean; isFlushing: boolean }[] =
-		[];
+	const states: { size: number; isRunning: boolean; isFlushing: boolean }[] = [];
 
 	const forwarder = createLogForwarder(async () => true, {
 		flushIntervalMs: 0,
@@ -216,7 +215,7 @@ Deno.test("configure updates settings", async () => {
 			received.push([...logs]);
 			return true;
 		},
-		{ flushIntervalMs: 0, flushThreshold: 10 }
+		{ flushIntervalMs: 0, flushThreshold: 10 },
 	);
 
 	forwarder.stop();
@@ -267,7 +266,7 @@ Deno.test("integration with clog global hook", async () => {
 			return true;
 		},
 		// deno-lint-ignore no-explicit-any
-		{ flushIntervalMs: 0, logger: noopLogger } as any
+		{ flushIntervalMs: 0, logger: noopLogger } as any,
 	);
 
 	forwarder.stop();
@@ -315,7 +314,7 @@ Deno.test("autostart parameter", async () => {
 	const forwarder2 = createLogForwarder(
 		async () => true,
 		{ flushIntervalMs: 1000 },
-		false
+		false,
 	);
 	assertEquals(forwarder2.isRunning, false);
 	await forwarder2.drain();
@@ -330,7 +329,7 @@ Deno.test("flushThreshold triggers immediate flush", async () => {
 			received.push([...logs]);
 			return true;
 		},
-		{ flushIntervalMs: 0, flushThreshold: 3 }
+		{ flushIntervalMs: 0, flushThreshold: 3 },
 	);
 
 	forwarder.stop();
@@ -377,7 +376,7 @@ Deno.test("hook resolves meta at log time, not at flush time", async () => {
 			received.push(...logs);
 			return true;
 		},
-		{ flushIntervalMs: 0 }
+		{ flushIntervalMs: 0 },
 	);
 	forwarder.stop();
 
@@ -403,7 +402,7 @@ Deno.test("hook resolves meta at log time, not at flush time", async () => {
 		[
 			{ requestId: "r1", attempt: 1 },
 			{ requestId: "r2", attempt: 2 },
-		]
+		],
 	);
 
 	reset();

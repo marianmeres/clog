@@ -234,7 +234,7 @@ Deno.test("B4: stacktrace through withNamespace shows caller frames", () => {
 	// No internal clog frame should leak into the filtered output
 	assert(
 		!/at\s+_apply\b/.test(output),
-		`internal _apply frame leaked: ${output}`
+		`internal _apply frame leaked: ${output}`,
 	);
 });
 
