@@ -9,7 +9,7 @@ import {
 	DEFAULT_AGENT_ID_STORAGE_KEY,
 	getOrCreateAgentId,
 } from "../src/web.ts";
-import { reset, restoreConsole } from "./_helpers.ts";
+import { consoleOutput, reset, restoreConsole } from "./_helpers.ts";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -181,20 +181,18 @@ Deno.test("getOrCreateAgentId returns 'n/a' outside browser", () => {
 	restoreConsole();
 });
 
-Deno.test("getOrCreateAgentId uses configured storageKey (browser mock)", () => {
-	reset();
-
-	// Build a minimal browser-shape global so isBrowser() returns true.
-	// Deno defines `localStorage` as a non-trivial accessor; use
-	// defineProperty to install a plain mock for the duration of the test.
-	const store = new Map<string, string>();
-	const fakeLocalStorage = {
-		getItem: (k: string) => store.get(k) ?? null,
-		setItem: (k: string, v: string) => {
-			store.set(k, v);
-		},
-	};
-
+/**
+ * Runs `fn` against a minimal browser-shape global so isBrowser() returns
+ * true. Deno defines `localStorage` as a non-trivial accessor; use
+ * defineProperty to install a plain mock for the duration of the call.
+ */
+function withBrowserMock(
+	storage: {
+		getItem: (k: string) => string | null;
+		setItem: (k: string, v: string) => void;
+	},
+	fn: () => void,
+) {
 	// deno-lint-ignore no-explicit-any
 	const g = globalThis as any;
 	const prevWindow = Object.getOwnPropertyDescriptor(g, "window");
@@ -213,11 +211,39 @@ Deno.test("getOrCreateAgentId uses configured storageKey (browser mock)", () => 
 			writable: true,
 		});
 		Object.defineProperty(g, "localStorage", {
-			value: fakeLocalStorage,
+			value: storage,
 			configurable: true,
 			writable: true,
 		});
+		fn();
+	} finally {
+		if (prevWindow) Object.defineProperty(g, "window", prevWindow);
+		else delete g.window;
+		if (prevDocument) Object.defineProperty(g, "document", prevDocument);
+		else delete g.document;
+		if (prevLocalStorage) {
+			Object.defineProperty(g, "localStorage", prevLocalStorage);
+		} else {
+			delete g.localStorage;
+		}
+	}
+}
 
+// Note: agent ids are memoized per storageKey for the module's lifetime, so
+// each test below uses its own key.
+
+Deno.test("getOrCreateAgentId uses configured storageKey (browser mock)", () => {
+	reset();
+
+	const store = new Map<string, string>();
+	const fakeLocalStorage = {
+		getItem: (k: string) => store.get(k) ?? null,
+		setItem: (k: string, v: string) => {
+			store.set(k, v);
+		},
+	};
+
+	withBrowserMock(fakeLocalStorage, () => {
 		const id1 = getOrCreateAgentId({ storageKey: "custom-key" });
 		assert(id1 && id1 !== "n/a");
 		assertEquals(store.get("custom-key"), id1);
@@ -230,17 +256,78 @@ Deno.test("getOrCreateAgentId uses configured storageKey (browser mock)", () => 
 		const idDefault = getOrCreateAgentId();
 		assert(idDefault !== id1);
 		assertEquals(store.get(DEFAULT_AGENT_ID_STORAGE_KEY), idDefault);
-	} finally {
-		if (prevWindow) Object.defineProperty(g, "window", prevWindow);
-		else delete g.window;
-		if (prevDocument) Object.defineProperty(g, "document", prevDocument);
-		else delete g.document;
-		if (prevLocalStorage) {
-			Object.defineProperty(g, "localStorage", prevLocalStorage);
-		} else {
-			delete g.localStorage;
-		}
-	}
+	});
+
+	restoreConsole();
+});
+
+Deno.test("getOrCreateAgentId reuses an id already in storage", () => {
+	reset();
+
+	const store = new Map([["existing-key", "stored-id"]]);
+	withBrowserMock(
+		{
+			getItem: (k) => store.get(k) ?? null,
+			setItem: (k, v) => void store.set(k, v),
+		},
+		() => {
+			assertEquals(getOrCreateAgentId({ storageKey: "existing-key" }), "stored-id");
+		},
+	);
+
+	restoreConsole();
+});
+
+Deno.test("getOrCreateAgentId is stable when getItem throws (one console.error)", () => {
+	reset();
+
+	withBrowserMock(
+		{
+			getItem: () => {
+				throw new Error("storage blocked");
+			},
+			setItem: () => {
+				throw new Error("storage blocked");
+			},
+		},
+		() => {
+			const id1 = getOrCreateAgentId({ storageKey: "getitem-throws-key" });
+			const id2 = getOrCreateAgentId({ storageKey: "getitem-throws-key" });
+			const id3 = getOrCreateAgentId({ storageKey: "getitem-throws-key" });
+			assert(id1 && id1 !== "n/a");
+			assertEquals(id2, id1);
+			assertEquals(id3, id1);
+		},
+	);
+
+	// getItem and setItem each fail once — on the first call only.
+	assertEquals(consoleOutput.error.length, 2);
+	assert(consoleOutput.error[0].includes("Unable to read agent id"));
+	assert(consoleOutput.error[1].includes("Unable to persist agent id"));
+
+	restoreConsole();
+});
+
+Deno.test("getOrCreateAgentId is stable when setItem throws (one console.error)", () => {
+	reset();
+
+	withBrowserMock(
+		{
+			getItem: () => null,
+			setItem: () => {
+				throw new Error("quota exceeded");
+			},
+		},
+		() => {
+			const id1 = getOrCreateAgentId({ storageKey: "setitem-throws-key" });
+			const id2 = getOrCreateAgentId({ storageKey: "setitem-throws-key" });
+			assert(id1 && id1 !== "n/a");
+			assertEquals(id2, id1);
+		},
+	);
+
+	assertEquals(consoleOutput.error.length, 1);
+	assert(consoleOutput.error[0].includes("Unable to persist agent id"));
 
 	restoreConsole();
 });

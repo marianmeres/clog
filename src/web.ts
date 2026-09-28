@@ -190,15 +190,20 @@ export function configureWebLogger(
 	return forwarder;
 }
 
+/** Agent ids already resolved on this page, keyed by storage key. */
+const _agentIds = new Map<string, string>();
+
 /**
  * Gets or creates a persistent client identifier stored in
  * `localStorage`. Useful for correlating logs from a specific browser
  * tab/profile across sessions.
  *
- * Returns `"n/a"` outside a browser (no `localStorage`). If reading or
- * writing `localStorage` fails (private mode, quota, disabled storage),
- * a fresh in-memory id is returned and the failure is logged to
- * `console.error`.
+ * Returns `"n/a"` outside a browser (no `localStorage`). The id is
+ * memoized in memory per `storageKey`, so it is stable for the page's
+ * lifetime and safe to call on every log line (e.g. inside `getMeta`).
+ * If reading or writing `localStorage` fails (private mode, quota,
+ * disabled storage), the in-memory id is still stable and the failure
+ * is logged to `console.error` once.
  *
  * @example
  * ```typescript
@@ -212,6 +217,9 @@ export function getOrCreateAgentId(
 	const { storageKey = DEFAULT_AGENT_ID_STORAGE_KEY } = opts;
 
 	if (!isBrowser()) return "n/a";
+
+	const memoized = _agentIds.get(storageKey);
+	if (memoized) return memoized;
 
 	let id: string | null = null;
 	try {
@@ -229,6 +237,7 @@ export function getOrCreateAgentId(
 		}
 	}
 
+	_agentIds.set(storageKey, id);
 	return id;
 }
 

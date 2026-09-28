@@ -560,14 +560,42 @@ clog.log("Request");
 // Output: {"timestamp":"...","level":"INFO","logger":"api","message":"Request","meta":{"userId":"user-123"}}
 ```
 
-**Key points:**
-- `getMeta` is called **lazily** — only when a hook or writer actually reads `data.meta`. Result is cached per log call, so repeated reads run the function once.
-- If `getMeta` throws, the exception is **swallowed** and `data.meta` becomes `undefined`. Logging never fails because of metadata.
-- Returns `Record<string, unknown>` for flexibility
-- Instance `getMeta` overrides global `getMeta`
-- If `getMeta` returns `undefined`, no `meta` field is added to JSON output
+#### Per-logger meta on top of the global meta (`meta`, `withMeta`)
 
-**Precedence:** Instance `config.getMeta` → Global `createClog.global.getMeta` → Default (`undefined`)
+An instance `getMeta` **replaces** the global one. To **add** meta for one logger while keeping the app-wide meta, use `config.meta` (an object, or a function called lazily per line):
+
+```typescript
+createClog.global.getMeta = () => ({ projectId, userId: getCurrentUserId() });
+
+const log = createClog("worker", { meta: () => ({ traceId: getTraceId() }) });
+log.log("job started");
+// data.meta → { projectId, userId, traceId }
+```
+
+`withMeta(logger, meta)` derives a child logger with extra meta and the **same** namespace — the sibling of `withNamespace`. Layers stack, and the innermost wins on key conflicts:
+
+```typescript
+import { withMeta } from "@marianmeres/clog";
+
+const reqLog = withMeta(log, { requestId });
+const callLog = withMeta(reqLog, { attempt: 2 });
+callLog.log("calling upstream");
+// data.meta → { projectId, userId, traceId, requestId, attempt: 2 }
+callLog.ns; // "worker"
+```
+
+`withMeta` on a logger that is not a clog instance (native `console`, `createNoopClog()`) returns that logger unchanged — it has no meta channel.
+
+**Key points:**
+- `getMeta` and `meta` are resolved **lazily** — only when a hook or writer actually reads `data.meta`. The result is cached per log call, so repeated reads resolve the sources once.
+- Because it is lazy, `data.meta` reflects the state at **first read**, not at the log call. A hook that stores `data` for later (e.g. a batching forwarder) and reads `.meta` at flush time gets flush-time values from function sources. Read `data.meta` inside the hook if you need log-time values.
+- Every source is isolated: a throwing `getMeta` or `meta` is **swallowed** and contributes nothing, and the other source still does. Logging never fails because of metadata.
+- `meta` is shallow-merged over the base into a fresh object, so a hook mutating `data.meta` never changes a static `meta` object.
+- The base (`getMeta`) is read per log call, so a global `getMeta` installed after a logger was created still applies to it.
+- `meta` is inherited by `withNamespace` children.
+- If no source returns anything (unset, `undefined`, or thrown), `data.meta` is `undefined` and no `meta` field is added to JSON output.
+
+**Precedence:** Base = instance `config.getMeta` → global `createClog.global.getMeta` → none. Then `config.meta` (including `withMeta` layers) is merged on top and wins on key conflicts.
 
 ## API Reference
 
@@ -596,6 +624,9 @@ clog.ns;               // readonly namespace ("app" or "app:module" when compose
 const nested = withNamespace(clog, "module");
 nested.log("msg");     // [original-ns] [module] msg
 nested.ns;             // "original-ns:module"
+
+// Extra meta, same namespace (clog instance → child logger; other loggers → unchanged)
+const reqLog = withMeta(clog, { requestId: "r1" });
 
 // Hook suppression sentinel
 import { CLOG_SKIP } from "@marianmeres/clog";
@@ -628,7 +659,8 @@ interface ClogConfig {
   stacktrace?: boolean | number;    // capture call stack (dev only!)
   jsonOutput?: boolean;             // overrides global.jsonOutput (v3.16+)
   jsonFieldNames?: JsonFieldNames;  // rename JSON output keys (v3.18+)
-  getMeta?: () => Record<string, unknown>; // metadata injection
+  getMeta?: () => Record<string, unknown>; // metadata injection (replaces global)
+  meta?: Record<string, unknown> | (() => Record<string, unknown>); // merged over getMeta
 }
 
 interface GlobalConfig {
@@ -653,7 +685,7 @@ type LogData = {
   args: any[];                      // shallow clone of caller's arguments
   timestamp: string;
   config?: ClogConfig;              // instance config (for custom writers)
-  meta?: Record<string, unknown>;   // lazy getter; getMeta throws are swallowed
+  meta?: Record<string, unknown>;   // lazy getter: getMeta + config.meta; throws swallowed
   stack?: string[];                 // set when stacktrace is enabled (v3.16+)
 };
 
@@ -825,6 +857,8 @@ globalThis.addEventListener("beforeunload", () => forwarder?.drain());
 ```
 
 Omitting `send` runs in console-only mode — `getMeta` and the error handlers still install, but nothing is shipped over the network. Returns `undefined` outside a browser-style runtime (no `addEventListener`).
+
+`getOrCreateAgentId()` memoizes the id per `storageKey` for the page's lifetime, so calling it inside `getMeta` on every line is cheap and stable — even when `localStorage` is blocked or full (the failure is logged to `console.error` once).
 
 ## Global Configuration Across Bundled Dependencies
 

@@ -94,8 +94,9 @@ const DEFAULT_JSON_FIELD_NAMES: Required<JsonFieldNames> = {
 };
 
 /**
- * Internal marker placed on Clog instances so `withNamespace` can detect them
- * and compose a structured child namespace instead of prefixing an arg.
+ * Internal marker placed on Clog instances so `withNamespace` / `withMeta` can
+ * detect them and derive a child logger (a structured child namespace instead
+ * of an arg prefix, or layered meta).
  */
 const CLOG_INSTANCE: unique symbol = Symbol.for("@marianmeres/clog-instance");
 
@@ -110,10 +111,11 @@ const CLOG_INSTANCE: unique symbol = Symbol.for("@marianmeres/clog-instance");
  *                  to read; mutating does not affect the caller's array.
  * @property timestamp - ISO 8601 formatted timestamp string
  * @property config - Instance-level configuration (optional, for per-instance settings)
- * @property meta - Metadata from `getMeta()`, lazily computed. Accessing the
- *                  property invokes `getMeta` once and caches the result. If
- *                  `getMeta` throws, this property is `undefined` (the error
- *                  is swallowed so logging never fails because of metadata).
+ * @property meta - Metadata from `getMeta()`, with `config.meta` merged on top
+ *                  when set. Lazily computed: accessing the property resolves
+ *                  the sources once and caches the result. A throwing source
+ *                  is swallowed (logging never fails because of metadata);
+ *                  the property is `undefined` when no source contributes.
  * @property stack - Captured call stack lines (already filtered to user frames),
  *                   present only when `stacktrace` is enabled. Default writers
  *                   render this; custom writers can use it as they wish.
@@ -333,6 +335,24 @@ export interface ClogConfig {
 	 * ```
 	 */
 	getMeta?: () => Record<string, unknown>;
+
+	/**
+	 * Extra metadata for this logger's lines, shallow-merged over the base
+	 * meta (the instance `getMeta`, or the global one when there is none) into
+	 * a fresh object. Wins on key conflicts. A function is called lazily, at
+	 * most once per line. Each source is isolated: a throwing source
+	 * contributes nothing, and the other still does. Inherited by
+	 * `withNamespace` children; layered by `withMeta`.
+	 *
+	 * Rule of thumb: `getMeta` *replaces* the base, `meta` *adds* on top.
+	 * @example
+	 * ```typescript
+	 * createClog.global.getMeta = () => ({ projectId });
+	 * const clog = createClog("worker", { meta: () => ({ traceId: getTraceId() }) });
+	 * // data.meta → { projectId, traceId }
+	 * ```
+	 */
+	meta?: Record<string, unknown> | (() => Record<string, unknown>);
 }
 
 /**
@@ -550,6 +570,41 @@ function firstArgAsString(args: any[], config?: ClogConfig): string {
 	const stringify = config?.stringify ?? GLOBAL.stringify;
 	if (concat || stringify) return stringifyValue(args[0]);
 	return String(args[0] ?? "");
+}
+
+// --- Meta resolution ---
+
+/**
+ * Resolves one meta source: a function is called, an object is returned
+ * as-is. Returns `undefined` when the source is missing or throws — a
+ * throwing source must never break logging.
+ */
+function _resolveMetaSource(
+	src: ClogConfig["meta"]
+): Record<string, unknown> | undefined {
+	if (!src) return undefined;
+	try {
+		return typeof src === "function" ? src() : src;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Shallow-merges meta sources left to right (later wins) into a fresh object,
+ * so a hook mutating `data.meta` never touches a static source. A source that
+ * is missing, returns nullish, or throws contributes nothing. Returns
+ * `undefined` when no source contributes.
+ */
+function _mergeMetaSources(
+	sources: ClogConfig["meta"][]
+): Record<string, unknown> | undefined {
+	let out: Record<string, unknown> | undefined;
+	for (const src of sources) {
+		const resolved = _resolveMetaSource(src);
+		if (resolved != null) out = Object.assign(out ?? {}, resolved);
+	}
+	return out;
 }
 
 // --- Console method mapping ---
@@ -772,9 +827,12 @@ export function createClog(
 		// Shallow clone args so hooks/writers cannot mutate the caller's array.
 		const clonedArgs = args.slice();
 
-		// Resolve getMeta lazily so it's only called if a consumer reads .meta,
-		// and wrap in try/catch so throwing getMeta never crashes a log call.
+		// Resolve meta lazily so it's only computed if a consumer reads .meta,
+		// and isolate each source so a throwing one never crashes a log call.
+		// The base is read here (not at creation) so a global getMeta
+		// installed after this logger was created still applies.
 		const getMetaFn = config?.getMeta ?? GLOBAL.getMeta;
+		const extraMeta = config?.meta;
 
 		// Stacktrace: capture *once* in _apply (fewer internal frames to filter)
 		// so custom writers can also access data.stack.
@@ -794,19 +852,18 @@ export function createClog(
 			stack,
 		};
 
-		if (getMetaFn) {
+		if (getMetaFn || extraMeta) {
 			let _meta: Record<string, unknown> | undefined;
 			let _metaComputed = false;
 			Object.defineProperty(data, "meta", {
 				get() {
 					if (!_metaComputed) {
 						_metaComputed = true;
-						try {
-							_meta = getMetaFn();
-						} catch {
-							// Swallow — a throwing getMeta must not break logging.
-							_meta = undefined;
-						}
+						// Without `config.meta`, the getMeta result is passed
+						// through untouched (a throw leaves meta undefined).
+						_meta = extraMeta
+							? _mergeMetaSources([getMetaFn, extraMeta])
+							: _resolveMetaSource(getMetaFn);
 					}
 					return _meta;
 				},
@@ -848,8 +905,8 @@ export function createClog(
 
 	Object.defineProperty(logger, "ns", { value: ns, writable: false });
 
-	// Non-enumerable marker so `withNamespace` can detect clog instances and
-	// compose structurally. Carries the original config for inheritance.
+	// Non-enumerable marker so `withNamespace` / `withMeta` can detect clog
+	// instances and derive children. Carries the original config for inheritance.
 	Object.defineProperty(logger, CLOG_INSTANCE, {
 		value: { ns, config },
 		enumerable: false,
@@ -1003,4 +1060,52 @@ export function withNamespace<T extends Logger>(
 	};
 
 	return wrapped;
+}
+
+/**
+ * Derives a child logger with extra metadata and the same namespace — the
+ * sibling of `withNamespace`. Two behaviors:
+ *
+ * 1. **Clog instance**: returns a *new* clog with the parent's namespace and
+ *    config, whose `config.meta` layers `meta` over the parent's `config.meta`
+ *    (the new layer wins on key conflicts). Each layer stays lazy and
+ *    isolated: a throwing layer contributes nothing, the others still do. The
+ *    base meta (`getMeta`, instance or global) still applies underneath.
+ * 2. **Any other logger** (e.g. native `console`, `createNoopClog()`): returned
+ *    unchanged. It has no meta channel, and throwing would break code that
+ *    injects such a logger (e.g. a noop logger in tests).
+ *
+ * @param logger - Any console-compatible logger (clog, console, or custom)
+ * @param meta - Extra metadata, or a function returning it (called lazily,
+ *               at most once per line)
+ * @returns A fresh Clog for a clog instance, otherwise the input itself
+ *
+ * @example
+ * ```typescript
+ * const log = createClog("api");
+ * const reqLog = withMeta(log, { requestId });
+ * const callLog = withMeta(reqLog, () => ({ attempt })); // both layers present
+ * callLog.ns; // "api"
+ * ```
+ */
+export function withMeta<T extends Logger>(
+	logger: T,
+	meta: Record<string, unknown> | (() => Record<string, unknown>)
+): T {
+	// deno-lint-ignore no-explicit-any
+	const marker = (logger as any)[CLOG_INSTANCE] as
+		| { ns: string | false; config?: ClogConfig }
+		| undefined;
+
+	if (!marker) return logger;
+
+	const parentMeta = marker.config?.meta;
+	// The layered function never throws and may return undefined (no layer
+	// contributed); `_apply` treats that as "contributes nothing".
+	const layered = parentMeta
+		? ((() => _mergeMetaSources([parentMeta, meta])) as ClogConfig["meta"])
+		: meta;
+
+	// deno-lint-ignore no-explicit-any
+	return createClog(marker.ns, { ...marker.config, meta: layered }) as any;
 }

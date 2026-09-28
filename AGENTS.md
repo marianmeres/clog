@@ -42,7 +42,7 @@ deno.json               # Deno configuration, version, tasks
 
 1. **Runtime Detection** (`detectRuntime`): Detects browser/node/deno/unknown. Result is cached on first call (runtime never changes in a single process).
 2. **LEVEL_MAP**: RFC 5424 level mapping (debug→DEBUG, log→INFO, warn→WARNING, error→ERROR)
-3. **createClog Factory**: Creates callable logger instances with namespace support. Each instance carries a non-enumerable `Symbol.for("@marianmeres/clog-instance")` marker so `withNamespace` can detect clog instances and compose structurally.
+3. **createClog Factory**: Creates callable logger instances with namespace support. Each instance carries a non-enumerable `Symbol.for("@marianmeres/clog-instance")` marker (`{ ns, config }`) so `withNamespace` / `withMeta` can detect clog instances and derive children with the parent's config.
 4. **Writers**: defaultWriter (environment-aware), colorWriter (browser/Deno %c styling). Both share `formatStack`, `renderNs`, `CONSOLE_METHOD` and the styled-args helpers.
 5. **Global Config**: Truly global singleton using `Symbol.for()` + `globalThis` pattern (shared across multiple module instances)
 6. **Color Utilities** (colors.ts): `colored()` function, color shortcuts (red, green, etc.), `SAFE_COLORS` hex palette, `StyledText` interface with Symbol-tagged objects for clog integration. `autoColor()` memoizes per-namespace results.
@@ -56,7 +56,9 @@ clog.log("msg")
     → clone args (shallow) so hooks cannot mutate caller's array
     → capture stack lines if stacktrace enabled
     → build LogData {level, namespace, args, timestamp, stack}
-    → attach lazy `.meta` getter if getMeta configured (swallows throws)
+    → attach lazy `.meta` getter if getMeta (instance ?? global) or config.meta is set
+      (without config.meta: getMeta result as-is; with it: each source isolated,
+       shallow-merged into a fresh object, config.meta wins)
     → call GLOBAL.hook(data) if set
       → if hook returns CLOG_SKIP, suppress writer
     → select writer (global > instance > color > default)
@@ -81,11 +83,12 @@ clog.log("msg")
 6. Config precedence: instance config > global config > defaults
 7. Colors work in browser/Deno only (use %c formatting)
 8. `LogData.args` is a *shallow clone* of the caller's arguments — hooks/writers may mutate it without affecting the caller
-9. `LogData.meta` is a lazy getter: `getMeta()` runs only when a consumer reads `.meta`, exactly once, and its exceptions are swallowed (meta becomes `undefined`)
-10. `withNamespace` composes namespaces structurally: `withNamespace(createClog("app"), "module").ns === "app:module"`. Text output splits on `:` and renders each segment in its own brackets (`[app] [module]`). JSON output uses the composed string as-is in the `namespace` field.
-11. Stack capture lives in `_apply` (not the writers), so custom writers receive `LogData.stack: string[] | undefined`. Use the exported `formatStack()` to produce the same rendering as the default writer.
-12. A hook returning `CLOG_SKIP` suppresses the writer for that call; all other return values are ignored.
-13. The hook receives the same `data` reference passed to the writer next, so **mutating `data` in the hook is a supported transform mechanism** (e.g. prefixing `namespace`, redacting `args`). `args` is already a shallow clone, so mutating it is safe.
+9. `LogData.meta` is a lazy getter: the sources are resolved only when a consumer reads `.meta`, exactly once per line (so it reflects their state at first read, not at the log call). The base is `config.getMeta ?? global.getMeta` (instance **replaces** global), read per log call so a global installed later still applies. `config.meta` (object or function) is **added on top**: shallow-merged into a fresh object, wins on key conflicts. Each source is isolated — a throwing one is swallowed and contributes nothing; `meta` is `undefined` only when no source contributes. Without `config.meta`, the `getMeta` result is passed through untouched.
+10. `withMeta(logger, meta)` derives a same-namespace child whose `config.meta` layers `meta` over the parent's `config.meta` (inner wins, each layer isolated). Non-clog loggers (`console`, `createNoopClog()`) are returned unchanged — never throw.
+11. `withNamespace` composes namespaces structurally: `withNamespace(createClog("app"), "module").ns === "app:module"`. Text output splits on `:` and renders each segment in its own brackets (`[app] [module]`). JSON output uses the composed string as-is in the `namespace` field.
+12. Stack capture lives in `_apply` (not the writers), so custom writers receive `LogData.stack: string[] | undefined`. Use the exported `formatStack()` to produce the same rendering as the default writer.
+13. A hook returning `CLOG_SKIP` suppresses the writer for that call; all other return values are ignored.
+14. The hook receives the same `data` reference passed to the writer next, so **mutating `data` in the hook is a supported transform mechanism** (e.g. prefixing `namespace`, redacting `args`). `args` is already a shallow clone, so mutating it is safe.
 
 ## Before Making Changes
 
@@ -108,6 +111,7 @@ clog.log("msg")
 | `createClog.reset` | Function | Reset global config to defaults |
 | `createNoopClog` | Function | Factory for no-op logger instances (for testing) |
 | `withNamespace` | Function | Wrap logger: composes structurally for clog instances, arg-prefix for others |
+| `withMeta` | Function | Same-namespace child logger with extra meta layered over the parent's `config.meta`; non-clog loggers returned unchanged |
 | `stringifyValue` | Function | Stringify a single value for logging (for custom writers) |
 | `formatStack` | Function | Render an array of stack frame lines the same way the default writer does |
 | `CLOG_SKIP` | Symbol | Sentinel — hooks return this to suppress the writer for a single log call |
@@ -149,7 +153,7 @@ clog.log("msg")
 | Export | Type | Description |
 |--------|------|-------------|
 | `configureWebLogger` | Function | Web-preset bootstrap: wires forwarder, browser error handlers, and `getMeta`. Returns the underlying `LogForwarder` (or `undefined` in console-only / non-browser). |
-| `getOrCreateAgentId` | Function | Browser-only helper returning a persistent agent id from localStorage; `"n/a"` outside browser. |
+| `getOrCreateAgentId` | Function | Browser-only helper returning a persistent agent id from localStorage, memoized in memory per `storageKey` (stable even when storage fails; each failure logged once); `"n/a"` outside browser. |
 | `DEFAULT_AGENT_ID_STORAGE_KEY` | Const string | `"clog-agent-id"` — default localStorage key used by `getOrCreateAgentId`. |
 | `ConfigureWebLoggerOptions` | Interface | Configuration shape for `configureWebLogger`. |
 
@@ -170,6 +174,14 @@ function createNoopClog(namespace?: string | false | null): Clog
 // When `logger` is any other logger (e.g. native console), returns a wrapper
 // that prepends `[namespace]` as an arg on each call.
 function withNamespace<T extends Logger>(logger: T, namespace: string): T & ((...args: any[]) => string)
+
+// When `logger` is a clog instance, returns a fresh Clog with the same `.ns`
+// and config, whose `config.meta` layers `meta` over the parent's (new layer
+// wins). Any other logger is returned unchanged.
+function withMeta<T extends Logger>(
+  logger: T,
+  meta: Record<string, unknown> | (() => Record<string, unknown>)
+): T
 
 function stringifyValue(arg: any): string
 
@@ -196,7 +208,7 @@ type LogData = {
   args: any[];                      // shallow clone of caller's args
   timestamp: string;                // ISO 8601
   config?: ClogConfig;              // Instance config (for custom writers)
-  meta?: Record<string, unknown>;   // Lazy: getMeta invoked on first .meta read (throws swallowed)
+  meta?: Record<string, unknown>;   // Lazy: getMeta + config.meta resolved on first .meta read (throws swallowed)
   stack?: string[];                 // Raw stack frames when stacktrace is enabled
 };
 
@@ -224,7 +236,8 @@ interface ClogConfig {
   stacktrace?: boolean | number;    // when enabled, capture call stack (dev only!)
   jsonOutput?: boolean;             // when set, overrides global.jsonOutput for this instance
   jsonFieldNames?: JsonFieldNames;  // per-field rename map for JSON output (overrides global per-key)
-  getMeta?: () => Record<string, unknown>; // metadata injection (overrides global)
+  getMeta?: () => Record<string, unknown>; // metadata injection (replaces global)
+  meta?: Record<string, unknown> | (() => Record<string, unknown>); // added on top of getMeta (instance ?? global)
 }
 
 interface GlobalConfig {
@@ -342,7 +355,7 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 
 ## Test Coverage
 
-142 tests covering:
+172 tests covering:
 - Callable interface
 - All log levels (debug, log, warn, error)
 - Namespace handling (string, false, undefined)
@@ -365,6 +378,8 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 - Concat mode (9 tests: global/instance flags, precedence, single string output, all levels)
 - Stacktrace mode (9 tests: global/instance flags, precedence, frame limits, JSON output, concat mode)
 - getMeta mode (9 tests: global/instance config, override precedence, hook/writer access, JSON output, all log levels)
+- config.meta + withMeta (23 tests: merge over global/instance getMeta and precedence, late global getMeta, no getMeta, laziness + once per line, static object not mutated by hooks, per-source error isolation, withNamespace inheritance, JSON output + `jsonFieldNames`, nested `withMeta` layering, ns kept, parent untouched, non-clog passthrough)
+- Web preset (13 tests, incl. `getOrCreateAgentId` memoization when `getItem` / `setItem` throw)
 - withNamespace wrapper (9 tests: basic wrapping, callable interface, all log levels, return values, throw pattern, deep nesting, console wrapping, debug inheritance)
 - createNoopClog (7 tests: return values, callable interface, no console output, no hook triggers, namespace property, readonly namespace, throw pattern)
 - Regressions (25 tests: B1 throwing getMeta, B2 return value under stringify/concat, B3 structural withNamespace composition + JSON output, B4 stack capture through wrappers, D2 arg cloning, D4 instance jsonOutput override, D7 namespace omission in JSON when false, D10 lazy getMeta, I1 autoColor memoization, I4 CLOG_SKIP sentinel)
@@ -625,10 +640,16 @@ createClog.global.getMeta = () => ({
   env: process.env.NODE_ENV
 });
 
-// Per-instance: override global getMeta
+// Per-instance: REPLACE global getMeta
 const apiLog = createClog("api", {
   getMeta: () => ({ traceId: getTraceId() })
 });
+
+// Per-instance: ADD on top of global getMeta (config.meta wins on conflicts)
+const workerLog = createClog("worker", { meta: () => ({ traceId: getTraceId() }) });
+
+// Same-namespace child with extra meta (layers stack, inner wins)
+const reqLog = withMeta(workerLog, { requestId });
 
 // Access metadata in hook for log collection
 createClog.global.hook = (data) => {
@@ -776,6 +797,7 @@ Removed:
 | Concat tests | [tests/concat.test.ts](tests/concat.test.ts) |
 | Stacktrace tests | [tests/stacktrace.test.ts](tests/stacktrace.test.ts) |
 | getMeta tests | [tests/get-meta.test.ts](tests/get-meta.test.ts) |
+| config.meta / withMeta tests | [tests/meta.test.ts](tests/meta.test.ts) |
 | withNamespace tests | [tests/with-namespace.test.ts](tests/with-namespace.test.ts) |
 | createNoopClog tests | [tests/noop-clog.test.ts](tests/noop-clog.test.ts) |
 | Regression tests (v3.16) | [tests/regressions.test.ts](tests/regressions.test.ts) |

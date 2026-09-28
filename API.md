@@ -13,6 +13,7 @@ Complete API documentation for `@marianmeres/clog`.
 - [createClog.reset()](#createclogreset)
 - [createNoopClog()](#createnoopclog)
 - [withNamespace()](#withnamespace)
+- [withMeta()](#withmeta)
 - [createLogForwarder()](#createlogforwarder)
 - [configureWebLogger()](#configurewebLogger)
 - [getOrCreateAgentId()](#getorcreateagentid)
@@ -327,6 +328,56 @@ class AuthModule {
 
 ---
 
+## withMeta()
+
+Derives a child logger with extra metadata and the **same** namespace — the sibling of `withNamespace()`. Two behaviors, chosen automatically:
+
+1. **Clog instance** — returns a fresh `Clog` with the parent's namespace and config, whose [`meta`](#clogconfig) layers the new meta over the parent's `config.meta`. The new layer wins on key conflicts. Each layer stays lazy and isolated: a throwing layer contributes nothing, the others still do. The base meta (`getMeta`, instance or global) still applies underneath.
+2. **Any other logger** (native `console`, `createNoopClog()`, a custom implementation) — returned **unchanged**. It has no meta channel, and throwing would break code that injects such a logger (e.g. a noop logger in tests).
+
+```typescript
+function withMeta<T extends Logger>(
+  logger: T,
+  meta: Record<string, unknown> | (() => Record<string, unknown>),
+): T
+```
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `logger` | `Logger` | Any console-compatible logger (clog, console, or custom) |
+| `meta` | `Record<string, unknown> \| (() => Record<string, unknown>)` | Extra metadata, or a function returning it (called lazily, at most once per line) |
+
+### Returns
+
+- When `logger` is a clog instance: a new `Clog` with the same `.ns` and the layered meta. The parent is not changed.
+- Otherwise: the input logger itself.
+
+### Examples
+
+```typescript
+import { createClog, withMeta, withNamespace } from "@marianmeres/clog";
+
+createClog.global.getMeta = () => ({ projectId: "p1" });
+
+const log = createClog("api");
+const reqLog = withMeta(log, { requestId: "r1" });
+const callLog = withMeta(reqLog, { attempt: 2 });
+
+callLog.log("calling upstream");
+// data.meta → { projectId: "p1", requestId: "r1", attempt: 2 }
+callLog.ns; // "api"
+
+// Composes with withNamespace in either order
+withNamespace(reqLog, "db").log("query"); // ns "api:db", meta keeps requestId
+
+// Non-clog loggers pass through
+withMeta(console, { requestId: "r1" }) === console; // true
+```
+
+---
+
 ## createLogForwarder()
 
 Creates a log forwarder for batching and sending logs to remote services. Available from `@marianmeres/clog/forward`.
@@ -474,6 +525,8 @@ globalThis.addEventListener("beforeunload", () => forwarder?.drain());
 ## getOrCreateAgentId()
 
 Browser-only helper that returns a persistent client identifier from `localStorage`, generating one on first call. Returns `"n/a"` outside a browser.
+
+The id is memoized in memory per `storageKey`, so it is stable for the page's lifetime and safe to call on every log line (e.g. inside `getMeta`). If `localStorage` cannot be read or written (private mode, quota, disabled storage), the in-memory id is still stable and the failure is logged to `console.error` once.
 
 ```typescript
 import { getOrCreateAgentId } from "@marianmeres/clog/web";
@@ -826,7 +879,7 @@ type LogData = {
   args: any[];                            // shallow clone of caller's args
   timestamp: string;                      // ISO 8601 format
   config?: ClogConfig;                    // Instance config (for custom writers)
-  meta?: Record<string, unknown>;         // lazy: getMeta() invoked on first read
+  meta?: Record<string, unknown>;         // lazy: getMeta() + config.meta, resolved on first read
   stack?: string[];                       // raw frames, when stacktrace enabled
 }
 ```
@@ -838,7 +891,7 @@ type LogData = {
 | `args` | `any[]` | **Shallow clone** of the arguments passed to the log method. Hooks/writers can mutate this freely without affecting the caller. |
 | `timestamp` | `string` | ISO 8601 formatted timestamp |
 | `config` | `ClogConfig \| undefined` | Instance-level config (useful for custom writers to check settings) |
-| `meta` | `Record<string, unknown> \| undefined` | Metadata from `getMeta()`. **Lazy**: the getter runs on first read and caches the result. If `getMeta()` throws, the exception is swallowed and this stays `undefined`. |
+| `meta` | `Record<string, unknown> \| undefined` | Metadata from `getMeta()` (instance, else global), with `config.meta` shallow-merged on top when set. **Lazy**: the getter runs on first read and caches the result, so it reflects the sources' state at first read, not at the log call. A throwing source is swallowed and contributes nothing; `undefined` when no source contributes. |
 | `stack` | `string[] \| undefined` | Raw captured stack frames when `stacktrace` is enabled. Use `formatStack(lines)` to produce the same rendering as the default writer. |
 
 ### LogLevel
@@ -899,6 +952,7 @@ interface ClogConfig {
   jsonOutput?: boolean;
   jsonFieldNames?: JsonFieldNames;
   getMeta?: () => Record<string, unknown>;
+  meta?: Record<string, unknown> | (() => Record<string, unknown>);
 }
 ```
 
@@ -912,7 +966,8 @@ interface ClogConfig {
 | `stacktrace` | `boolean \| number` | When enabled, capture call stack and expose via `LogData.stack` + render in output (overrides global). **Dev only!** |
 | `jsonOutput` | `boolean` | When set, overrides `GlobalConfig.jsonOutput` for this instance. Added in v3.16. |
 | `jsonFieldNames` | `JsonFieldNames` | Per-field rename map for JSON output. Per-key resolution: instance > global > default. Added in v3.18. See [JsonFieldNames](#jsonfieldnames). |
-| `getMeta` | `() => Record<string, unknown>` | Function returning metadata to include in `LogData.meta` (overrides global). Lazy; throws are swallowed. |
+| `getMeta` | `() => Record<string, unknown>` | Function returning metadata to include in `LogData.meta`. **Replaces** the global `getMeta` for this instance. Lazy; throws are swallowed. |
+| `meta` | `Record<string, unknown> \| (() => Record<string, unknown>)` | Extra metadata **added on top of** the base meta (instance `getMeta`, else global `getMeta`), shallow-merged into a fresh object; wins on key conflicts. A function is called lazily, at most once per line. Each source is isolated: if one throws, the other still contributes. Inherited by `withNamespace` children; layered by [`withMeta()`](#withmeta). |
 
 ### GlobalConfig
 
@@ -1081,6 +1136,6 @@ When `createClog.global.jsonOutput = true` (or `ClogConfig.jsonOutput = true` on
 
 Error stacks are preserved as `arg_N` properties containing the stack string.
 
-The `logger` field is **omitted** when the logger has no namespace (rather than emitted as `false`). Same for `meta` when `getMeta` is unset or returns undefined. The optional `stack` field is present only when `stacktrace` is enabled.
+The `logger` field is **omitted** when the logger has no namespace (rather than emitted as `false`). Same for `meta` when no meta source (`getMeta`, `config.meta`) is set or returns anything. The optional `stack` field is present only when `stacktrace` is enabled.
 
 **Field name customization (v3.18+):** Every top-level key shown above is renamable via [`jsonFieldNames`](#jsonfieldnames). The `arg` key is a prefix for sequenced extras (`arg_0`, `arg_1`, …). Pre-3.18, the namespace field was emitted as `"namespace"`; restore that with `createClog.global.jsonFieldNames = { logger: "namespace" }`.
