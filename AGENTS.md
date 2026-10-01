@@ -43,7 +43,7 @@ deno.json               # Deno configuration, version, tasks
 1. **Runtime Detection** (`detectRuntime`): Detects browser/node/deno/unknown. Result is cached on first call (runtime never changes in a single process).
 2. **LEVEL_MAP**: RFC 5424 level mapping (debug→DEBUG, log→INFO, warn→WARNING, error→ERROR)
 3. **createClog Factory**: Creates callable logger instances with namespace support. Each instance carries a non-enumerable `Symbol.for("@marianmeres/clog-instance")` marker (`{ ns, config }`) so `withNamespace` / `withMeta` can detect clog instances and derive children with the parent's config.
-4. **Writers**: defaultWriter (environment-aware), colorWriter (browser/Deno %c styling). Both share `formatStack`, `renderNs`, `CONSOLE_METHOD` and the styled-args helpers.
+4. **Writers**: defaultWriter (environment-aware), colorWriter (browser/Deno %c styling). Both share `formatStack`, `renderNs`, `CONSOLE_METHOD` and the styled-args helpers. The JSON line shape is built only in the exported `toJsonRecord(data)`; defaultWriter's JSON branch is `JSON.stringify(toJsonRecord(data))`, and colorWriter delegates to defaultWriter under `jsonOutput`.
 5. **Global Config**: Truly global singleton using `Symbol.for()` + `globalThis` pattern (shared across multiple module instances)
 6. **Color Utilities** (colors.ts): `colored()` function, color shortcuts (red, green, etc.), `SAFE_COLORS` hex palette, `StyledText` interface with Symbol-tagged objects for clog integration. `autoColor()` memoizes per-namespace results.
 7. **Stack capture**: `captureStackLines()` filters internal frames by file-path match (`clog.ts`, `colors.ts`) rather than a magic frame count — survives wrappers like `withNamespace`.
@@ -89,6 +89,8 @@ clog.log("msg")
 12. Stack capture lives in `_apply` (not the writers), so custom writers receive `LogData.stack: string[] | undefined`. Use the exported `formatStack()` to produce the same rendering as the default writer.
 13. A hook returning `CLOG_SKIP` suppresses the writer for that call; all other return values are ignored.
 14. The hook receives the same `data` reference passed to the writer next, so **mutating `data` in the hook is a supported transform mechanism** (e.g. prefixing `namespace`, redacting `args`). `args` is already a shallow clone, so mutating it is safe.
+15. **Top-level promotion is presentation only; `data.meta` is not changed.** `jsonTopLevelMeta` moves listed meta keys to the top level of the _written_ JSON line (the written `meta` is a fresh copy, made only when a key actually moves). Hooks, custom writers and the forwarder always see the full `data.meta`; a browser's trace ids reach the server inside `meta`.
+16. **`toJsonRecord` is the single source of JSON shape.** Any JSON field change goes there, never into a writer. It has no side effects (no console, no hook, never calls `getMeta`; reads `data.meta` as given), reads settings from `data.config` then global, and ignores `jsonOutput` / `concat` / runtime.
 
 ## Before Making Changes
 
@@ -114,6 +116,7 @@ clog.log("msg")
 | `withMeta`          | Function     | Same-namespace child logger with extra meta layered over the parent's `config.meta`; non-clog loggers returned unchanged |
 | `stringifyValue`    | Function     | Stringify a single value for logging (for custom writers)                                                                |
 | `formatStack`       | Function     | Render an array of stack frame lines the same way the default writer does                                                |
+| `toJsonRecord`      | Function     | The JSON line object the default writer serializes, for writing clog-shaped lines without a logger (e.g. relays)         |
 | `CLOG_SKIP`         | Symbol       | Sentinel — hooks return this to suppress the writer for a single log call                                                |
 | `LEVEL_MAP`         | Const Object | RFC 5424 level mapping                                                                                                   |
 | `LogLevel`          | Type         | `"debug" \| "log" \| "warn" \| "error"`                                                                                  |
@@ -122,8 +125,8 @@ clog.log("msg")
 | `HookFn`            | Type         | `(data: LogData) => void \| typeof CLOG_SKIP`                                                                            |
 | `Logger`            | Interface    | Console-compatible logger interface                                                                                      |
 | `Clog`              | Interface    | Callable Logger with namespace                                                                                           |
-| `ClogConfig`        | Interface    | Instance configuration options (now includes `jsonOutput`, `jsonFieldNames`)                                             |
-| `GlobalConfig`      | Interface    | Global configuration options (now includes `jsonFieldNames`)                                                             |
+| `ClogConfig`        | Interface    | Instance configuration options (now includes `jsonOutput`, `jsonFieldNames`, `jsonTopLevelMeta`)                         |
+| `GlobalConfig`      | Interface    | Global configuration options (now includes `jsonFieldNames`, `jsonTopLevelMeta`)                                         |
 | `JsonFieldKey`      | Type         | Conceptual JSON field identifier (`"timestamp" \| "level" \| "logger" \| "message" \| "meta" \| "arg" \| "stack"`)       |
 | `JsonFieldNames`    | Type         | `Partial<Record<JsonFieldKey, string>>` — per-field rename map for JSON output                                           |
 
@@ -187,6 +190,12 @@ function stringifyValue(arg: any): string
 
 function formatStack(lines: string[]): string
 
+// The object the default writer serializes in JSON mode. No side effects:
+// reads data.meta as given (never getMeta), no hook, no console. Applies
+// stringify, styled cleanup, arg_N, stack, jsonFieldNames, jsonTopLevelMeta
+// (data.config, then global). Ignores jsonOutput / concat / runtime.
+function toJsonRecord(data: LogData): Record<string, unknown>
+
 const CLOG_SKIP: unique symbol;  // hook return sentinel
 
 // From @marianmeres/clog/forward
@@ -236,6 +245,7 @@ interface ClogConfig {
 	stacktrace?: boolean | number; // when enabled, capture call stack (dev only!)
 	jsonOutput?: boolean; // when set, overrides global.jsonOutput for this instance
 	jsonFieldNames?: JsonFieldNames; // per-field rename map for JSON output (overrides global per-key)
+	jsonTopLevelMeta?: readonly string[]; // replaces global list as a whole; [] turns promotion off
 	getMeta?: () => Record<string, unknown>; // metadata injection (replaces global)
 	meta?: Record<string, unknown> | (() => Record<string, unknown>); // added on top of getMeta (instance ?? global)
 }
@@ -245,6 +255,7 @@ interface GlobalConfig {
 	writer?: WriterFn;
 	jsonOutput?: boolean;
 	jsonFieldNames?: JsonFieldNames; // per-field rename map for JSON output (can be overridden per-instance per-key)
+	jsonTopLevelMeta?: readonly string[]; // meta keys written at the JSON top level; read at write time
 	debug?: boolean; // when false, .debug() is a no-op (can be overridden per-instance)
 	stringify?: boolean; // when true, JSON.stringify non-primitive args
 	concat?: boolean; // when true, concatenate all args into single string
@@ -346,6 +357,12 @@ Default field names: `timestamp`, `level`, `logger`, `message`, `meta`, `stack`,
 
 Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the stack string value.
 
+Field order: `timestamp`, `level`, `logger`, `message`, promoted meta keys (list order), `meta`, `arg_N`…, `stack`.
+
+**`jsonTopLevelMeta` (v3.23+).** Resolution: `config.jsonTopLevelMeta ?? GLOBAL.jsonTopLevelMeta`, read at write time (a list set after logger creation applies); the instance list replaces the global one, `[]` = off. A listed key is moved from `meta` to the top level when meta has it as an _own_ key with a value `!== undefined`; `meta` is omitted when promotion emptied it (an empty meta that nothing was promoted from is still written as `{}`, as before). Never promoted (stays in `meta`): a key equal to a resolved core field name (`timestamp`, `level`, `logger`, `message`, `meta`, `stack`, after `jsonFieldNames`) or matching `<arg prefix>_<digits>`. This rule is static, not per line. JSON only; text and browser output never print meta.
+
+The JSON branch runs before the Deno `%c` styled-args path, so styled args in JSON mode on Deno produce JSON (fixed in v3.23; before, such lines were `%c` text).
+
 ## Commands
 
 | Task              | Command                            |
@@ -370,7 +387,7 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 
 ## Test Coverage
 
-173 tests covering:
+199 tests covering:
 
 - Callable interface
 - All log levels (debug, log, warn, error)
@@ -382,6 +399,7 @@ Error stacks are preserved at `arg_N` (or `<arg-prefix>_N` if renamed) with the 
 - Hook execution order (before writer)
 - Hook data mutation as transform mechanism (5 tests: namespace prefix → text and JSON outputs, args replacement isolated from caller, meta augmentation surfacing in writer, mutation + CLOG_SKIP suppresses writer)
 - JSON and text output formats (incl. `jsonFieldNames` rename map: instance/global precedence, `arg` prefix, `logger` omission when namespace is `false`, all 7 renamable keys, `reset()` clearing global)
+- `jsonTopLevelMeta` + `toJsonRecord` (26 tests: promotion and `meta` omission, field order, missing/`undefined`/inherited keys, instance-replaces-global, instance `[]`, late global list, `reset()`, clashes with default/renamed core names and `<arg>_<n>`, full meta still seen by hook/custom writer/forwarder, static `config.meta` not mutated, text/browser output unchanged, styled args → JSON on Deno, `toJsonRecord` equal to the writer's line, hand-built `LogData`, ignores `jsonOutput`/`concat`, never calls `getMeta`)
 - Error stack preservation in JSON
 - Color configuration
 - Configuration reset
@@ -506,6 +524,39 @@ const clog = createClog("api", {
 ```
 
 Renamable keys: `timestamp`, `level`, `logger`, `message`, `meta`, `arg` (prefix), `stack`. The `logger` field is still omitted when the logger has no namespace, regardless of rename.
+
+### Top-Level Meta Fields (e.g. trace ids for log collectors)
+
+```typescript
+createClog.global.getMeta = () => ({ trace_id, span_id, user });
+// Extend, don't overwrite — other parties may have added keys:
+createClog.global.jsonTopLevelMeta = [
+	...new Set([...(createClog.global.jsonTopLevelMeta ?? []), "trace_id", "span_id"]),
+];
+// {"timestamp":…,"level":…,"logger":…,"message":…,"trace_id":…,"span_id":…,"meta":{"user":…}}
+```
+
+Do not use a hook or a custom writer for this: a hook cannot add top-level fields, and a custom writer would have to rebuild the whole JSON shape.
+
+### Relaying Entries Without a Logger (`toJsonRecord`)
+
+```typescript
+import { toJsonRecord } from "@marianmeres/clog";
+
+// Server endpoint receiving LogData[] from the browser forwarder:
+for (const e of entries) {
+	const record = toJsonRecord({
+		level: e.level,
+		namespace: e.namespace,
+		args: e.args,
+		timestamp: e.timestamp,
+		meta: e.meta,
+	});
+	console.log(JSON.stringify(record));
+}
+```
+
+Don't relay through a clog instance: it would stamp a new timestamp, run the global hook, and merge the server's `getMeta` (overwriting the browser's trace ids). Don't hand-build `JSON.stringify({...})` either: the shape drifts and ignores `jsonFieldNames` / `jsonTopLevelMeta`.
 
 ### Module Namespacing
 
@@ -740,7 +791,7 @@ const msg = "Status: " + green("OK"); // "Status: OK"
 ### Modify Output Format
 
 - Text format: Edit `defaultWriter` function (non-jsonOutput branch)
-- JSON format: Edit `defaultWriter` function (jsonOutput branch). Top-level field names are looked up through the merged `DEFAULT_JSON_FIELD_NAMES` + global + instance `jsonFieldNames`, so consumers can already rename any of them without touching the writer. Add a new conceptual key here only if you're emitting a _new_ field — otherwise prefer renaming via `jsonFieldNames`.
+- JSON format: Edit `toJsonRecord` (never the writers; defaultWriter only serializes its result). Top-level field names are looked up through the merged `DEFAULT_JSON_FIELD_NAMES` + global + instance `jsonFieldNames`, so consumers can already rename any of them without touching the writer. Add a new conceptual key here only if you're emitting a _new_ field — otherwise prefer renaming via `jsonFieldNames`.
 - Color format: Edit `colorWriter` function
 
 ### Add Runtime Support
@@ -751,14 +802,15 @@ const msg = "Status: " + green("OK"); // "Status: OK"
 
 ## Version History
 
-| Version | Changes                                                                                                                                                                                                                                                                                                                |
-| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3.18.0  | JSON output: default `"namespace"` field renamed to `"logger"` (matches OTel/ECS/Datadog conventions); added `jsonFieldNames` (instance + global) for per-field renames of all JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). See "Behavior changes in v3.18" below.            |
-| 3.16.0  | Correctness pass: throwing `getMeta` no longer crashes logs; return value matches logged form under `stringify`/`concat`; `withNamespace` composes structurally for clog instances; stack capture survives wrappers; added `CLOG_SKIP` + instance `jsonOutput` + `formatStack`. See "Behavior changes in v3.16" below. |
-| 3.2.x   | JSDoc improvements, documentation updates                                                                                                                                                                                                                                                                              |
-| 3.2.0   | Color support for Deno                                                                                                                                                                                                                                                                                                 |
-| 3.1.0   | Callable support, type improvements                                                                                                                                                                                                                                                                                    |
-| 3.0.0   | Major refactor, simplified API                                                                                                                                                                                                                                                                                         |
+| Version | Changes                                                                                                                                                                                                                                                                                                                       |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.23.0  | Added `jsonTopLevelMeta` (instance + global): listed meta keys written as top-level JSON fields, presentation only. Added `toJsonRecord(data)`, now the only place the JSON shape is built. Fix: on Deno, JSON-mode lines with styled-text args are JSON (were `%c` text). Without the option, JSON output is byte-identical. |
+| 3.18.0  | JSON output: default `"namespace"` field renamed to `"logger"` (matches OTel/ECS/Datadog conventions); added `jsonFieldNames` (instance + global) for per-field renames of all JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). See "Behavior changes in v3.18" below.                   |
+| 3.16.0  | Correctness pass: throwing `getMeta` no longer crashes logs; return value matches logged form under `stringify`/`concat`; `withNamespace` composes structurally for clog instances; stack capture survives wrappers; added `CLOG_SKIP` + instance `jsonOutput` + `formatStack`. See "Behavior changes in v3.16" below.        |
+| 3.2.x   | JSDoc improvements, documentation updates                                                                                                                                                                                                                                                                                     |
+| 3.2.0   | Color support for Deno                                                                                                                                                                                                                                                                                                        |
+| 3.1.0   | Callable support, type improvements                                                                                                                                                                                                                                                                                           |
+| 3.0.0   | Major refactor, simplified API                                                                                                                                                                                                                                                                                                |
 
 ### Behavior changes in v3.18
 
@@ -801,32 +853,33 @@ Removed:
 
 ## File Locations
 
-| Concern                      | File                                                         |
-| ---------------------------- | ------------------------------------------------------------ |
-| Main logger implementation   | [src/clog.ts](src/clog.ts)                                   |
-| Color utilities              | [src/colors.ts](src/colors.ts)                               |
-| Log forwarder                | [src/forward.ts](src/forward.ts)                             |
-| Web preset                   | [src/web.ts](src/web.ts)                                     |
-| Entry point                  | [src/mod.ts](src/mod.ts)                                     |
-| Test helpers                 | [tests/_helpers.ts](tests/_helpers.ts)                       |
-| Basic tests                  | [tests/basic.test.ts](tests/basic.test.ts)                   |
-| Global config tests          | [tests/global-config.test.ts](tests/global-config.test.ts)   |
-| JSON output tests            | [tests/json-output.test.ts](tests/json-output.test.ts)       |
-| Debug mode tests             | [tests/debug-mode.test.ts](tests/debug-mode.test.ts)         |
-| Stringify tests              | [tests/stringify.test.ts](tests/stringify.test.ts)           |
-| Concat tests                 | [tests/concat.test.ts](tests/concat.test.ts)                 |
-| Stacktrace tests             | [tests/stacktrace.test.ts](tests/stacktrace.test.ts)         |
-| getMeta tests                | [tests/get-meta.test.ts](tests/get-meta.test.ts)             |
-| config.meta / withMeta tests | [tests/meta.test.ts](tests/meta.test.ts)                     |
-| withNamespace tests          | [tests/with-namespace.test.ts](tests/with-namespace.test.ts) |
-| createNoopClog tests         | [tests/noop-clog.test.ts](tests/noop-clog.test.ts)           |
-| Regression tests (v3.16)     | [tests/regressions.test.ts](tests/regressions.test.ts)       |
-| Forwarder tests              | [tests/forward.test.ts](tests/forward.test.ts)               |
-| Web preset tests             | [tests/web.test.ts](tests/web.test.ts)                       |
-| Color examples               | [tests/deno-raw.ts](tests/deno-raw.ts)                       |
-| Build script                 | [scripts/build-npm.ts](scripts/build-npm.ts)                 |
-| Package config               | [deno.json](deno.json)                                       |
-| Human documentation          | [README.md](README.md)                                       |
-| API documentation            | [API.md](API.md)                                             |
-| Machine documentation        | [AGENTS.md](AGENTS.md)                                       |
-| AI assistant redirect        | [CLAUDE.md](CLAUDE.md)                                       |
+| Concern                             | File                                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------- |
+| Main logger implementation          | [src/clog.ts](src/clog.ts)                                             |
+| Color utilities                     | [src/colors.ts](src/colors.ts)                                         |
+| Log forwarder                       | [src/forward.ts](src/forward.ts)                                       |
+| Web preset                          | [src/web.ts](src/web.ts)                                               |
+| Entry point                         | [src/mod.ts](src/mod.ts)                                               |
+| Test helpers                        | [tests/_helpers.ts](tests/_helpers.ts)                                 |
+| Basic tests                         | [tests/basic.test.ts](tests/basic.test.ts)                             |
+| Global config tests                 | [tests/global-config.test.ts](tests/global-config.test.ts)             |
+| JSON output tests                   | [tests/json-output.test.ts](tests/json-output.test.ts)                 |
+| Top-level meta / toJsonRecord tests | [tests/json-top-level-meta.test.ts](tests/json-top-level-meta.test.ts) |
+| Debug mode tests                    | [tests/debug-mode.test.ts](tests/debug-mode.test.ts)                   |
+| Stringify tests                     | [tests/stringify.test.ts](tests/stringify.test.ts)                     |
+| Concat tests                        | [tests/concat.test.ts](tests/concat.test.ts)                           |
+| Stacktrace tests                    | [tests/stacktrace.test.ts](tests/stacktrace.test.ts)                   |
+| getMeta tests                       | [tests/get-meta.test.ts](tests/get-meta.test.ts)                       |
+| config.meta / withMeta tests        | [tests/meta.test.ts](tests/meta.test.ts)                               |
+| withNamespace tests                 | [tests/with-namespace.test.ts](tests/with-namespace.test.ts)           |
+| createNoopClog tests                | [tests/noop-clog.test.ts](tests/noop-clog.test.ts)                     |
+| Regression tests (v3.16)            | [tests/regressions.test.ts](tests/regressions.test.ts)                 |
+| Forwarder tests                     | [tests/forward.test.ts](tests/forward.test.ts)                         |
+| Web preset tests                    | [tests/web.test.ts](tests/web.test.ts)                                 |
+| Color examples                      | [tests/deno-raw.ts](tests/deno-raw.ts)                                 |
+| Build script                        | [scripts/build-npm.ts](scripts/build-npm.ts)                           |
+| Package config                      | [deno.json](deno.json)                                                 |
+| Human documentation                 | [README.md](README.md)                                                 |
+| API documentation                   | [API.md](API.md)                                                       |
+| Machine documentation               | [AGENTS.md](AGENTS.md)                                                 |
+| AI assistant redirect               | [CLAUDE.md](CLAUDE.md)                                                 |

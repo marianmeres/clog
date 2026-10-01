@@ -323,6 +323,15 @@ export interface ClogConfig {
 	jsonFieldNames?: JsonFieldNames;
 
 	/**
+	 * Meta keys written as top-level fields of a JSON line instead of inside
+	 * `meta` (JSON output only). Replaces `GlobalConfig.jsonTopLevelMeta` as a
+	 * whole; `[]` turns promotion off for this logger. Presentation only:
+	 * `LogData.meta` is not changed. See {@link GlobalConfig.jsonTopLevelMeta}.
+	 * @default undefined (inherits global)
+	 */
+	jsonTopLevelMeta?: readonly string[];
+
+	/**
 	 * Function called lazily on each log to return metadata. Metadata is
 	 * available in `LogData.meta` for custom writers/hooks. If this function
 	 * throws, the error is swallowed and meta stays `undefined` — logging
@@ -374,6 +383,19 @@ export interface GlobalConfig {
 	 * default. See {@link JsonFieldNames}.
 	 */
 	jsonFieldNames?: JsonFieldNames;
+
+	/**
+	 * Meta keys written as top-level fields of a JSON line instead of inside
+	 * `meta` (JSON output only), e.g. `["trace_id", "span_id"]` for log
+	 * collectors that read trace ids from the top level. A key is moved (not
+	 * copied) when meta has it as an own key with a value other than
+	 * `undefined`; when nothing is left, `meta` is omitted. A key equal to a
+	 * core field name (after `jsonFieldNames`) or of the form `<arg>_<n>` is
+	 * never promoted and stays in `meta`. Presentation only: `LogData.meta` is
+	 * not changed. Read at write time; `ClogConfig.jsonTopLevelMeta` replaces
+	 * it as a whole.
+	 */
+	jsonTopLevelMeta?: readonly string[];
 
 	/** Global debug mode. When `false`, `.debug()` calls become no-ops. */
 	debug?: boolean;
@@ -607,6 +629,105 @@ function _mergeMetaSources(
 	return out;
 }
 
+// --- JSON record ---
+
+/** Core JSON fields a promoted meta key must never overwrite. */
+const CORE_JSON_FIELDS = [
+	"timestamp",
+	"level",
+	"logger",
+	"message",
+	"meta",
+	"stack",
+] as const;
+
+/**
+ * Whether `key` is taken by a core field or an `<arg>_<n>` slot. Static per
+ * name set (not per line), so a given key is either always promoted or never.
+ */
+function _isReservedJsonKey(key: string, names: Required<JsonFieldNames>): boolean {
+	if (CORE_JSON_FIELDS.some((k) => names[k] === key)) return true;
+	const prefix = `${names.arg}_`;
+	return key.startsWith(prefix) && /^\d+$/.test(key.slice(prefix.length));
+}
+
+/**
+ * Builds the object the default writer serializes for `data` in JSON output
+ * mode. Use it to write lines with the same shape without a clog instance
+ * (e.g. when relaying forwarded entries), then `JSON.stringify` the result.
+ *
+ * No side effects: no console output, no hook, no meta sources (it reads
+ * `data.meta` as given). Applies `stringify`, styled-text cleanup, `arg_N`
+ * (Error args as their stack), `stack` (via {@link formatStack}),
+ * `jsonFieldNames` and `jsonTopLevelMeta`, each from `data.config`, then the
+ * global config. Ignores `jsonOutput`, `concat` and the runtime: the caller
+ * has asked for the JSON shape. The record is shallow: values are shared
+ * with `data`, never cloned.
+ *
+ * @param data - Log data; `config` and `meta` are optional
+ * @returns The JSON record (an object, not a string)
+ *
+ * @example
+ * ```typescript
+ * // `entries`: LogData objects posted by the browser's log forwarder
+ * for (const e of entries) {
+ *   const record = toJsonRecord({
+ *     level: e.level,
+ *     namespace: e.namespace,
+ *     args: e.args,
+ *     timestamp: e.timestamp,
+ *     meta: e.meta,
+ *   });
+ *   console.log(JSON.stringify(record));
+ * }
+ * ```
+ */
+export function toJsonRecord(data: LogData): Record<string, unknown> {
+	const { level, namespace, timestamp, config, stack } = data;
+	const args = _cleanStyledArgs(_stringifyArgs(data.args, config));
+
+	// Per-key resolution: instance > global > default. Spread merges only
+	// the keys the user supplied, so a partial map keeps unrelated names.
+	const fieldNames = {
+		...DEFAULT_JSON_FIELD_NAMES,
+		...GLOBAL.jsonFieldNames,
+		...config?.jsonFieldNames,
+	};
+
+	// Promotion copies meta only when a key actually moves, so `data.meta`
+	// (and a static `config.meta`) is never mutated, and without a match the
+	// line is identical to one without the option.
+	const meta = data.meta;
+	let promoted: Record<string, unknown> | undefined;
+	let rest: Record<string, unknown> | undefined;
+	const topLevelKeys = config?.jsonTopLevelMeta ?? GLOBAL.jsonTopLevelMeta;
+	if (meta && topLevelKeys?.length) {
+		for (const key of topLevelKeys) {
+			if (!Object.hasOwn(meta, key) || meta[key] === undefined) continue;
+			if (_isReservedJsonKey(key, fieldNames)) continue;
+			rest ??= { ...meta };
+			(promoted ??= {})[key] = meta[key];
+			delete rest[key];
+		}
+	}
+	// When promotion moved every key, the `meta` field is omitted.
+	const writtenMeta = rest ? (Object.keys(rest).length ? rest : undefined) : meta;
+
+	const record: Record<string, unknown> = {
+		[fieldNames.timestamp]: timestamp,
+		[fieldNames.level]: level,
+		...(namespace ? { [fieldNames.logger]: namespace } : {}),
+		[fieldNames.message]: args[0],
+		...promoted,
+		...(writtenMeta && { [fieldNames.meta]: writtenMeta }),
+	};
+	args.slice(1).forEach((arg, i) => {
+		record[`${fieldNames.arg}_${i}`] = arg?.stack ?? arg;
+	});
+	if (stack && stack.length) record[fieldNames.stack] = formatStack(stack);
+	return record;
+}
+
 // --- Console method mapping ---
 
 const CONSOLE_METHOD = {
@@ -634,6 +755,13 @@ const defaultWriter: WriterFn = (data: LogData) => {
 			? nsText ? `${nsText} ${stringified}` : stringified
 			: `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""} ${stringified}`;
 		console[consoleMethod](output, ...(stackStr ? [stackStr] : []));
+		return;
+	}
+
+	// Server (Node / Deno / unknown) JSON output. Checked before the %c path
+	// below, so styled args on Deno still produce JSON.
+	if (runtime !== "browser" && (config?.jsonOutput ?? GLOBAL.jsonOutput)) {
+		console[consoleMethod](JSON.stringify(toJsonRecord(data)));
 		return;
 	}
 
@@ -680,33 +808,7 @@ const defaultWriter: WriterFn = (data: LogData) => {
 		return;
 	}
 
-	// Server (Node / Deno / unknown) output path
-	const useJson = config?.jsonOutput ?? GLOBAL.jsonOutput;
-	if (useJson) {
-		// Per-key resolution: instance > global > default. Spread merges only
-		// the keys the user supplied, so a partial map keeps unrelated names.
-		const fieldNames = {
-			...DEFAULT_JSON_FIELD_NAMES,
-			...GLOBAL.jsonFieldNames,
-			...config?.jsonFieldNames,
-		};
-		// deno-lint-ignore no-explicit-any
-		const output: Record<string, any> = {
-			[fieldNames.timestamp]: timestamp,
-			[fieldNames.level]: level,
-			...(namespace ? { [fieldNames.logger]: namespace } : {}),
-			[fieldNames.message]: cleanedArgs[0],
-			...(data.meta && { [fieldNames.meta]: data.meta }),
-		};
-		cleanedArgs.slice(1).forEach((arg, i) => {
-			output[`${fieldNames.arg}_${i}`] = arg?.stack ?? arg;
-		});
-		if (stackStr) output[fieldNames.stack] = stackStr;
-		console[consoleMethod](JSON.stringify(output));
-		return;
-	}
-
-	// Text: [timestamp] [LEVEL] [namespace] message ...args
+	// Server text: [timestamp] [LEVEL] [namespace] message ...args
 	const prefix = `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""}`.trim();
 	console[consoleMethod](
 		prefix,
@@ -723,7 +825,7 @@ const colorWriter = (configuredColor: string): WriterFn => (data: LogData) => {
 	// %c coloring only applies to browser/deno with an actual namespace;
 	// concat mode emits plain text and also delegates.
 	// jsonOutput also delegates — colors have no meaning in structured logs,
-	// and defaultWriter is the single source of truth for JSON shape.
+	// and toJsonRecord (via defaultWriter) is the single source of JSON shape.
 	if (
 		(runtime !== "browser" && runtime !== "deno") ||
 		!namespace ||
@@ -918,6 +1020,7 @@ export function createClog(
  * - `writer` - Global writer that overrides all instance writers
  * - `jsonOutput` - Enable JSON output format for server environments
  * - `jsonFieldNames` - Per-field rename map for JSON output
+ * - `jsonTopLevelMeta` - Meta keys written at the top level of JSON lines
  * - `debug` - Global debug mode (can be overridden per-instance)
  *
  * @example
@@ -943,6 +1046,7 @@ createClog.reset = (): void => {
 	createClog.global.writer = undefined;
 	createClog.global.jsonOutput = false;
 	createClog.global.jsonFieldNames = undefined;
+	createClog.global.jsonTopLevelMeta = undefined;
 	createClog.global.debug = undefined;
 	createClog.global.stringify = undefined;
 	createClog.global.concat = undefined;

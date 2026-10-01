@@ -2,6 +2,8 @@
 
 Complete API documentation for `@marianmeres/clog`.
 
+> **v3.23 additions:** `jsonTopLevelMeta` config (instance + global) writes listed meta keys as top-level JSON fields instead of inside `meta` (e.g. `trace_id` for log collectors). New [`toJsonRecord(data)`](#tojsonrecord) returns the JSON line object the default writer serializes, for writing clog-shaped lines without a logger. Fix: on Deno, JSON-mode lines with styled-text args are now JSON (were `%c` text). Without the new option, JSON output is unchanged.
+>
 > **v3.18 changes:** JSON output's default `"namespace"` field is now emitted as `"logger"` (matches OTel/ECS/Datadog). New `jsonFieldNames` config (instance + global) renames any of the JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). To restore the old name: `createClog.global.jsonFieldNames = { logger: "namespace" }`. See the README for the full upgrade note.
 >
 > **v3.16 additions:** `CLOG_SKIP` sentinel (return from a hook to drop a log), `formatStack(lines)` helper, `ClogConfig.jsonOutput` (per-instance override), `LogData.stack` (raw frames for custom writers), `LogData.meta` is now lazy and swallows `getMeta` exceptions, `withNamespace` on a clog composes `LogData.namespace` structurally (`"parent:child"`). See the README for a full upgrade summary.
@@ -20,6 +22,7 @@ Complete API documentation for `@marianmeres/clog`.
 - [LEVEL_MAP](#level_map)
 - [stringifyValue()](#stringifyvalue)
 - [formatStack()](#formatstack)
+- [toJsonRecord()](#tojsonrecord)
 - [CLOG_SKIP](#clog_skip)
 - [Color Functions](#color-functions)
   - [colored()](#colored)
@@ -101,17 +104,18 @@ createClog.global: GlobalConfig
 
 ### Properties
 
-| Property         | Type                                           | Default     | Description                                                                                                                    |
-| ---------------- | ---------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `hook`           | `HookFn \| undefined`                          | `undefined` | Function called before every log (for batching/analytics)                                                                      |
-| `writer`         | `WriterFn \| undefined`                        | `undefined` | Global writer that overrides all instance writers                                                                              |
-| `jsonOutput`     | `boolean`                                      | `false`     | Enable JSON output format for server environments                                                                              |
-| `jsonFieldNames` | `JsonFieldNames \| undefined`                  | `undefined` | Per-field rename map for JSON output (per-key resolution: instance > global > default). See [JsonFieldNames](#jsonfieldnames). |
-| `debug`          | `boolean \| undefined`                         | `undefined` | Global debug mode (can be overridden per-instance)                                                                             |
-| `stringify`      | `boolean \| undefined`                         | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance)                                                             |
-| `concat`         | `boolean \| undefined`                         | `undefined` | Concatenate all args into single string (can be overridden per-instance)                                                       |
-| `stacktrace`     | `boolean \| number \| undefined`               | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only - not for production!**                               |
-| `getMeta`        | `(() => Record<string, unknown>) \| undefined` | `undefined` | Function returning metadata to include in LogData (can be overridden per-instance)                                             |
+| Property           | Type                                           | Default     | Description                                                                                                                    |
+| ------------------ | ---------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `hook`             | `HookFn \| undefined`                          | `undefined` | Function called before every log (for batching/analytics)                                                                      |
+| `writer`           | `WriterFn \| undefined`                        | `undefined` | Global writer that overrides all instance writers                                                                              |
+| `jsonOutput`       | `boolean`                                      | `false`     | Enable JSON output format for server environments                                                                              |
+| `jsonFieldNames`   | `JsonFieldNames \| undefined`                  | `undefined` | Per-field rename map for JSON output (per-key resolution: instance > global > default). See [JsonFieldNames](#jsonfieldnames). |
+| `jsonTopLevelMeta` | `readonly string[] \| undefined`               | `undefined` | Meta keys written as top-level JSON fields instead of inside `meta`. See [Top-level meta fields](#top-level-meta-fields-v323). |
+| `debug`            | `boolean \| undefined`                         | `undefined` | Global debug mode (can be overridden per-instance)                                                                             |
+| `stringify`        | `boolean \| undefined`                         | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance)                                                             |
+| `concat`           | `boolean \| undefined`                         | `undefined` | Concatenate all args into single string (can be overridden per-instance)                                                       |
+| `stacktrace`       | `boolean \| number \| undefined`               | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only - not for production!**                               |
+| `getMeta`          | `(() => Record<string, unknown>) \| undefined` | `undefined` | Function returning metadata to include in LogData (can be overridden per-instance)                                             |
 
 ### Examples
 
@@ -669,6 +673,51 @@ createClog.global.writer = (data) => {
 
 ---
 
+## toJsonRecord()
+
+Returns the object the default writer serializes for `data` in JSON output mode. Use it to write lines with the same shape without a clog instance, e.g. when a server relays entries posted by the browser log forwarder. Added in v3.23.
+
+```typescript
+function toJsonRecord(data: LogData): Record<string, unknown>;
+```
+
+### Parameters
+
+| Parameter | Type      | Description                                                                |
+| --------- | --------- | -------------------------------------------------------------------------- |
+| `data`    | `LogData` | Log data, often hand-built. `config`, `meta` and `stack` are all optional. |
+
+### Returns
+
+The JSON record, as an object (not a string). Serialize it with `JSON.stringify`. The record is shallow: values are shared with `data`, never cloned.
+
+### Behavior
+
+- **No side effects.** No console output, no hook, no meta sources: it reads `data.meta` as given and never calls `getMeta`. A relay therefore keeps the entry's own timestamp and meta. A logger would stamp a new timestamp, run the global hook, and merge the server's `getMeta` (overwriting e.g. the browser's trace ids).
+- **Applies everything the writer applies:** `stringify`, styled-text cleanup, `arg_N` (Error args as their stack), `stack` (via [`formatStack`](#formatstack)), `jsonFieldNames` and `jsonTopLevelMeta`. Each setting is read from `data.config`, then the global config.
+- **Ignores `jsonOutput`, `concat` and the runtime.** The caller has asked for the JSON shape.
+- The default writer's JSON branch is `JSON.stringify(toJsonRecord(data))`, so the two can't drift.
+
+### Example
+
+```typescript
+import { toJsonRecord } from "@marianmeres/clog";
+
+// `entries`: LogData objects posted by the browser's log forwarder
+for (const e of entries) {
+	const record = toJsonRecord({
+		level: e.level,
+		namespace: e.namespace,
+		args: e.args,
+		timestamp: e.timestamp,
+		meta: e.meta,
+	});
+	console.log(JSON.stringify(record));
+}
+```
+
+---
+
 ## CLOG_SKIP
 
 A globally-shared symbol used as a sentinel: return it from a hook to **suppress the writer** for that single log call. Any other return value is ignored.
@@ -956,23 +1005,25 @@ interface ClogConfig {
 	stacktrace?: boolean | number;
 	jsonOutput?: boolean;
 	jsonFieldNames?: JsonFieldNames;
+	jsonTopLevelMeta?: readonly string[];
 	getMeta?: () => Record<string, unknown>;
 	meta?: Record<string, unknown> | (() => Record<string, unknown>);
 }
 ```
 
-| Property         | Type                                                         | Description                                                                                                                                                                                                                                                                                                                                                    |
-| ---------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `writer`         | `WriterFn`                                                   | Custom writer for this instance (overridden by global writer)                                                                                                                                                                                                                                                                                                  |
-| `color`          | `string \| null`                                             | CSS color for namespace styling (browser/Deno only)                                                                                                                                                                                                                                                                                                            |
-| `debug`          | `boolean`                                                    | When `false`, `.debug()` is a no-op (overrides global setting)                                                                                                                                                                                                                                                                                                 |
-| `stringify`      | `boolean`                                                    | When `true`, JSON.stringify non-primitive args (overrides global setting)                                                                                                                                                                                                                                                                                      |
-| `concat`         | `boolean`                                                    | When `true`, concatenate all args into single string (overrides global setting). Concat always stringifies non-primitive args regardless of `stringify`.                                                                                                                                                                                                       |
-| `stacktrace`     | `boolean \| number`                                          | When enabled, capture call stack and expose via `LogData.stack` + render in output (overrides global). **Dev only!**                                                                                                                                                                                                                                           |
-| `jsonOutput`     | `boolean`                                                    | When set, overrides `GlobalConfig.jsonOutput` for this instance. Added in v3.16.                                                                                                                                                                                                                                                                               |
-| `jsonFieldNames` | `JsonFieldNames`                                             | Per-field rename map for JSON output. Per-key resolution: instance > global > default. Added in v3.18. See [JsonFieldNames](#jsonfieldnames).                                                                                                                                                                                                                  |
-| `getMeta`        | `() => Record<string, unknown>`                              | Function returning metadata to include in `LogData.meta`. **Replaces** the global `getMeta` for this instance. Lazy; throws are swallowed.                                                                                                                                                                                                                     |
-| `meta`           | `Record<string, unknown> \| (() => Record<string, unknown>)` | Extra metadata **added on top of** the base meta (instance `getMeta`, else global `getMeta`), shallow-merged into a fresh object; wins on key conflicts. A function is called lazily, at most once per line. Each source is isolated: if one throws, the other still contributes. Inherited by `withNamespace` children; layered by [`withMeta()`](#withmeta). |
+| Property           | Type                                                         | Description                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `writer`           | `WriterFn`                                                   | Custom writer for this instance (overridden by global writer)                                                                                                                                                                                                                                                                                                  |
+| `color`            | `string \| null`                                             | CSS color for namespace styling (browser/Deno only)                                                                                                                                                                                                                                                                                                            |
+| `debug`            | `boolean`                                                    | When `false`, `.debug()` is a no-op (overrides global setting)                                                                                                                                                                                                                                                                                                 |
+| `stringify`        | `boolean`                                                    | When `true`, JSON.stringify non-primitive args (overrides global setting)                                                                                                                                                                                                                                                                                      |
+| `concat`           | `boolean`                                                    | When `true`, concatenate all args into single string (overrides global setting). Concat always stringifies non-primitive args regardless of `stringify`.                                                                                                                                                                                                       |
+| `stacktrace`       | `boolean \| number`                                          | When enabled, capture call stack and expose via `LogData.stack` + render in output (overrides global). **Dev only!**                                                                                                                                                                                                                                           |
+| `jsonOutput`       | `boolean`                                                    | When set, overrides `GlobalConfig.jsonOutput` for this instance. Added in v3.16.                                                                                                                                                                                                                                                                               |
+| `jsonFieldNames`   | `JsonFieldNames`                                             | Per-field rename map for JSON output. Per-key resolution: instance > global > default. Added in v3.18. See [JsonFieldNames](#jsonfieldnames).                                                                                                                                                                                                                  |
+| `jsonTopLevelMeta` | `readonly string[]`                                          | Meta keys written as top-level JSON fields. **Replaces** the global list as a whole; `[]` turns promotion off for this logger. Added in v3.23. See [Top-level meta fields](#top-level-meta-fields-v323).                                                                                                                                                       |
+| `getMeta`          | `() => Record<string, unknown>`                              | Function returning metadata to include in `LogData.meta`. **Replaces** the global `getMeta` for this instance. Lazy; throws are swallowed.                                                                                                                                                                                                                     |
+| `meta`             | `Record<string, unknown> \| (() => Record<string, unknown>)` | Extra metadata **added on top of** the base meta (instance `getMeta`, else global `getMeta`), shallow-merged into a fresh object; wins on key conflicts. A function is called lazily, at most once per line. Each source is isolated: if one throws, the other still contributes. Inherited by `withNamespace` children; layered by [`withMeta()`](#withmeta). |
 
 ### GlobalConfig
 
@@ -984,6 +1035,7 @@ interface GlobalConfig {
 	writer?: WriterFn;
 	jsonOutput?: boolean;
 	jsonFieldNames?: JsonFieldNames;
+	jsonTopLevelMeta?: readonly string[];
 	debug?: boolean;
 	stringify?: boolean;
 	concat?: boolean;
@@ -992,17 +1044,18 @@ interface GlobalConfig {
 }
 ```
 
-| Property         | Type                            | Default     | Description                                                                                                                           |
-| ---------------- | ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `hook`           | `HookFn`                        | `undefined` | Global hook called before every log. Return `CLOG_SKIP` to suppress the writer.                                                       |
-| `writer`         | `WriterFn`                      | `undefined` | Global writer overriding all instances                                                                                                |
-| `jsonOutput`     | `boolean`                       | `false`     | Enable JSON output for server environments (per-instance override available via `ClogConfig.jsonOutput`)                              |
-| `jsonFieldNames` | `JsonFieldNames`                | `undefined` | Per-field rename map for JSON output (can be overridden per-instance per-key). Added in v3.18. See [JsonFieldNames](#jsonfieldnames). |
-| `debug`          | `boolean`                       | `undefined` | Global debug mode (can be overridden per-instance)                                                                                    |
-| `stringify`      | `boolean`                       | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance)                                                                    |
-| `concat`         | `boolean`                       | `undefined` | Concatenate all args into single string (can be overridden per-instance)                                                              |
-| `stacktrace`     | `boolean \| number`             | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only!**                                                           |
-| `getMeta`        | `() => Record<string, unknown>` | `undefined` | Function returning metadata to include in `LogData.meta` (can be overridden per-instance). Lazy; throws are swallowed.                |
+| Property           | Type                            | Default     | Description                                                                                                                                                                                    |
+| ------------------ | ------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hook`             | `HookFn`                        | `undefined` | Global hook called before every log. Return `CLOG_SKIP` to suppress the writer.                                                                                                                |
+| `writer`           | `WriterFn`                      | `undefined` | Global writer overriding all instances                                                                                                                                                         |
+| `jsonOutput`       | `boolean`                       | `false`     | Enable JSON output for server environments (per-instance override available via `ClogConfig.jsonOutput`)                                                                                       |
+| `jsonFieldNames`   | `JsonFieldNames`                | `undefined` | Per-field rename map for JSON output (can be overridden per-instance per-key). Added in v3.18. See [JsonFieldNames](#jsonfieldnames).                                                          |
+| `jsonTopLevelMeta` | `readonly string[]`             | `undefined` | Meta keys written as top-level JSON fields instead of inside `meta` (instance list replaces it). Read at write time. Added in v3.23. See [Top-level meta fields](#top-level-meta-fields-v323). |
+| `debug`            | `boolean`                       | `undefined` | Global debug mode (can be overridden per-instance)                                                                                                                                             |
+| `stringify`        | `boolean`                       | `undefined` | JSON.stringify non-primitive args (can be overridden per-instance)                                                                                                                             |
+| `concat`           | `boolean`                       | `undefined` | Concatenate all args into single string (can be overridden per-instance)                                                                                                                       |
+| `stacktrace`       | `boolean \| number`             | `undefined` | Append call stack to output (can be overridden per-instance). **Dev only!**                                                                                                                    |
+| `getMeta`          | `() => Record<string, unknown>` | `undefined` | Function returning metadata to include in `LogData.meta` (can be overridden per-instance). Lazy; throws are swallowed.                                                                         |
 
 ### JsonFieldKey
 
@@ -1155,3 +1208,33 @@ Error stacks are preserved as `arg_N` properties containing the stack string.
 The `logger` field is **omitted** when the logger has no namespace (rather than emitted as `false`). Same for `meta` when no meta source (`getMeta`, `config.meta`) is set or returns anything. The optional `stack` field is present only when `stacktrace` is enabled.
 
 **Field name customization (v3.18+):** Every top-level key shown above is renamable via [`jsonFieldNames`](#jsonfieldnames). The `arg` key is a prefix for sequenced extras (`arg_0`, `arg_1`, …). Pre-3.18, the namespace field was emitted as `"namespace"`; restore that with `createClog.global.jsonFieldNames = { logger: "namespace" }`.
+
+Field order: `timestamp`, `level`, `logger`, `message`, promoted meta keys (in list order), `meta`, `arg_N`…, `stack`.
+
+#### Top-level meta fields (v3.23+)
+
+`jsonTopLevelMeta` lists meta keys to write as top-level fields instead of inside `meta`. Use it for fields a log collector reads only from the top level (e.g. `trace_id` / `span_id` for the OpenTelemetry Collector's `trace_parser`).
+
+```typescript
+createClog.global.jsonOutput = true;
+createClog.global.getMeta = () => ({ trace_id: "4bf9…", span_id: "00f0…", user: "u1" });
+createClog.global.jsonTopLevelMeta = ["trace_id", "span_id"];
+
+createClog("api").log("hello");
+// {"timestamp":"…","level":"INFO","logger":"api","message":"hello",
+//  "trace_id":"4bf9…","span_id":"00f0…","meta":{"user":"u1"}}
+```
+
+- **Moved, not copied.** A listed key is written at the top level, under its own name, when meta has it as an own key with a value other than `undefined`, and it is left out of the written `meta`. When nothing is left, `meta` is omitted. A listed key that meta lacks produces no field. Values are written as they are.
+- **Name clashes.** A key equal to a core field name (`timestamp`, `level`, `logger`, `message`, `meta`, `stack`, after `jsonFieldNames`) or of the form `<arg>_<n>` (e.g. `arg_0`) is never promoted and stays in `meta`. The rule doesn't depend on the line: `logger` stays reserved even when the line has no namespace, and so does `arg_5` on a line with one arg. Core fields are never overwritten; nothing is lost.
+- **Presentation only.** `LogData.meta` is never mutated (the written `meta` is a fresh object). Hooks, custom writers and the log forwarder still see every key.
+- **Resolution.** `config.jsonTopLevelMeta ?? global.jsonTopLevelMeta`, read when the line is written. An instance list replaces the global one as a whole; `[]` turns promotion off for that logger. `createClog.reset()` clears the global list.
+- **Scope.** JSON output only. Text and browser output don't print meta and are unchanged.
+
+Several parties can add keys without dropping each other's:
+
+```typescript
+createClog.global.jsonTopLevelMeta = [
+	...new Set([...(createClog.global.jsonTopLevelMeta ?? []), "trace_id", "span_id"]),
+];
+```

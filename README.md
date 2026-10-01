@@ -226,6 +226,50 @@ const clog = createClog("api", {
 
 The full set of renamable keys is `timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`. The `arg` key is special — it's the **prefix** used for sequenced extra args (`arg_0`, `arg_1`, …); renaming it to `"extra"` produces `extra_0`, `extra_1`, … When the logger has no namespace, the `logger` field (under whatever name you chose) is still omitted — same as before.
 
+#### Top-level meta fields (`jsonTopLevelMeta`)
+
+Some log collectors read certain fields only from the top level of a line. For example, the OpenTelemetry Collector's `trace_parser` looks for `trace_id` / `span_id` there, and doesn't see `meta.trace_id`. List the meta keys to move to the top level (since v3.23):
+
+```typescript
+createClog.global.jsonOutput = true;
+createClog.global.getMeta = () => ({ trace_id: "4bf9…", span_id: "00f0…", user: "u1" });
+createClog.global.jsonTopLevelMeta = ["trace_id", "span_id"];
+
+createClog("api").log("hello");
+// {"timestamp":"…","level":"INFO","logger":"api","message":"hello",
+//  "trace_id":"4bf9…","span_id":"00f0…","meta":{"user":"u1"}}
+```
+
+- A listed key is **moved**, not copied: it is written at the top level under its own name and left out of `meta`. When nothing is left, `meta` is omitted. A listed key that meta doesn't have (or has as `undefined`) produces no field.
+- **Core fields are never overwritten.** A key equal to a core field name (`timestamp`, `level`, `logger`, `message`, `meta`, `stack`, as renamed by `jsonFieldNames`) or of the form `arg_<n>` is not promoted and stays in `meta`.
+- **Presentation only.** `LogData.meta` is not changed, so hooks, custom writers and the log forwarder still see every key.
+- JSON output only. A per-instance `jsonTopLevelMeta` **replaces** the global list (`[]` turns promotion off for that logger). The global list is read at write time, so it applies to loggers created before it was set. To add keys without dropping someone else's:
+  ```typescript
+  createClog.global.jsonTopLevelMeta = [
+  	...new Set([...(createClog.global.jsonTopLevelMeta ?? []), "trace_id", "span_id"]),
+  ];
+  ```
+
+#### Writing lines without a logger (`toJsonRecord`)
+
+`toJsonRecord(data)` returns the object the default writer serializes in JSON mode. Use it when you write lines yourself but want clog's shape (including `jsonFieldNames` and `jsonTopLevelMeta`). The typical case is a server endpoint relaying entries from the browser log forwarder. A logger would stamp a new timestamp, run the global hook, and merge the server's own `getMeta` (overwriting the browser's trace ids). `toJsonRecord` does none of that: it uses `data` as given.
+
+```typescript
+import { toJsonRecord } from "@marianmeres/clog";
+
+// `entries`: LogData objects posted by the browser's log forwarder
+for (const e of entries) {
+	const record = toJsonRecord({
+		level: e.level,
+		namespace: e.namespace,
+		args: e.args,
+		timestamp: e.timestamp,
+		meta: e.meta,
+	});
+	console.log(JSON.stringify(record));
+}
+```
+
 ### Log Levels
 
 Maps console methods to standard log levels (RFC 5424):
@@ -647,6 +691,7 @@ createClog.global.hook = (data: LogData) => { /* ... */ };
 createClog.global.writer = (data: LogData) => { /* ... */ };
 createClog.global.jsonOutput = true;
 createClog.global.jsonFieldNames = { logger: "service" }; // rename JSON keys
+createClog.global.jsonTopLevelMeta = ["trace_id"]; // meta keys at the JSON top level
 createClog.global.debug = false;     // disable debug globally
 createClog.global.stringify = true;  // JSON.stringify objects
 createClog.global.concat = true;     // single string output
@@ -655,6 +700,9 @@ createClog.global.getMeta = () => ({ userId: "..." }); // metadata injection
 
 // Reset global config
 createClog.reset();
+
+// The JSON line object for a LogData, without a logger (e.g. to relay entries)
+const record = toJsonRecord(data);
 ```
 
 ### Types
@@ -669,6 +717,7 @@ interface ClogConfig {
 	stacktrace?: boolean | number; // capture call stack (dev only!)
 	jsonOutput?: boolean; // overrides global.jsonOutput (v3.16+)
 	jsonFieldNames?: JsonFieldNames; // rename JSON output keys (v3.18+)
+	jsonTopLevelMeta?: readonly string[]; // replaces global list; [] = off (v3.23+)
 	getMeta?: () => Record<string, unknown>; // metadata injection (replaces global)
 	meta?: Record<string, unknown> | (() => Record<string, unknown>); // merged over getMeta
 }
@@ -678,6 +727,7 @@ interface GlobalConfig {
 	writer?: WriterFn;
 	jsonOutput?: boolean;
 	jsonFieldNames?: JsonFieldNames; // rename JSON output keys (v3.18+)
+	jsonTopLevelMeta?: readonly string[]; // meta keys at the JSON top level (v3.23+)
 	debug?: boolean; // can be overridden per-instance
 	stringify?: boolean; // can be overridden per-instance
 	concat?: boolean; // can be overridden per-instance
@@ -905,6 +955,14 @@ createClog.global.hook = (data) => sendToAnalytics(data);
 // Any dependency using @marianmeres/clog will automatically
 // use JSON output and trigger your hook
 ```
+
+## Upgrade notes (v3.22 → v3.23)
+
+Additive, plus one bug fix:
+
+- **New: `jsonTopLevelMeta`** (instance + global) — meta keys written as top-level JSON fields instead of inside `meta`. Without it, JSON output is unchanged. See "Top-level meta fields" above.
+- **New: `toJsonRecord(data)`** — the JSON line object the default writer serializes, for writing clog-shaped lines without a logger. See "Writing lines without a logger" above.
+- **Fix:** on Deno, a JSON-mode line whose args contained styled text (`red("…")`, `colored(…)`) was written as `%c` text instead of JSON. It is now JSON, with the styles stripped.
 
 ## Upgrade notes (v3.17 → v3.18)
 
