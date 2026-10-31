@@ -4,7 +4,6 @@
 
 ```yaml
 name: "@marianmeres/clog"
-version: "3.23.0"
 license: "MIT"
 author: "Marian Meres"
 repository: "https://github.com/marianmeres/clog"
@@ -22,7 +21,7 @@ registry_jsr: "https://jsr.io/@marianmeres/clog"
 
 ## Purpose
 
-Universal console-compatible logger (~400 lines including JSDoc) with namespace support for browser, Node.js, and Deno. Provides structured logging for log aggregation tools with zero dependencies.
+Universal console-compatible logger with namespace support for browser, Node.js, and Deno. Provides structured logging for log aggregation tools with zero dependencies.
 
 ## Architecture
 
@@ -127,7 +126,7 @@ clog.log("msg")
 8. `LogData.args` is a _shallow clone_ of the caller's arguments — hooks/writers may mutate it without affecting the caller
 9. `LogData.meta` is a lazy getter: the sources are resolved only when a consumer reads `.meta`, exactly once per line (so it reflects their state at first read, not at the log call). The base is `config.getMeta ?? global.getMeta` (instance **replaces** global), read per log call so a global installed later still applies. `config.meta` (object or function) is **added on top**: shallow-merged into a fresh object, wins on key conflicts. Each source is isolated — a throwing one is swallowed and contributes nothing; `meta` is `undefined` only when no source contributes. Without `config.meta`, the `getMeta` result is passed through untouched. The forwarder's `hook`/`add` read `data.meta` before queuing, so forwarded entries carry log-time meta (a request-scoped `getMeta` read at flush time would return nothing).
 10. `withMeta(logger, meta)` derives a same-namespace child whose `config.meta` layers `meta` over the parent's `config.meta` (inner wins, each layer isolated). Non-clog loggers (`console`, `createNoopClog()`) are returned unchanged — never throw.
-11. `withNamespace` composes namespaces structurally: `withNamespace(createClog("app"), "module").ns === "app:module"`. Text output splits on `:` and renders each segment in its own brackets (`[app] [module]`). JSON output uses the composed string as-is in the `namespace` field.
+11. `withNamespace` composes namespaces structurally: `withNamespace(createClog("app"), "module").ns === "app:module"`. Text output splits on `:` and renders each segment in its own brackets (`[app] [module]`). JSON output uses the composed string as-is in the `logger` field.
 12. Stack capture lives in `_apply` (not the writers), so custom writers receive `LogData.stack: string[] | undefined`. Use the exported `formatStack()` to produce the same rendering as the default writer.
 13. A hook returning `CLOG_SKIP` suppresses the writer for that call; all other return values are ignored.
 14. The hook receives the same `data` reference passed to the writer next, so **mutating `data` in the hook is a supported transform mechanism** (e.g. prefixing `namespace`, redacting `args`). `args` is already a shallow clone, so mutating it is safe.
@@ -260,7 +259,7 @@ type LogData = {
 	timestamp: string; // ISO 8601
 	config?: ClogConfig; // Instance config (for custom writers)
 	meta?: Record<string, unknown>; // Lazy: getMeta + config.meta resolved on first .meta read (throws swallowed)
-	stack?: string[]; // Raw stack frames when stacktrace is enabled
+	stack?: string[]; // Raw stack frames when stacktrace is enabled, starting at the log call
 };
 
 type WriterFn = (data: LogData) => void;
@@ -435,7 +434,7 @@ The JSON branch runs before the Deno `%c` styled-args path, so styled args in JS
 
 ## Test Coverage
 
-199 tests covering:
+201 tests (plus the npm smoke, `pnpm run smoke`) covering:
 
 - Callable interface
 - All log levels (debug, log, warn, error)
@@ -459,7 +458,7 @@ The JSON branch runs before the Deno `%c` styled-args path, so styled args in JS
 - Debug precedence (instance > global > default)
 - Stringify mode (9 tests: global/instance flags, precedence, JSON output mode, circular refs)
 - Concat mode (9 tests: global/instance flags, precedence, single string output, all levels)
-- Stacktrace mode (9 tests: global/instance flags, precedence, frame limits, JSON output, concat mode)
+- Stacktrace mode (11 tests: global/instance flags, precedence, frame limits, JSON output, concat mode, first frame is the log call for every entry point, a consumer file named `clog.ts` keeps its frames)
 - getMeta mode (9 tests: global/instance config, override precedence, hook/writer access, JSON output, all log levels)
 - config.meta + withMeta (23 tests: merge over global/instance getMeta and precedence, late global getMeta, no getMeta, laziness + once per line, static object not mutated by hooks, per-source error isolation, withNamespace inheritance, JSON output + `jsonFieldNames`, nested `withMeta` layering, ns kept, parent untouched, non-clog passthrough)
 - Web preset (13 tests, incl. `getOrCreateAgentId` memoization when `getItem` / `setItem` throw)
@@ -622,7 +621,7 @@ const appLog = createClog("app");
 const moduleLog = withNamespace(appLog, "module");
 moduleLog.log("hello"); // [app] [module] hello
 moduleLog.ns; // "app:module"
-// JSON output: {"namespace":"app:module","message":"hello",...}
+// JSON output: {"logger":"app:module","message":"hello",...}
 
 // Deep nesting
 const subLog = withNamespace(moduleLog, "sub");
@@ -850,15 +849,16 @@ const msg = "Status: " + green("OK"); // "Status: OK"
 
 ## Version History
 
-| Version | Changes                                                                                                                                                                                                                                                                                                                       |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3.23.0  | Added `jsonTopLevelMeta` (instance + global): listed meta keys written as top-level JSON fields, presentation only. Added `toJsonRecord(data)`, now the only place the JSON shape is built. Fix: on Deno, JSON-mode lines with styled-text args are JSON (were `%c` text). Without the option, JSON output is byte-identical. |
-| 3.18.0  | JSON output: default `"namespace"` field renamed to `"logger"` (matches OTel/ECS/Datadog conventions); added `jsonFieldNames` (instance + global) for per-field renames of all JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). See "Behavior changes in v3.18" below.                   |
-| 3.16.0  | Correctness pass: throwing `getMeta` no longer crashes logs; return value matches logged form under `stringify`/`concat`; `withNamespace` composes structurally for clog instances; stack capture survives wrappers; added `CLOG_SKIP` + instance `jsonOutput` + `formatStack`. See "Behavior changes in v3.16" below.        |
-| 3.2.x   | JSDoc improvements, documentation updates                                                                                                                                                                                                                                                                                     |
-| 3.2.0   | Color support for Deno                                                                                                                                                                                                                                                                                                        |
-| 3.1.0   | Callable support, type improvements                                                                                                                                                                                                                                                                                           |
-| 3.0.0   | Major refactor, simplified API                                                                                                                                                                                                                                                                                                |
+| Version | Changes                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.23.1  | Off Deno: developed on Node with pnpm, Biome and `node:test`; the npm package is built by `tsc` from `package.json` (`exports` use the `default` condition, so `require()` resolves; `engines.node >=24.12`; `CLAUDE.md` no longer packed). Fix: stacktrace mode on the npm package started with clog's own frames; frames are now dropped by clog's own file, so a consumer's `clog.ts` / `colors.ts` keeps its frames. No API change. |
+| 3.23.0  | Added `jsonTopLevelMeta` (instance + global): listed meta keys written as top-level JSON fields, presentation only. Added `toJsonRecord(data)`, now the only place the JSON shape is built. Fix: on Deno, JSON-mode lines with styled-text args are JSON (were `%c` text). Without the option, JSON output is byte-identical.                                                                                                           |
+| 3.18.0  | JSON output: default `"namespace"` field renamed to `"logger"` (matches OTel/ECS/Datadog conventions); added `jsonFieldNames` (instance + global) for per-field renames of all JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). See "Behavior changes in v3.18" below.                                                                                                                             |
+| 3.16.0  | Correctness pass: throwing `getMeta` no longer crashes logs; return value matches logged form under `stringify`/`concat`; `withNamespace` composes structurally for clog instances; stack capture survives wrappers; added `CLOG_SKIP` + instance `jsonOutput` + `formatStack`. See "Behavior changes in v3.16" below.                                                                                                                  |
+| 3.2.x   | JSDoc improvements, documentation updates                                                                                                                                                                                                                                                                                                                                                                                               |
+| 3.2.0   | Color support for Deno                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 3.1.0   | Callable support, type improvements                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 3.0.0   | Major refactor, simplified API                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ### Behavior changes in v3.18
 

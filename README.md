@@ -532,6 +532,8 @@ clog.log("Where am I called from?");
 // Output includes stack trace as last argument showing call site
 ```
 
+The trace starts at the line that made the log call; clog's own frames are left out.
+
 You can also limit the number of stack frames:
 
 ```typescript
@@ -957,6 +959,14 @@ createClog.global.hook = (data) => sendToAnalytics(data);
 // Any dependency using @marianmeres/clog will automatically
 // use JSON output and trigger your hook
 ```
+
+## Upgrade notes (v3.23.0 → v3.23.1)
+
+No API change. One bug fix, and the npm package is now built from a Node toolchain:
+
+- **Fix: stacktrace mode on the npm package.** The trace started with clog's own frames (`captureStackLines`, `_apply`, the log method), so `stacktrace: 3` showed none of yours. It now starts at the line that made the log call. The JSR package was not affected. On every runtime, frames from your own file named `clog.ts` or `colors.ts` are no longer dropped.
+- **npm manifest:** the JavaScript is the same, but the `exports` entries now use the `default` condition instead of `import`. `require("@marianmeres/clog")` now works on Node versions that can `require()` ES modules; before, it failed with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+- **npm manifest:** `engines.node` is now `>=24.12`. On older Node, npm and pnpm print a warning and Yarn 1 refuses to install.
 
 ## Upgrade notes (v3.22 → v3.23)
 
