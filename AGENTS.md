@@ -112,7 +112,11 @@ clog.log("msg")
    and the docs (`jsr.json` `publish.include`). `pnpm publish` runs `ci` then `build` via
    `prepublishOnly`. `pnpm run rp` / `rpm` (bump, commit, tag, push, then npm + JSR) is a
    human action. `jsr.json` has no `version`: `publish:jsr` and the `jsr:check` dry run pass
-   `--set-version` from `package.json`, so a bare `deno publish` fails on purpose.
+   `--set-version` from `package.json`, so a bare `deno publish` fails on purpose. Both also
+   pass `--no-check`: Deno type-checks its generated public-API types against the Node
+   `tsconfig.json`, and the `export namespace createClog` it generates for
+   `createClog.global` / `.reset` fails `erasableSyntaxOnly` (TS1294). `tsc` is the type gate;
+   `test:deno` runs the suite on Deno; the slow-types check still runs.
    `@marianmeres/batch` is an optional peer on npm (needed only by `./forward` and `./web`)
    and a `jsr:` import on JSR; keep both ranges in step.
 
