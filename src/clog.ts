@@ -457,14 +457,12 @@ function probeRuntime(): Runtime {
 // --- Stack capture (path-based frame filtering) ---
 
 /**
- * Identifier substring used to detect clog's own stack frames. Works for both
- * filesystem paths and URLs. `colors.ts` is included because styled helpers may
- * also appear in the trace.
+ * The script a stack frame points to: the text before its trailing
+ * `:line:col`, without V8's `at name (` or SpiderMonkey/JSC's `name@` prefix.
+ * `undefined` for a frame without a location (`at Array.map (<anonymous>)`).
  */
-const CLOG_FRAME_MARKERS = ["clog.ts", "colors.ts"];
-
-function isClogFrame(line: string): boolean {
-	return CLOG_FRAME_MARKERS.some((m) => line.includes(m));
+function frameFile(frame: string | undefined): string | undefined {
+	return /^(?:at\s+(?:.*?\()?|[^@]*@)(.*?):\d+:\d+\)?$/.exec(frame?.trim() ?? "")?.[1];
 }
 
 /**
@@ -473,17 +471,22 @@ function isClogFrame(line: string): boolean {
  */
 function captureStackLines(limit?: number): string[] {
 	const stack = new Error().stack || "";
-	const lines = stack.split("\n");
-	// First line in V8 is "Error" (or "Error: ..."); drop any "Error" header
-	// and any frame that references clog's own files.
-	const relevant: string[] = [];
-	for (const raw of lines) {
+	// First line in V8 is "Error" (or "Error: ..."); drop any "Error" header.
+	const frames: string[] = [];
+	for (const raw of stack.split("\n")) {
 		const line = raw.trimEnd();
 		if (!line) continue;
 		if (/^Error(:|$)/.test(line.trim())) continue;
-		if (isClogFrame(line)) continue;
-		relevant.push(line);
+		frames.push(line);
 	}
+	// The first frame is this function, so its file is clog's own module under
+	// whatever name it runs as (src/clog.ts, dist/clog.js, a JSR URL, a bundler
+	// chunk). Drop the frames on top that share it; a name list would miss
+	// some of those and catch a consumer's own `clog.ts`.
+	const own = frameFile(frames[0]);
+	let start = 0;
+	while (own && frameFile(frames[start]) === own) start++;
+	const relevant = frames.slice(start);
 	if (typeof limit === "number" && limit > 0) {
 		return relevant.slice(0, limit);
 	}

@@ -38,10 +38,13 @@ src/
 tests/
 ├── _helpers.ts         # Console capture + reset shared by the suites
 ├── *.test.ts           # node:test suites, import from ../src/*.ts, never from dist
+├── fixtures/clog.ts    # A consumer file named clog.ts (its frames must survive stack capture)
 ├── raw.ts              # Manual color examples (`node tests/raw.ts`, or `deno run` for %c)
 └── browser.html        # Manual browser check against the built dist/
 examples/
 └── axiom-forwarder.ts  # Forwarder example (`node examples/axiom-forwarder.ts`)
+scripts/
+└── smoke-npm.mjs       # `pnpm run smoke`: packs, installs and exercises the tarball on Node
 colors.html             # Palette generator page (dev tool, not published)
 dist/                   # `pnpm run build` output; gitignored; what npm publishes
 package.json            # Manifest of record: version, exports, scripts, npm metadata
@@ -56,7 +59,7 @@ jsr.json                # JSR config: exports, publish set, jsr: import of @mari
 4. **Writers**: defaultWriter (environment-aware), colorWriter (browser/Deno %c styling). Both share `formatStack`, `renderNs`, `CONSOLE_METHOD` and the styled-args helpers. The JSON line shape is built only in the exported `toJsonRecord(data)`; defaultWriter's JSON branch is `JSON.stringify(toJsonRecord(data))`, and colorWriter delegates to defaultWriter under `jsonOutput`.
 5. **Global Config**: Truly global singleton using `Symbol.for()` + `globalThis` pattern (shared across multiple module instances)
 6. **Color Utilities** (colors.ts): `colored()` function, color shortcuts (red, green, etc.), `SAFE_COLORS` hex palette, `StyledText` interface with Symbol-tagged objects for clog integration. `autoColor()` memoizes per-namespace results.
-7. **Stack capture**: `captureStackLines()` filters internal frames by file-path match (`clog.ts`, `colors.ts`) rather than a magic frame count — survives wrappers like `withNamespace`.
+7. **Stack capture**: `captureStackLines()` drops clog's own frames by file, not by a magic frame count or a file-name list: the first captured frame is `captureStackLines` itself, so its file is clog's module under whatever name it runs as (`src/clog.ts`, `dist/clog.js`, a JSR URL, a Vite `chunk-*.js`), and the leading frames from that file are dropped. A consumer's own `clog.ts` keeps its frames. Limit: a bundle that inlines clog into the caller's file loses the caller's frames too (stacktrace mode is dev-only, where modules stay separate files).
 
 ### Data Flow
 
@@ -103,6 +106,9 @@ clog.log("msg")
 4. **Tests** — `node:test` + `node:assert/strict`, run on Node by `pnpm test`.
    `pnpm run test:deno` runs the same suite on Deno with `jsr.json` as the config, i.e. the
    JSR dependency graph and the `"deno"` runtime branch; `publish:jsr` runs it first.
+   The suites import `src/`; `pnpm run smoke` (part of `ci`) builds, packs and installs the
+   tarball in a temp project and runs it from `dist/` — it catches what only the built
+   package can get wrong (the `exports` map, the optional peer, stack frames from `.js`).
 5. **Publishing** — npm gets `dist` + `API.md` + `AGENTS.md` (`files`); JSR gets `src/**/*.ts`
    and the docs (`jsr.json` `publish.include`). `pnpm publish` runs `ci` then `build` via
    `prepublishOnly`. `pnpm run rp` / `rpm` (bump, commit, tag, push, then npm + JSR) is a
@@ -131,7 +137,7 @@ clog.log("msg")
 ## Before Making Changes
 
 - [ ] Read existing code patterns in [src/clog.ts](src/clog.ts)
-- [ ] Run checks: `pnpm run ci` (typecheck + lint + test on Node)
+- [ ] Run checks: `pnpm run ci` (typecheck + lint + test + npm smoke on Node)
 - [ ] Check type definitions match implementation
 - [ ] Update tests for any API changes
 - [ ] Update AGENTS.md if public API changes
@@ -410,6 +416,7 @@ The JSON branch runs before the Deno `%c` styled-args path, so styled args in JS
 | Lint / format               | `pnpm run lint` / `pnpm run format`            |
 | Everything CI runs          | `pnpm run ci`                                  |
 | Build `dist/`               | `pnpm run build`                               |
+| Smoke-test the npm tarball  | `pnpm run smoke` (builds first; needs network) |
 | Release + publish npm & JSR | `pnpm run rp` (patch) / `pnpm run rpm` (minor) |
 
 ## Dependencies
@@ -910,6 +917,7 @@ Removed:
 | Stringify tests                     | [tests/stringify.test.ts](tests/stringify.test.ts)                         |
 | Concat tests                        | [tests/concat.test.ts](tests/concat.test.ts)                               |
 | Stacktrace tests                    | [tests/stacktrace.test.ts](tests/stacktrace.test.ts)                       |
+| npm package smoke test              | [scripts/smoke-npm.mjs](scripts/smoke-npm.mjs)                             |
 | getMeta tests                       | [tests/get-meta.test.ts](tests/get-meta.test.ts)                           |
 | config.meta / withMeta tests        | [tests/meta.test.ts](tests/meta.test.ts)                                   |
 | withNamespace tests                 | [tests/with-namespace.test.ts](tests/with-namespace.test.ts)               |

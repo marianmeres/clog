@@ -4,8 +4,19 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createClog } from "../src/clog.ts";
+import { createClog, type LogData, withNamespace } from "../src/clog.ts";
 import { consoleOutput, reset, restoreConsole } from "./_helpers.ts";
+import { logFromHelper } from "./fixtures/clog.ts";
+
+/** Collects `LogData.stack` of every log call through a global writer. */
+function captureStacks(): (string[] | undefined)[] {
+	const stacks: (string[] | undefined)[] = [];
+	createClog.global.writer = (data: LogData) => {
+		stacks.push(data.stack);
+	};
+	createClog.global.stacktrace = true;
+	return stacks;
+}
 
 test("global flag appends stack trace", () => {
 	reset();
@@ -146,6 +157,39 @@ test("works with all log levels", () => {
 	assert(consoleOutput.log[0]!.includes("at "), "log should have stack");
 	assert(consoleOutput.warn[0]!.includes("at "), "warn should have stack");
 	assert(consoleOutput.error[0]!.includes("at "), "error should have stack");
+
+	restoreConsole();
+});
+
+test("first frame is the log call, for every entry point", () => {
+	reset();
+	const stacks = captureStacks();
+
+	const clog = createClog("test");
+	clog("callable");
+	clog.debug("debug");
+	clog.log("log");
+	clog.warn("warn");
+	clog.error("error");
+	withNamespace(clog, "child").log("child");
+
+	assert.equal(stacks.length, 6);
+	for (const stack of stacks) {
+		assert(stack![0]!.includes(import.meta.url), `not the caller's: ${stack![0]}`);
+	}
+
+	restoreConsole();
+});
+
+test("a consumer file named clog.ts keeps its frames", () => {
+	reset();
+	const stacks = captureStacks();
+
+	logFromHelper(createClog("test"));
+
+	const helper = new URL("./fixtures/clog.ts", import.meta.url).href;
+	assert(stacks[0]![0]!.includes(helper), `not the helper's: ${stacks[0]![0]}`);
+	assert(stacks[0]![1]!.includes(import.meta.url), `not the test's: ${stacks[0]![1]}`);
 
 	restoreConsole();
 });

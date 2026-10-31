@@ -1048,8 +1048,9 @@ served the `.ts` source (`jsr.json`).
 | `pnpm run test:deno`                | the same suite on Deno, resolved as JSR consumers see it |
 | `pnpm run typecheck`                | `tsc --noEmit` over `src`, `tests` and `examples`        |
 | `pnpm run lint` / `pnpm run format` | `biome check .` read-only / with `--write`               |
-| `pnpm run ci`                       | typecheck + lint + test, what CI runs                    |
+| `pnpm run ci`                       | typecheck + lint + test + smoke, what CI runs            |
 | `pnpm run build`                    | `tsc -p tsconfig.build.json` → `dist/`                   |
+| `pnpm run smoke`                    | builds, packs and runs the npm tarball in a temp project |
 | `pnpm run rp` / `pnpm run rpm`      | patch / minor release, then publish to npm and JSR       |
 
 ## License
