@@ -1061,6 +1061,7 @@ served the `.ts` source (`jsr.json`).
 | `pnpm run ci`                       | typecheck + lint + test + smoke, what CI runs            |
 | `pnpm run build`                    | `tsc -p tsconfig.build.json` → `dist/`                   |
 | `pnpm run smoke`                    | builds, packs and runs the npm tarball in a temp project |
+| `pnpm run jsr:check`                | `deno publish --dry-run` with the `package.json` version |
 | `pnpm run rp` / `pnpm run rpm`      | patch / minor release, then publish to npm and JSR       |
 
 ## License

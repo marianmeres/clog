@@ -111,8 +111,10 @@ clog.log("msg")
 5. **Publishing** — npm gets `dist` + `API.md` + `AGENTS.md` (`files`); JSR gets `src/**/*.ts`
    and the docs (`jsr.json` `publish.include`). `pnpm publish` runs `ci` then `build` via
    `prepublishOnly`. `pnpm run rp` / `rpm` (bump, commit, tag, push, then npm + JSR) is a
-   human action. `@marianmeres/batch` is an optional peer on npm (needed only by
-   `./forward` and `./web`) and a `jsr:` import on JSR; keep both ranges in step.
+   human action. `jsr.json` has no `version`: `publish:jsr` and the `jsr:check` dry run pass
+   `--set-version` from `package.json`, so a bare `deno publish` fails on purpose.
+   `@marianmeres/batch` is an optional peer on npm (needed only by `./forward` and `./web`)
+   and a `jsr:` import on JSR; keep both ranges in step.
 
 ## Critical Conventions
 
@@ -416,6 +418,7 @@ The JSON branch runs before the Deno `%c` styled-args path, so styled args in JS
 | Everything CI runs          | `pnpm run ci`                                  |
 | Build `dist/`               | `pnpm run build`                               |
 | Smoke-test the npm tarball  | `pnpm run smoke` (builds first; needs network) |
+| JSR publish dry run         | `pnpm run jsr:check`                           |
 | Release + publish npm & JSR | `pnpm run rp` (patch) / `pnpm run rpm` (minor) |
 
 ## Dependencies
