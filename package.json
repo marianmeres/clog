@@ -1,6 +1,6 @@
 {
   "name": "@marianmeres/clog",
-  "version": "3.23.0",
+  "version": "3.23.1",
   "description": "Universal console-compatible logger with namespaces, structured JSON output, colors, log forwarding and a web-app preset, for browser and server.",
   "license": "MIT",
   "author": "Marian Meres",
