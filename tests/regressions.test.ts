@@ -233,10 +233,7 @@ test("B4: stacktrace through withNamespace shows caller frames", () => {
 	const output = consoleOutput.log[0]!;
 	assert(output.includes("at "), "stack must be present");
 	// No internal clog frame should leak into the filtered output
-	assert(
-		!/at\s+_apply\b/.test(output),
-		`internal _apply frame leaked: ${output}`,
-	);
+	assert(!/at\s+_apply\b/.test(output), `internal _apply frame leaked: ${output}`);
 });
 
 test("B4: stacktrace available to custom writers via LogData.stack", () => {

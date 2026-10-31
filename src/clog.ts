@@ -758,9 +758,12 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	const shouldConcat = config?.concat ?? GLOBAL.concat;
 	if (shouldConcat) {
 		const stringified = args.map(stringifyValue).join(" ");
-		const output = runtime === "browser"
-			? nsText ? `${nsText} ${stringified}` : stringified
-			: `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""} ${stringified}`;
+		const output =
+			runtime === "browser"
+				? nsText
+					? `${nsText} ${stringified}`
+					: stringified
+				: `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""} ${stringified}`;
 		console[consoleMethod](output, ...(stackStr ? [stackStr] : []));
 		return;
 	}
@@ -807,87 +810,82 @@ const defaultWriter: WriterFn = (data: LogData) => {
 				...(stackStr ? [stackStr] : []),
 			);
 		} else {
-			console[consoleMethod](
-				...cleanedArgs,
-				...(stackStr ? [stackStr] : []),
-			);
+			console[consoleMethod](...cleanedArgs, ...(stackStr ? [stackStr] : []));
 		}
 		return;
 	}
 
 	// Server text: [timestamp] [LEVEL] [namespace] message ...args
 	const prefix = `[${timestamp}] [${level}]${nsText ? ` ${nsText}` : ""}`.trim();
-	console[consoleMethod](
-		prefix,
-		...cleanedArgs,
-		...(stackStr ? [stackStr] : []),
-	);
+	console[consoleMethod](prefix, ...cleanedArgs, ...(stackStr ? [stackStr] : []));
 };
 
 /** Default writer with color support (browser and deno) */
-const colorWriter = (configuredColor: string): WriterFn => (data: LogData) => {
-	const { level, namespace, args, timestamp, config, stack } = data;
-	const runtime = detectRuntime();
+const colorWriter =
+	(configuredColor: string): WriterFn =>
+	(data: LogData) => {
+		const { level, namespace, args, timestamp, config, stack } = data;
+		const runtime = detectRuntime();
 
-	// %c coloring only applies to browser/deno with an actual namespace;
-	// concat mode emits plain text and also delegates.
-	// jsonOutput also delegates — colors have no meaning in structured logs,
-	// and toJsonRecord (via defaultWriter) is the single source of JSON shape.
-	if (
-		(runtime !== "browser" && runtime !== "deno") ||
-		!namespace ||
-		(config?.concat ?? GLOBAL.concat) ||
-		(config?.jsonOutput ?? GLOBAL.jsonOutput)
-	) {
-		return defaultWriter(data);
-	}
+		// %c coloring only applies to browser/deno with an actual namespace;
+		// concat mode emits plain text and also delegates.
+		// jsonOutput also delegates — colors have no meaning in structured logs,
+		// and toJsonRecord (via defaultWriter) is the single source of JSON shape.
+		if (
+			(runtime !== "browser" && runtime !== "deno") ||
+			!namespace ||
+			(config?.concat ?? GLOBAL.concat) ||
+			(config?.jsonOutput ?? GLOBAL.jsonOutput)
+		) {
+			return defaultWriter(data);
+		}
 
-	const color = configuredColor === "auto" ? autoColor(namespace) : configuredColor;
-	const processedArgs = _stringifyArgs(args, config);
-	const consoleMethod = CONSOLE_METHOD[level];
-	const stackStr = stack?.length ? formatStack(stack) : null;
-	const nsText = renderNs(namespace);
+		const color = configuredColor === "auto" ? autoColor(namespace) : configuredColor;
+		const processedArgs = _stringifyArgs(args, config);
+		const consoleMethod = CONSOLE_METHOD[level];
+		const stackStr = stack?.length ? formatStack(stack) : null;
+		const nsText = renderNs(namespace);
 
-	if (_hasStyledArgs(processedArgs)) {
-		const [content, contentValues] = _processStyledArgs(processedArgs);
+		if (_hasStyledArgs(processedArgs)) {
+			const [content, contentValues] = _processStyledArgs(processedArgs);
+			if (runtime === "browser") {
+				console[consoleMethod](
+					`%c${nsText}%c ${content}`,
+					`color:${color}`,
+					"",
+					...contentValues,
+					...(stackStr ? [stackStr] : []),
+				);
+			} else {
+				const prefix = `[${timestamp}] [${level}] %c${nsText}%c`;
+				console[consoleMethod](
+					`${prefix} ${content}`,
+					`color:${color}`,
+					"",
+					...contentValues,
+					...(stackStr ? [stackStr] : []),
+				);
+			}
+			return;
+		}
+
 		if (runtime === "browser") {
 			console[consoleMethod](
-				`%c${nsText}%c ${content}`,
+				`%c${nsText}`,
 				`color:${color}`,
-				"",
-				...contentValues,
+				...processedArgs,
 				...(stackStr ? [stackStr] : []),
 			);
 		} else {
-			const prefix = `[${timestamp}] [${level}] %c${nsText}%c`;
+			const prefix = `[${timestamp}] [${level}] %c${nsText}`;
 			console[consoleMethod](
-				`${prefix} ${content}`,
+				prefix,
 				`color:${color}`,
-				"",
-				...contentValues,
+				...processedArgs,
 				...(stackStr ? [stackStr] : []),
 			);
 		}
-		return;
-	}
-
-	if (runtime === "browser") {
-		console[consoleMethod](
-			`%c${nsText}`,
-			`color:${color}`,
-			...processedArgs,
-			...(stackStr ? [stackStr] : []),
-		);
-	} else {
-		const prefix = `[${timestamp}] [${level}] %c${nsText}`;
-		console[consoleMethod](
-			prefix,
-			`color:${color}`,
-			...processedArgs,
-			...(stackStr ? [stackStr] : []),
-		);
-	}
-};
+	};
 
 // --- Factory ---
 
@@ -919,10 +917,7 @@ const colorWriter = (configuredColor: string): WriterFn => (data: LogData) => {
  * throw new Error(clog.error("Failed"));
  * ```
  */
-export function createClog(
-	namespace?: string | false,
-	config?: ClogConfig,
-): Clog {
+export function createClog(namespace?: string | false, config?: ClogConfig): Clog {
 	const ns = namespace ?? false;
 
 	// biome-ignore lint/suspicious/noExplicitAny: console-style args
@@ -942,8 +937,8 @@ export function createClog(
 		const stacktraceConfig = config?.stacktrace ?? GLOBAL.stacktrace;
 		const stack = stacktraceConfig
 			? captureStackLines(
-				typeof stacktraceConfig === "number" ? stacktraceConfig : undefined,
-			)
+					typeof stacktraceConfig === "number" ? stacktraceConfig : undefined,
+				)
 			: undefined;
 
 		const data: LogData = {

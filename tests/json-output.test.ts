@@ -58,10 +58,7 @@ test("text output format in server mode", () => {
 
 	const output = consoleOutput.warn[0]!;
 	// Format: [timestamp] [LEVEL] [namespace] message
-	assert.match(
-		output,
-		/^\[\d{4}-\d{2}-\d{2}T.*\] \[WARNING\] \[api\] Slow query/,
-	);
+	assert.match(output, /^\[\d{4}-\d{2}-\d{2}T.*\] \[WARNING\] \[api\] Slow query/);
 
 	restoreConsole();
 });

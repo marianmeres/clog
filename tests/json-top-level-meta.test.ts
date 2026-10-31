@@ -5,7 +5,6 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { red } from "../src/colors.ts";
 import {
 	type Clog,
 	createClog,
@@ -13,6 +12,7 @@ import {
 	toJsonRecord,
 	withNamespace,
 } from "../src/clog.ts";
+import { red } from "../src/colors.ts";
 import { createLogForwarder } from "../src/forward.ts";
 import {
 	capturedData,

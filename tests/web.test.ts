@@ -270,7 +270,10 @@ test("getOrCreateAgentId reuses an id already in storage", () => {
 			setItem: (k, v) => void store.set(k, v),
 		},
 		() => {
-			assert.deepEqual(getOrCreateAgentId({ storageKey: "existing-key" }), "stored-id");
+			assert.deepEqual(
+				getOrCreateAgentId({ storageKey: "existing-key" }),
+				"stored-id",
+			);
 		},
 	);
 

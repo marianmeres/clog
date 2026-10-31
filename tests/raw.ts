@@ -1,6 +1,6 @@
-import { blue, colored, green, pink, red, SAFE_COLORS, yellow } from "../src/colors.ts";
-import { createClog, withNamespace } from "../src/clog.ts";
 import assert from "node:assert/strict";
+import { createClog, withNamespace } from "../src/clog.ts";
+import { blue, colored, green, pink, red, SAFE_COLORS, yellow } from "../src/colors.ts";
 
 // createClog.global.stacktrace = true;
 
@@ -13,12 +13,7 @@ clog.debug("debug");
 
 // Color shortcuts work even WITHOUT instance color config!
 const plainClog = createClog("plain");
-plainClog(
-	"No color config, but",
-	green("this is green"),
-	"and",
-	red("this is red"),
-);
+plainClog("No color config, but", green("this is green"), "and", red("this is red"));
 
 // Works with console.log (spread syntax)
 console.log(...colored("my red string", "red"));

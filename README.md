@@ -244,6 +244,7 @@ createClog("api").log("hello");
 - **Core fields are never overwritten.** A key equal to a core field name (`timestamp`, `level`, `logger`, `message`, `meta`, `stack`, as renamed by `jsonFieldNames`) or of the form `arg_<n>` is not promoted and stays in `meta`.
 - **Presentation only.** `LogData.meta` is not changed, so hooks, custom writers and the log forwarder still see every key.
 - JSON output only. A per-instance `jsonTopLevelMeta` **replaces** the global list (`[]` turns promotion off for that logger). The global list is read at write time, so it applies to loggers created before it was set. To add keys without dropping someone else's:
+
   ```typescript
   createClog.global.jsonTopLevelMeta = [
   	...new Set([...(createClog.global.jsonTopLevelMeta ?? []), "trace_id", "span_id"]),
@@ -970,9 +971,11 @@ Additive, plus one bug fix:
 **One BC change** to a JSON output default, plus one additive feature:
 
 - **JSON output: `"namespace"` field renamed to `"logger"`.** This brings the default in line with OpenTelemetry / ECS / Datadog conventions and removes the need consumers had to rewrite the JSON shape downstream. If your aggregator pipeline expects the literal field name `"namespace"`, restore it with one line:
+
   ```typescript
   createClog.global.jsonFieldNames = { logger: "namespace" };
   ```
+
   Visible text output (`[ns] message`) and `LogData.namespace` (the type field) are unchanged — only the JSON output key renamed.
 - **New: `jsonFieldNames`** (instance + global) — a `Partial<Record<JsonFieldKey, string>>` map for renaming any of the JSON output keys (`timestamp`, `level`, `logger`, `message`, `meta`, `arg`, `stack`). See "Renaming JSON fields" above.
 
@@ -1038,16 +1041,16 @@ Node LTS (`.node-version`), pnpm, Biome, `node:test`. The source is erasable-onl
 TypeScript that Node runs directly; `dist/` is built only for publishing to npm. JSR is
 served the `.ts` source (`jsr.json`).
 
-| Command                             | Does                                                    |
-| ----------------------------------- | ------------------------------------------------------- |
-| `pnpm install`                      | installs the dev tooling                                |
-| `pnpm test` / `pnpm run test:watch` | `node --test` over `tests/**/*.test.ts`                 |
+| Command                             | Does                                                     |
+| ----------------------------------- | -------------------------------------------------------- |
+| `pnpm install`                      | installs the dev tooling                                 |
+| `pnpm test` / `pnpm run test:watch` | `node --test` over `tests/**/*.test.ts`                  |
 | `pnpm run test:deno`                | the same suite on Deno, resolved as JSR consumers see it |
-| `pnpm run typecheck`                | `tsc --noEmit` over `src`, `tests` and `examples`       |
-| `pnpm run lint` / `pnpm run format` | `biome check .` read-only / with `--write`              |
-| `pnpm run ci`                       | typecheck + lint + test, what CI runs                   |
-| `pnpm run build`                    | `tsc -p tsconfig.build.json` → `dist/`                  |
-| `pnpm run rp` / `pnpm run rpm`      | patch / minor release, then publish to npm and JSR      |
+| `pnpm run typecheck`                | `tsc --noEmit` over `src`, `tests` and `examples`        |
+| `pnpm run lint` / `pnpm run format` | `biome check .` read-only / with `--write`               |
+| `pnpm run ci`                       | typecheck + lint + test, what CI runs                    |
+| `pnpm run build`                    | `tsc -p tsconfig.build.json` → `dist/`                   |
+| `pnpm run rp` / `pnpm run rpm`      | patch / minor release, then publish to npm and JSR       |
 
 ## License
 

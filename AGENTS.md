@@ -87,7 +87,7 @@ clog.log("msg")
 
 1. **Runtime policy** — Node at the keyboard and in production, npm as the registry. Node LTS
    is the dev runtime and the CI gate. No `Deno.*` / `Bun.*` calls, no `jsr:` / `npm:`
-   specifiers in source. The `"deno"` runtime branch (%c styling) exists for Deno *consumers*
+   specifiers in source. The `"deno"` runtime branch (%c styling) exists for Deno _consumers_
    of the JSR package; `probeRuntime()` reads globals only, it calls no Deno API. Nothing is
    built, tested or documented for Bun (on Bun clog takes the `"node"` branch).
 2. **Erasable TypeScript** — no `enum`, `namespace`, constructor parameter properties;
@@ -401,15 +401,15 @@ The JSON branch runs before the Deno `%c` styled-args path, so styled args in JS
 
 ## Commands
 
-| Task                        | Command                                     |
-| --------------------------- | ------------------------------------------- |
-| Install dev tooling         | `pnpm install`                              |
-| Run tests (Node)            | `pnpm test` / `pnpm run test:watch`         |
-| Run tests (Deno, JSR graph) | `pnpm run test:deno`                        |
-| Typecheck                   | `pnpm run typecheck`                        |
-| Lint / format               | `pnpm run lint` / `pnpm run format`         |
-| Everything CI runs          | `pnpm run ci`                               |
-| Build `dist/`               | `pnpm run build`                            |
+| Task                        | Command                                        |
+| --------------------------- | ---------------------------------------------- |
+| Install dev tooling         | `pnpm install`                                 |
+| Run tests (Node)            | `pnpm test` / `pnpm run test:watch`            |
+| Run tests (Deno, JSR graph) | `pnpm run test:deno`                           |
+| Typecheck                   | `pnpm run typecheck`                           |
+| Lint / format               | `pnpm run lint` / `pnpm run format`            |
+| Everything CI runs          | `pnpm run ci`                                  |
+| Build `dist/`               | `pnpm run build`                               |
 | Release + publish npm & JSR | `pnpm run rp` (patch) / `pnpm run rpm` (minor) |
 
 ## Dependencies
@@ -894,37 +894,37 @@ Removed:
 
 ## File Locations
 
-| Concern                             | File                                                                   |
-| ----------------------------------- | ---------------------------------------------------------------------- |
-| Main logger implementation          | [src/clog.ts](src/clog.ts)                                             |
-| Color utilities                     | [src/colors.ts](src/colors.ts)                                         |
-| Log forwarder                       | [src/forward.ts](src/forward.ts)                                       |
-| Web preset                          | [src/web.ts](src/web.ts)                                               |
-| Entry point                         | [src/mod.ts](src/mod.ts)                                               |
-| Test helpers                        | [tests/_helpers.ts](tests/_helpers.ts)                                 |
-| Basic tests                         | [tests/basic.test.ts](tests/basic.test.ts)                             |
-| Global config tests                 | [tests/global-config.test.ts](tests/global-config.test.ts)             |
-| JSON output tests                   | [tests/json-output.test.ts](tests/json-output.test.ts)                 |
-| Top-level meta / toJsonRecord tests | [tests/json-top-level-meta.test.ts](tests/json-top-level-meta.test.ts) |
-| Debug mode tests                    | [tests/debug-mode.test.ts](tests/debug-mode.test.ts)                   |
-| Stringify tests                     | [tests/stringify.test.ts](tests/stringify.test.ts)                     |
-| Concat tests                        | [tests/concat.test.ts](tests/concat.test.ts)                           |
-| Stacktrace tests                    | [tests/stacktrace.test.ts](tests/stacktrace.test.ts)                   |
-| getMeta tests                       | [tests/get-meta.test.ts](tests/get-meta.test.ts)                       |
-| config.meta / withMeta tests        | [tests/meta.test.ts](tests/meta.test.ts)                               |
-| withNamespace tests                 | [tests/with-namespace.test.ts](tests/with-namespace.test.ts)           |
-| createNoopClog tests                | [tests/noop-clog.test.ts](tests/noop-clog.test.ts)                     |
-| Regression tests (v3.16)            | [tests/regressions.test.ts](tests/regressions.test.ts)                 |
-| Forwarder tests                     | [tests/forward.test.ts](tests/forward.test.ts)                         |
-| Web preset tests                    | [tests/web.test.ts](tests/web.test.ts)                                 |
-| Color examples                      | [tests/raw.ts](tests/raw.ts)                                           |
-| Forwarder example                   | [examples/axiom-forwarder.ts](examples/axiom-forwarder.ts)             |
-| Package manifest (npm, version)     | [package.json](package.json)                                           |
-| JSR config                          | [jsr.json](jsr.json)                                                   |
+| Concern                             | File                                                                       |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| Main logger implementation          | [src/clog.ts](src/clog.ts)                                                 |
+| Color utilities                     | [src/colors.ts](src/colors.ts)                                             |
+| Log forwarder                       | [src/forward.ts](src/forward.ts)                                           |
+| Web preset                          | [src/web.ts](src/web.ts)                                                   |
+| Entry point                         | [src/mod.ts](src/mod.ts)                                                   |
+| Test helpers                        | [tests/_helpers.ts](tests/_helpers.ts)                                     |
+| Basic tests                         | [tests/basic.test.ts](tests/basic.test.ts)                                 |
+| Global config tests                 | [tests/global-config.test.ts](tests/global-config.test.ts)                 |
+| JSON output tests                   | [tests/json-output.test.ts](tests/json-output.test.ts)                     |
+| Top-level meta / toJsonRecord tests | [tests/json-top-level-meta.test.ts](tests/json-top-level-meta.test.ts)     |
+| Debug mode tests                    | [tests/debug-mode.test.ts](tests/debug-mode.test.ts)                       |
+| Stringify tests                     | [tests/stringify.test.ts](tests/stringify.test.ts)                         |
+| Concat tests                        | [tests/concat.test.ts](tests/concat.test.ts)                               |
+| Stacktrace tests                    | [tests/stacktrace.test.ts](tests/stacktrace.test.ts)                       |
+| getMeta tests                       | [tests/get-meta.test.ts](tests/get-meta.test.ts)                           |
+| config.meta / withMeta tests        | [tests/meta.test.ts](tests/meta.test.ts)                                   |
+| withNamespace tests                 | [tests/with-namespace.test.ts](tests/with-namespace.test.ts)               |
+| createNoopClog tests                | [tests/noop-clog.test.ts](tests/noop-clog.test.ts)                         |
+| Regression tests (v3.16)            | [tests/regressions.test.ts](tests/regressions.test.ts)                     |
+| Forwarder tests                     | [tests/forward.test.ts](tests/forward.test.ts)                             |
+| Web preset tests                    | [tests/web.test.ts](tests/web.test.ts)                                     |
+| Color examples                      | [tests/raw.ts](tests/raw.ts)                                               |
+| Forwarder example                   | [examples/axiom-forwarder.ts](examples/axiom-forwarder.ts)                 |
+| Package manifest (npm, version)     | [package.json](package.json)                                               |
+| JSR config                          | [jsr.json](jsr.json)                                                       |
 | TypeScript config (check / build)   | [tsconfig.json](tsconfig.json), [tsconfig.build.json](tsconfig.build.json) |
-| Format / lint config                | [biome.json](biome.json)                                               |
-| CI                                  | [.github/workflows/ci.yml](.github/workflows/ci.yml)                   |
-| Human documentation                 | [README.md](README.md)                                                 |
-| API documentation                   | [API.md](API.md)                                                       |
-| Machine documentation               | [AGENTS.md](AGENTS.md)                                                 |
-| AI assistant redirect               | [CLAUDE.md](CLAUDE.md)                                                 |
+| Format / lint config                | [biome.json](biome.json)                                                   |
+| CI                                  | [.github/workflows/ci.yml](.github/workflows/ci.yml)                       |
+| Human documentation                 | [README.md](README.md)                                                     |
+| API documentation                   | [API.md](API.md)                                                           |
+| Machine documentation               | [AGENTS.md](AGENTS.md)                                                     |
+| AI assistant redirect               | [CLAUDE.md](CLAUDE.md)                                                     |

@@ -12,8 +12,8 @@
  *   AXIOM_TOKEN=your-token AXIOM_DATASET=your-dataset node examples/axiom-forwarder.ts
  */
 
-import { createClog, type LogData } from "../src/mod.ts";
 import { createLogForwarder } from "../src/forward.ts";
+import { createClog, type LogData } from "../src/mod.ts";
 
 // -----------------------------------------------------------------------------
 // Axiom Configuration
@@ -204,9 +204,7 @@ if (import.meta.main) {
 		console.log("Environment variables:");
 		console.log("  AXIOM_TOKEN    - Your Axiom API token");
 		console.log("  AXIOM_DATASET  - Your Axiom dataset name");
-		console.log(
-			"  AXIOM_API_URL  - (Optional) API URL for EU region or self-hosted",
-		);
+		console.log("  AXIOM_API_URL  - (Optional) API URL for EU region or self-hosted");
 		process.exit(1);
 	}
 

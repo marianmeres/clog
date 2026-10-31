@@ -47,10 +47,7 @@ test("instance true overrides global false", () => {
 	clog.log("msg");
 
 	assert.deepEqual(consoleOutput.log.length, 1);
-	assert(
-		consoleOutput.log[0]!.includes("at "),
-		"Stack trace should be present",
-	);
+	assert(consoleOutput.log[0]!.includes("at "), "Stack trace should be present");
 
 	restoreConsole();
 });
@@ -64,10 +61,7 @@ test("instance false overrides global true", () => {
 
 	assert.deepEqual(consoleOutput.log.length, 1);
 	// Stack trace should NOT be present when instance config is false
-	assert(
-		!consoleOutput.log[0]!.includes("at "),
-		"Stack trace should not be present",
-	);
+	assert(!consoleOutput.log[0]!.includes("at "), "Stack trace should not be present");
 
 	restoreConsole();
 });

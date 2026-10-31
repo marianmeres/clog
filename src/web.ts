@@ -168,17 +168,19 @@ export function configureWebLogger(
 		return forwarder;
 	}
 
-	const errorHandler = onUncaughtError === true
-		? makeDefaultUncaughtErrorHandler(uncaughtErrorFilter)
-		: onUncaughtError === false
-		? undefined
-		: onUncaughtError;
+	const errorHandler =
+		onUncaughtError === true
+			? makeDefaultUncaughtErrorHandler(uncaughtErrorFilter)
+			: onUncaughtError === false
+				? undefined
+				: onUncaughtError;
 
-	const rejectionHandler = onUnhandledRejection === true
-		? makeDefaultUnhandledRejectionHandler(unhandledRejectionFilter)
-		: onUnhandledRejection === false
-		? undefined
-		: onUnhandledRejection;
+	const rejectionHandler =
+		onUnhandledRejection === true
+			? makeDefaultUnhandledRejectionHandler(unhandledRejectionFilter)
+			: onUnhandledRejection === false
+				? undefined
+				: onUnhandledRejection;
 
 	if (errorHandler) {
 		globalThis.addEventListener("error", errorHandler);
@@ -211,9 +213,7 @@ const _agentIds = new Map<string, string>();
  * configureWebLogger({ getMeta: () => ({ agentId }) });
  * ```
  */
-export function getOrCreateAgentId(
-	opts: { storageKey?: string } = {},
-): string {
+export function getOrCreateAgentId(opts: { storageKey?: string } = {}): string {
 	const { storageKey = DEFAULT_AGENT_ID_STORAGE_KEY } = opts;
 
 	if (!isBrowser()) return "n/a";
@@ -273,8 +273,6 @@ function makeDefaultUnhandledRejectionHandler(
 
 function isBrowser(): boolean {
 	return (
-		typeof window !== "undefined" &&
-		"document" in globalThis &&
-		globalThis === window
+		typeof window !== "undefined" && "document" in globalThis && globalThis === window
 	);
 }
