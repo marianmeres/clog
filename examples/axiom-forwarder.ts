@@ -9,7 +9,7 @@
  * - An API token with ingest permissions
  *
  * Usage:
- *   AXIOM_TOKEN=your-token AXIOM_DATASET=your-dataset deno run --allow-net --allow-env examples/axiom-forwarder.ts
+ *   AXIOM_TOKEN=your-token AXIOM_DATASET=your-dataset node examples/axiom-forwarder.ts
  */
 
 import { createClog, type LogData } from "../src/mod.ts";
@@ -163,7 +163,7 @@ export function createAxiomFlusher(config: AxiomConfig) {
  * ```ts
  * const forwarder = createAxiomForwarder({
  *   dataset: "production-logs",
- *   token: Deno.env.get("AXIOM_TOKEN")!,
+ *   token: process.env.AXIOM_TOKEN!,
  *   labels: { service: "my-api", env: "production" },
  * });
  *
@@ -192,13 +192,13 @@ export function createAxiomForwarder(config: ForwarderConfig) {
 // -----------------------------------------------------------------------------
 
 if (import.meta.main) {
-	const dataset = Deno.env.get("AXIOM_DATASET");
-	const token = Deno.env.get("AXIOM_TOKEN");
+	const dataset = process.env.AXIOM_DATASET;
+	const token = process.env.AXIOM_TOKEN;
 
 	if (!dataset || !token) {
 		console.log("Usage:");
 		console.log(
-			"  AXIOM_TOKEN=your-token AXIOM_DATASET=your-dataset deno run --allow-net --allow-env examples/axiom-forwarder.ts",
+			"  AXIOM_TOKEN=your-token AXIOM_DATASET=your-dataset node examples/axiom-forwarder.ts",
 		);
 		console.log("");
 		console.log("Environment variables:");
@@ -207,14 +207,14 @@ if (import.meta.main) {
 		console.log(
 			"  AXIOM_API_URL  - (Optional) API URL for EU region or self-hosted",
 		);
-		Deno.exit(1);
+		process.exit(1);
 	}
 
 	// Create the forwarder
 	const forwarder = createAxiomForwarder({
 		dataset,
 		token,
-		apiUrl: Deno.env.get("AXIOM_API_URL"),
+		apiUrl: process.env.AXIOM_API_URL,
 		labels: {
 			service: "clog-example",
 			environment: "development",

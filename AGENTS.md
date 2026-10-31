@@ -4,13 +4,21 @@
 
 ```yaml
 name: "@marianmeres/clog"
-version: "3.18.0"
+version: "3.23.0"
 license: "MIT"
 author: "Marian Meres"
 repository: "https://github.com/marianmeres/clog"
 registry_npm: "https://www.npmjs.com/package/@marianmeres/clog"
 registry_jsr: "https://jsr.io/@marianmeres/clog"
 ```
+
+## Quick Reference
+
+- **Stack**: TypeScript (erasable-only), Node LTS (`.node-version`), pnpm, `node:test`, Biome.
+- **Install**: `pnpm install` | **Test**: `pnpm test` | **Check all**: `pnpm run ci` |
+  **Build**: `pnpm run build`
+- **Registries**: npm (built `dist/`, from `package.json`) and JSR (the `.ts` source, from
+  `jsr.json`). JSR stays while Deno consumers exist; `package.json` holds the version.
 
 ## Purpose
 
@@ -22,20 +30,22 @@ Universal console-compatible logger (~400 lines including JSDoc) with namespace 
 
 ```
 src/
-├── mod.ts              # Entry point (re-exports from clog.ts and colors.ts)
+├── mod.ts              # Entry point "." (re-exports from clog.ts and colors.ts)
 ├── clog.ts             # Main logger implementation
 ├── colors.ts           # Color utilities (colored, shortcuts, SAFE_COLORS)
-├── forward.ts          # Log forwarder utility (batching/forwarding)
-└── web.ts              # Web preset (forwarder + error capture + getMeta wiring)
+├── forward.ts          # Entry point "./forward": log forwarder (batching/forwarding)
+└── web.ts              # Entry point "./web": web preset (forwarder + error capture + getMeta)
 tests/
-├── clog.test.ts        # Main test suite
-├── forward.test.ts     # Log forwarder tests
-├── web.test.ts         # Web preset tests
-└── deno-raw.ts         # Manual color examples
-scripts/
-└── build-npm.ts        # npm build script
-.npm-dist/              # Generated npm distribution
-deno.json               # Deno configuration, version, tasks
+├── _helpers.ts         # Console capture + reset shared by the suites
+├── *.test.ts           # node:test suites, import from ../src/*.ts, never from dist
+├── raw.ts              # Manual color examples (`node tests/raw.ts`, or `deno run` for %c)
+└── browser.html        # Manual browser check against the built dist/
+examples/
+└── axiom-forwarder.ts  # Forwarder example (`node examples/axiom-forwarder.ts`)
+colors.html             # Palette generator page (dev tool, not published)
+dist/                   # `pnpm run build` output; gitignored; what npm publishes
+package.json            # Manifest of record: version, exports, scripts, npm metadata
+jsr.json                # JSR config: exports, publish set, jsr: import of @marianmeres/batch
 ```
 
 ### Core Components
@@ -73,6 +83,32 @@ clog.log("msg")
 3. `colorWriter` (if `config.color` set, browser/deno only)
 4. `defaultWriter`
 
+## Toolchain Conventions
+
+1. **Runtime policy** — Node at the keyboard and in production, npm as the registry. Node LTS
+   is the dev runtime and the CI gate. No `Deno.*` / `Bun.*` calls, no `jsr:` / `npm:`
+   specifiers in source. The `"deno"` runtime branch (%c styling) exists for Deno *consumers*
+   of the JSR package; `probeRuntime()` reads globals only, it calls no Deno API. Nothing is
+   built, tested or documented for Bun (on Bun clog takes the `"node"` branch).
+2. **Erasable TypeScript** — no `enum`, `namespace`, constructor parameter properties;
+   `import type` for types; explicit `.ts` import extensions (rewritten to `.js` on emit).
+   Node strips types and never checks them: `pnpm run typecheck` is the only type gate.
+   `tsconfig.json` adds `"dom"` to `lib` because clog also runs in the browser.
+3. **Formatting / lint** — Biome (`biome.json`): tabs, 4 wide, 90 columns, double quotes;
+   `pnpm run format` before committing, `pnpm run lint` is the read-only check CI runs.
+   Deliberate `any` (console-compatible signatures) and `void` callback returns carry a
+   `biome-ignore` with the reason. `tests/**` turns off `noNonNullAssertion`: a test indexes
+   captured output with `!`, so a missing line fails loudly (with `?.`, a negated assertion
+   on a missing line would pass).
+4. **Tests** — `node:test` + `node:assert/strict`, run on Node by `pnpm test`.
+   `pnpm run test:deno` runs the same suite on Deno with `jsr.json` as the config, i.e. the
+   JSR dependency graph and the `"deno"` runtime branch; `publish:jsr` runs it first.
+5. **Publishing** — npm gets `dist` + `API.md` + `AGENTS.md` (`files`); JSR gets `src/**/*.ts`
+   and the docs (`jsr.json` `publish.include`). `pnpm publish` runs `ci` then `build` via
+   `prepublishOnly`. `pnpm run rp` / `rpm` (bump, commit, tag, push, then npm + JSR) is a
+   human action. `@marianmeres/batch` is an optional peer on npm (needed only by
+   `./forward` and `./web`) and a `jsr:` import on JSR; keep both ranges in step.
+
 ## Critical Conventions
 
 1. No log level filtering - control at source, not runtime
@@ -95,7 +131,7 @@ clog.log("msg")
 ## Before Making Changes
 
 - [ ] Read existing code patterns in [src/clog.ts](src/clog.ts)
-- [ ] Run tests: `deno test`
+- [ ] Run checks: `pnpm run ci` (typecheck + lint + test on Node)
 - [ ] Check type definitions match implementation
 - [ ] Update tests for any API changes
 - [ ] Update AGENTS.md if public API changes
@@ -365,25 +401,30 @@ The JSON branch runs before the Deno `%c` styled-args path, so styled args in JS
 
 ## Commands
 
-| Task              | Command                            |
-| ----------------- | ---------------------------------- |
-| Run tests         | `deno test`                        |
-| Run tests (watch) | `deno test --watch`                |
-| Build npm package | `deno run -A scripts/build-npm.ts` |
-| Build and publish | `deno task npm:publish`            |
+| Task                        | Command                                     |
+| --------------------------- | ------------------------------------------- |
+| Install dev tooling         | `pnpm install`                              |
+| Run tests (Node)            | `pnpm test` / `pnpm run test:watch`         |
+| Run tests (Deno, JSR graph) | `pnpm run test:deno`                        |
+| Typecheck                   | `pnpm run typecheck`                        |
+| Lint / format               | `pnpm run lint` / `pnpm run format`         |
+| Everything CI runs          | `pnpm run ci`                               |
+| Build `dist/`               | `pnpm run build`                            |
+| Release + publish npm & JSR | `pnpm run rp` (patch) / `pnpm run rpm` (minor) |
 
 ## Dependencies
 
 ### Production
 
-- `@marianmeres/batch` - Batch processing (used by forward.ts)
+- `@marianmeres/batch` - Batch processing (used by forward.ts). Optional peer dependency on
+  npm; `jsr:@marianmeres/batch` import (in `jsr.json`) on JSR.
 
 ### Development
 
-- `@std/assert` - Testing assertions
-- `@std/fs` - File system utilities (build script)
-- `@std/path` - Path utilities (build script)
-- `@marianmeres/npmbuild` - npm build helper
+- `typescript` - typecheck and the `dist/` build
+- `@biomejs/biome` - format and lint
+- `@types/node` - Node typings for tests and examples
+- `@marianmeres/batch` - also a dev dependency, so tests and typecheck resolve it
 
 ## Test Coverage
 
@@ -796,7 +837,7 @@ const msg = "Status: " + green("OK"); // "Status: OK"
 
 ### Add Runtime Support
 
-1. Update `_detectRuntime()` detection logic
+1. Update `probeRuntime()` detection logic (and its `RuntimeGlobals` type)
 2. Update `defaultWriter` for runtime-specific behavior
 3. Update `colorWriter` if color support differs
 
@@ -876,9 +917,13 @@ Removed:
 | Regression tests (v3.16)            | [tests/regressions.test.ts](tests/regressions.test.ts)                 |
 | Forwarder tests                     | [tests/forward.test.ts](tests/forward.test.ts)                         |
 | Web preset tests                    | [tests/web.test.ts](tests/web.test.ts)                                 |
-| Color examples                      | [tests/deno-raw.ts](tests/deno-raw.ts)                                 |
-| Build script                        | [scripts/build-npm.ts](scripts/build-npm.ts)                           |
-| Package config                      | [deno.json](deno.json)                                                 |
+| Color examples                      | [tests/raw.ts](tests/raw.ts)                                           |
+| Forwarder example                   | [examples/axiom-forwarder.ts](examples/axiom-forwarder.ts)             |
+| Package manifest (npm, version)     | [package.json](package.json)                                           |
+| JSR config                          | [jsr.json](jsr.json)                                                   |
+| TypeScript config (check / build)   | [tsconfig.json](tsconfig.json), [tsconfig.build.json](tsconfig.build.json) |
+| Format / lint config                | [biome.json](biome.json)                                               |
+| CI                                  | [.github/workflows/ci.yml](.github/workflows/ci.yml)                   |
 | Human documentation                 | [README.md](README.md)                                                 |
 | API documentation                   | [API.md](API.md)                                                       |
 | Machine documentation               | [AGENTS.md](AGENTS.md)                                                 |

@@ -2,7 +2,8 @@
  * createNoopClog tests
  */
 
-import { assert, assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { createClog, createNoopClog, type LogData } from "../src/clog.ts";
 import {
 	capturedData,
@@ -13,24 +14,24 @@ import {
 	restoreConsole,
 } from "./_helpers.ts";
 
-Deno.test("returns first argument as string", () => {
+test("returns first argument as string", () => {
 	const clog = createNoopClog("test");
 
-	assertEquals(clog.log("hello"), "hello");
-	assertEquals(clog.debug("debug"), "debug");
-	assertEquals(clog.warn(123), "123");
-	assertEquals(clog.error({ msg: "err" }), "[object Object]");
-	assertEquals(clog.log(), "");
+	assert.deepEqual(clog.log("hello"), "hello");
+	assert.deepEqual(clog.debug("debug"), "debug");
+	assert.deepEqual(clog.warn(123), "123");
+	assert.deepEqual(clog.error({ msg: "err" }), "[object Object]");
+	assert.deepEqual(clog.log(), "");
 });
 
-Deno.test("callable interface returns first arg", () => {
+test("callable interface returns first arg", () => {
 	const clog = createNoopClog("test");
 
-	assertEquals(clog("called directly"), "called directly");
-	assertEquals(clog(), "");
+	assert.deepEqual(clog("called directly"), "called directly");
+	assert.deepEqual(clog(), "");
 });
 
-Deno.test("does not call any writer or console", () => {
+test("does not call any writer or console", () => {
 	reset();
 	const clog = createNoopClog("test");
 
@@ -41,15 +42,15 @@ Deno.test("does not call any writer or console", () => {
 	clog("silent");
 
 	// Nothing should be logged
-	assertEquals(consoleOutput.debug.length, 0);
-	assertEquals(consoleOutput.log.length, 0);
-	assertEquals(consoleOutput.warn.length, 0);
-	assertEquals(consoleOutput.error.length, 0);
+	assert.deepEqual(consoleOutput.debug.length, 0);
+	assert.deepEqual(consoleOutput.log.length, 0);
+	assert.deepEqual(consoleOutput.warn.length, 0);
+	assert.deepEqual(consoleOutput.error.length, 0);
 
 	restoreConsole();
 });
 
-Deno.test("does not trigger global hook", () => {
+test("does not trigger global hook", () => {
 	reset();
 	resetCapturedData();
 	createClog.global.hook = (data: LogData) => {
@@ -60,41 +61,41 @@ Deno.test("does not trigger global hook", () => {
 	clog.log("should not trigger hook");
 	clog.error("should not trigger hook");
 
-	assertEquals(capturedData.length, 0);
+	assert.deepEqual(capturedData.length, 0);
 
 	restoreConsole();
 });
 
-Deno.test("ns property works", () => {
+test("ns property works", () => {
 	const clog1 = createNoopClog("my-namespace");
-	assertEquals(clog1.ns, "my-namespace");
+	assert.deepEqual(clog1.ns, "my-namespace");
 
 	const clog2 = createNoopClog();
-	assertEquals(clog2.ns, false);
+	assert.deepEqual(clog2.ns, false);
 
 	const clog3 = createNoopClog(null);
-	assertEquals(clog3.ns, false);
+	assert.deepEqual(clog3.ns, false);
 });
 
-Deno.test("ns property is readonly", () => {
+test("ns property is readonly", () => {
 	const clog = createNoopClog("test");
 
 	try {
-		// deno-lint-ignore no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: writes the read-only `ns` on purpose
 		(clog as any).ns = "changed";
 		assert(false, "Should have thrown");
 	} catch (_e) {
-		assertEquals(clog.ns, "test");
+		assert.deepEqual(clog.ns, "test");
 	}
 });
 
-Deno.test("return value works for throw pattern", () => {
+test("return value works for throw pattern", () => {
 	const clog = createNoopClog("test");
 
 	try {
 		throw new Error(clog.error("Something failed"));
-		// deno-lint-ignore no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: reads e.message
 	} catch (e: any) {
-		assertEquals(e.message, "Something failed");
+		assert.deepEqual(e.message, "Something failed");
 	}
 });

@@ -3,7 +3,8 @@
  * toJsonRecord (the JSON line builder) tests
  */
 
-import { assert, assertEquals, assertMatch } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { red } from "../src/colors.ts";
 import {
 	type Clog,
@@ -33,7 +34,7 @@ function captureHook() {
 
 // --- Promotion -------------------------------------------------------------
 
-Deno.test("listed keys go to the top level, unlisted keys stay in meta", () => {
+test("listed keys go to the top level, unlisted keys stay in meta", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ trace_id: TRACE, span_id: SPAN, user: "u1" });
@@ -41,15 +42,15 @@ Deno.test("listed keys go to the top level, unlisted keys stay in meta", () => {
 
 	createClog("api").log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.trace_id, TRACE);
-	assertEquals(output.span_id, SPAN);
-	assertEquals(output.meta, { user: "u1" });
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.trace_id, TRACE);
+	assert.deepEqual(output.span_id, SPAN);
+	assert.deepEqual(output.meta, { user: "u1" });
 
 	restoreConsole();
 });
 
-Deno.test("meta is omitted when every key was promoted", () => {
+test("meta is omitted when every key was promoted", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ trace_id: TRACE });
@@ -57,14 +58,14 @@ Deno.test("meta is omitted when every key was promoted", () => {
 
 	createClog("api").log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.trace_id, TRACE);
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.trace_id, TRACE);
 	assert(!("meta" in output));
 
 	restoreConsole();
 });
 
-Deno.test("field order: core, promoted (list order), meta, arg_N, stack", () => {
+test("field order: core, promoted (list order), meta, arg_N, stack", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.stacktrace = 1;
@@ -73,7 +74,7 @@ Deno.test("field order: core, promoted (list order), meta, arg_N, stack", () => 
 
 	createClog("api").log("hello", { a: 1 });
 
-	assertEquals(Object.keys(JSON.parse(consoleOutput.log[0])), [
+	assert.deepEqual(Object.keys(JSON.parse(consoleOutput.log[0]!)), [
 		"timestamp",
 		"level",
 		"logger",
@@ -88,7 +89,7 @@ Deno.test("field order: core, promoted (list order), meta, arg_N, stack", () => 
 	restoreConsole();
 });
 
-Deno.test("a listed key missing from meta, or undefined, produces no field", () => {
+test("a listed key missing from meta, or undefined, produces no field", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ span_id: undefined, user: "u1" });
@@ -96,15 +97,15 @@ Deno.test("a listed key missing from meta, or undefined, produces no field", () 
 
 	createClog("api").log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
+	const output = JSON.parse(consoleOutput.log[0]!);
 	assert(!("trace_id" in output));
 	assert(!("span_id" in output));
-	assertEquals(output.meta, { user: "u1" });
+	assert.deepEqual(output.meta, { user: "u1" });
 
 	restoreConsole();
 });
 
-Deno.test("inherited properties are not promoted", () => {
+test("inherited properties are not promoted", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ user: "u1" });
@@ -112,15 +113,15 @@ Deno.test("inherited properties are not promoted", () => {
 
 	createClog("api").log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
+	const output = JSON.parse(consoleOutput.log[0]!);
 	assert(!Object.hasOwn(output, "constructor"));
 	assert(!Object.hasOwn(output, "toString"));
-	assertEquals(output.meta, { user: "u1" });
+	assert.deepEqual(output.meta, { user: "u1" });
 
 	restoreConsole();
 });
 
-Deno.test("values are promoted as they are", () => {
+test("values are promoted as they are", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ n: 0, f: false, z: null, o: { a: [1] } });
@@ -128,17 +129,17 @@ Deno.test("values are promoted as they are", () => {
 
 	createClog("api").log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.n, 0);
-	assertEquals(output.f, false);
-	assertEquals(output.z, null);
-	assertEquals(output.o, { a: [1] });
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.n, 0);
+	assert.deepEqual(output.f, false);
+	assert.deepEqual(output.z, null);
+	assert.deepEqual(output.o, { a: [1] });
 	assert(!("meta" in output));
 
 	restoreConsole();
 });
 
-Deno.test("keys from instance config.meta are promoted too", () => {
+test("keys from instance config.meta are promoted too", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ user: "u1" });
@@ -146,16 +147,16 @@ Deno.test("keys from instance config.meta are promoted too", () => {
 
 	createClog("api", { meta: () => ({ trace_id: TRACE }) }).log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.trace_id, TRACE);
-	assertEquals(output.meta, { user: "u1" });
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.trace_id, TRACE);
+	assert.deepEqual(output.meta, { user: "u1" });
 
 	restoreConsole();
 });
 
 // --- Resolution --------------------------------------------------------------
 
-Deno.test("an instance list replaces the global one", () => {
+test("an instance list replaces the global one", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ trace_id: TRACE, user: "u1" });
@@ -163,15 +164,15 @@ Deno.test("an instance list replaces the global one", () => {
 
 	createClog("api", { jsonTopLevelMeta: ["user"] }).log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.user, "u1");
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.user, "u1");
 	assert(!("trace_id" in output));
-	assertEquals(output.meta, { trace_id: TRACE });
+	assert.deepEqual(output.meta, { trace_id: TRACE });
 
 	restoreConsole();
 });
 
-Deno.test("an instance [] turns promotion off for that logger (and its children)", () => {
+test("an instance [] turns promotion off for that logger (and its children)", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ trace_id: TRACE });
@@ -184,13 +185,13 @@ Deno.test("an instance [] turns promotion off for that logger (and its children)
 	for (const line of consoleOutput.log) {
 		const output = JSON.parse(line);
 		assert(!("trace_id" in output));
-		assertEquals(output.meta, { trace_id: TRACE });
+		assert.deepEqual(output.meta, { trace_id: TRACE });
 	}
 
 	restoreConsole();
 });
 
-Deno.test("a global list set after the logger was created applies", () => {
+test("a global list set after the logger was created applies", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ trace_id: TRACE });
@@ -199,31 +200,31 @@ Deno.test("a global list set after the logger was created applies", () => {
 	createClog.global.jsonTopLevelMeta = ["trace_id"];
 	clog.log("hello");
 
-	assertEquals(JSON.parse(consoleOutput.log[0]).trace_id, TRACE);
+	assert.deepEqual(JSON.parse(consoleOutput.log[0]!).trace_id, TRACE);
 
 	restoreConsole();
 });
 
-Deno.test("reset() clears the global list", () => {
+test("reset() clears the global list", () => {
 	reset();
 	createClog.global.jsonTopLevelMeta = ["trace_id"];
 	createClog.reset();
-	assertEquals(createClog.global.jsonTopLevelMeta, undefined);
+	assert.deepEqual(createClog.global.jsonTopLevelMeta, undefined);
 
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ trace_id: TRACE });
 	createClog("api").log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
+	const output = JSON.parse(consoleOutput.log[0]!);
 	assert(!("trace_id" in output));
-	assertEquals(output.meta, { trace_id: TRACE });
+	assert.deepEqual(output.meta, { trace_id: TRACE });
 
 	restoreConsole();
 });
 
 // --- Name clashes ------------------------------------------------------------
 
-Deno.test("a key named like a default core field stays in meta", () => {
+test("a key named like a default core field stays in meta", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.stacktrace = 1;
@@ -241,20 +242,20 @@ Deno.test("a key named like a default core field stays in meta", () => {
 
 	createClog("api").log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertMatch(output.timestamp, /^\d{4}-\d{2}-\d{2}T/);
-	assertEquals(output.level, "INFO");
-	assertEquals(output.logger, "api");
-	assertEquals(output.message, "hello");
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.match(output.timestamp, /^\d{4}-\d{2}-\d{2}T/);
+	assert.deepEqual(output.level, "INFO");
+	assert.deepEqual(output.logger, "api");
+	assert.deepEqual(output.message, "hello");
 	assert(output.stack.includes("Stack:"));
-	assertEquals(output.trace_id, TRACE);
+	assert.deepEqual(output.trace_id, TRACE);
 	const { trace_id: _, ...rest } = meta;
-	assertEquals(output.meta, rest);
+	assert.deepEqual(output.meta, rest);
 
 	restoreConsole();
 });
 
-Deno.test("a key named like a renamed core field stays in meta", () => {
+test("a key named like a renamed core field stays in meta", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.jsonFieldNames = { logger: "logger.name", meta: "context" };
@@ -268,15 +269,15 @@ Deno.test("a key named like a renamed core field stays in meta", () => {
 
 	createClog("api").log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output["logger.name"], "api");
-	assertEquals(output.logger, "m-logger-default");
-	assertEquals(output.context, { "logger.name": "m-logger", context: "m-context" });
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output["logger.name"], "api");
+	assert.deepEqual(output.logger, "m-logger-default");
+	assert.deepEqual(output.context, { "logger.name": "m-logger", context: "m-context" });
 
 	restoreConsole();
 });
 
-Deno.test("a key of the form <arg>_<n> stays in meta", () => {
+test("a key of the form <arg>_<n> stays in meta", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ arg_0: "m0", arg_7: "m7", arg_x: "mx" });
@@ -284,16 +285,16 @@ Deno.test("a key of the form <arg>_<n> stays in meta", () => {
 
 	createClog("api").log("hello", "real");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.arg_0, "real");
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.arg_0, "real");
 	assert(!("arg_7" in output), "reserved even when the line has no such arg");
-	assertEquals(output.arg_x, "mx");
-	assertEquals(output.meta, { arg_0: "m0", arg_7: "m7" });
+	assert.deepEqual(output.arg_x, "mx");
+	assert.deepEqual(output.meta, { arg_0: "m0", arg_7: "m7" });
 
 	restoreConsole();
 });
 
-Deno.test("the reserved <arg>_<n> form follows a renamed arg prefix", () => {
+test("the reserved <arg>_<n> form follows a renamed arg prefix", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.jsonFieldNames = { arg: "extra" };
@@ -302,17 +303,17 @@ Deno.test("the reserved <arg>_<n> form follows a renamed arg prefix", () => {
 
 	createClog("api").log("hello", "real");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.extra_0, "real");
-	assertEquals(output.arg_0, "a0");
-	assertEquals(output.meta, { extra_0: "m0" });
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.extra_0, "real");
+	assert.deepEqual(output.arg_0, "a0");
+	assert.deepEqual(output.meta, { extra_0: "m0" });
 
 	restoreConsole();
 });
 
 // --- Presentation only -------------------------------------------------------
 
-Deno.test("a hook and a custom writer still see every meta key", () => {
+test("a hook and a custom writer still see every meta key", () => {
 	reset();
 	captureHook();
 	createClog.global.jsonOutput = true;
@@ -324,14 +325,14 @@ Deno.test("a hook and a custom writer still see every meta key", () => {
 	const written: LogData[] = [];
 	createClog("api", { writer: (d) => written.push(d) }).log("hello");
 
-	assertEquals(capturedData[0].meta, { trace_id: TRACE, user: "u1" });
-	assertEquals(capturedData[1].meta, { trace_id: TRACE, user: "u1" });
-	assertEquals(written[0].meta, { trace_id: TRACE, user: "u1" });
+	assert.deepEqual(capturedData[0]!.meta, { trace_id: TRACE, user: "u1" });
+	assert.deepEqual(capturedData[1]!.meta, { trace_id: TRACE, user: "u1" });
+	assert.deepEqual(written[0]!.meta, { trace_id: TRACE, user: "u1" });
 
 	restoreConsole();
 });
 
-Deno.test("the forwarder still sees every meta key", () => {
+test("the forwarder still sees every meta key", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ trace_id: TRACE, user: "u1" });
@@ -341,14 +342,14 @@ Deno.test("the forwarder still sees every meta key", () => {
 
 	createClog("api").log("hello");
 
-	assertEquals(JSON.parse(consoleOutput.log[0]).trace_id, TRACE);
-	assertEquals(forwarder.dump()[0].meta, { trace_id: TRACE, user: "u1" });
+	assert.deepEqual(JSON.parse(consoleOutput.log[0]!).trace_id, TRACE);
+	assert.deepEqual(forwarder.dump()[0]!.meta, { trace_id: TRACE, user: "u1" });
 
 	forwarder.reset();
 	restoreConsole();
 });
 
-Deno.test("a static config.meta object is not mutated", () => {
+test("a static config.meta object is not mutated", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.jsonTopLevelMeta = ["trace_id"];
@@ -357,15 +358,15 @@ Deno.test("a static config.meta object is not mutated", () => {
 	createClog("api", { meta }).log("hello");
 	createClog("api", { getMeta: () => meta }).log("hello");
 
-	assertEquals(meta, { trace_id: TRACE, user: "u1" });
+	assert.deepEqual(meta, { trace_id: TRACE, user: "u1" });
 	for (const line of consoleOutput.log) {
-		assertEquals(JSON.parse(line).trace_id, TRACE);
+		assert.deepEqual(JSON.parse(line).trace_id, TRACE);
 	}
 
 	restoreConsole();
 });
 
-Deno.test("text output is unchanged", () => {
+test("text output is unchanged", () => {
 	reset();
 	createClog.global.getMeta = () => ({ trace_id: TRACE });
 
@@ -374,22 +375,26 @@ Deno.test("text output is unchanged", () => {
 	createClog("api").log("hello");
 
 	const strip = (s: string) => s.replace(/^\[[^\]]+\]/, "[ts]");
-	assertEquals(strip(consoleOutput.log[1]), strip(consoleOutput.log[0]));
-	assert(!consoleOutput.log[1].includes(TRACE));
+	assert.deepEqual(strip(consoleOutput.log[1]!), strip(consoleOutput.log[0]!));
+	assert(!consoleOutput.log[1]!.includes(TRACE));
 
 	restoreConsole();
 });
 
-Deno.test("browser output is unchanged", async () => {
+test("browser output is unchanged", async () => {
 	reset();
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: installs browser globals
 	const g = globalThis as any;
 	const prevWindow = Object.getOwnPropertyDescriptor(g, "window");
 	Object.defineProperty(g, "window", { value: { document: {} }, configurable: true });
 	try {
 		// A fresh module instance, so runtime detection sees the browser global.
-		// Global config is shared across instances.
-		const mod = await import("../src/clog.ts?browser-top-level-meta");
+		// Global config is shared across instances. The specifier stays a literal
+		// so Deno loads it with the module graph (no --allow-read needed).
+		const mod: typeof import("../src/clog.ts") = await import(
+			// @ts-expect-error tsc cannot resolve a query-string specifier
+			"../src/clog.ts?browser-top-level-meta"
+		);
 		createClog.global.jsonOutput = true;
 		createClog.global.getMeta = () => ({ trace_id: TRACE });
 
@@ -397,7 +402,7 @@ Deno.test("browser output is unchanged", async () => {
 		createClog.global.jsonTopLevelMeta = ["trace_id"];
 		mod.createClog("api").log("hello");
 
-		assertEquals(consoleOutput.log, ["[api] hello", "[api] hello"]);
+		assert.deepEqual(consoleOutput.log, ["[api] hello", "[api] hello"]);
 	} finally {
 		if (prevWindow) Object.defineProperty(g, "window", prevWindow);
 		else delete g.window;
@@ -409,15 +414,15 @@ Deno.test("browser output is unchanged", async () => {
 
 // Regression: on Deno the %c path ran before the JSON check, so a line with
 // styled args was written as text even with jsonOutput on.
-Deno.test("styled args still produce JSON on Deno", () => {
+test("styled args still produce JSON on Deno", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 
 	createClog("api").log(red("styled"), "x");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.message, "styled");
-	assertEquals(output.arg_0, "x");
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.message, "styled");
+	assert.deepEqual(output.arg_0, "x");
 
 	restoreConsole();
 });
@@ -428,10 +433,10 @@ Deno.test("styled args still produce JSON on Deno", () => {
 function logOnce(clog: Clog, ...args: unknown[]) {
 	resetCapturedData();
 	clog.error(...args);
-	return { line: JSON.parse(consoleOutput.error.at(-1)!), data: capturedData[0] };
+	return { line: JSON.parse(consoleOutput.error.at(-1)!), data: capturedData[0]! };
 }
 
-Deno.test("toJsonRecord equals the default writer's line", () => {
+test("toJsonRecord equals the default writer's line", () => {
 	reset();
 	captureHook();
 	createClog.global.jsonOutput = true;
@@ -451,13 +456,13 @@ Deno.test("toJsonRecord equals the default writer's line", () => {
 	];
 	for (const [clog, ...args] of cases) {
 		const { line, data } = logOnce(clog, ...args);
-		assertEquals(toJsonRecord(data), line);
+		assert.deepEqual(toJsonRecord(data), line);
 	}
 
 	restoreConsole();
 });
 
-Deno.test("toJsonRecord works on a hand-built LogData with no config", () => {
+test("toJsonRecord works on a hand-built LogData with no config", () => {
 	reset();
 	createClog.global.jsonTopLevelMeta = ["trace_id"];
 
@@ -469,19 +474,19 @@ Deno.test("toJsonRecord works on a hand-built LogData with no config", () => {
 		meta: { trace_id: TRACE, agent: "a1" },
 	});
 
-	assertEquals(record.timestamp, "2026-10-01T00:00:00.000Z");
-	assertEquals(record.level, "WARNING");
-	assertEquals(record.logger, "FE:ui");
-	assertEquals(record.message, "from browser");
-	assertEquals(record.trace_id, TRACE);
-	assertEquals(record.meta, { agent: "a1" });
+	assert.deepEqual(record.timestamp, "2026-10-01T00:00:00.000Z");
+	assert.deepEqual(record.level, "WARNING");
+	assert.deepEqual(record.logger, "FE:ui");
+	assert.deepEqual(record.message, "from browser");
+	assert.deepEqual(record.trace_id, TRACE);
+	assert.deepEqual(record.meta, { agent: "a1" });
 	assert(String(record.arg_0).includes("Error: boom"));
 	assert(!("stack" in record));
 
 	restoreConsole();
 });
 
-Deno.test("toJsonRecord ignores jsonOutput and concat", () => {
+test("toJsonRecord ignores jsonOutput and concat", () => {
 	reset();
 	createClog.global.concat = true;
 
@@ -493,7 +498,7 @@ Deno.test("toJsonRecord ignores jsonOutput and concat", () => {
 		config: { concat: true, jsonOutput: false },
 	});
 
-	assertEquals(record, {
+	assert.deepEqual(record, {
 		timestamp: "2026-10-01T00:00:00.000Z",
 		level: "INFO",
 		logger: "api",
@@ -504,11 +509,14 @@ Deno.test("toJsonRecord ignores jsonOutput and concat", () => {
 	restoreConsole();
 });
 
-Deno.test("toJsonRecord never calls getMeta and has no side effects", () => {
+test("toJsonRecord never calls getMeta and has no side effects", () => {
 	reset();
 	let calls = 0;
 	let hooked = 0;
-	createClog.global.getMeta = () => (calls++, { from: "global" });
+	createClog.global.getMeta = () => {
+		calls++;
+		return { from: "global" };
+	};
 	createClog.global.hook = () => void hooked++;
 
 	const record = toJsonRecord({
@@ -516,18 +524,23 @@ Deno.test("toJsonRecord never calls getMeta and has no side effects", () => {
 		namespace: "api",
 		args: ["hello"],
 		timestamp: "2026-10-01T00:00:00.000Z",
-		config: { getMeta: () => (calls++, { from: "instance" }) },
+		config: {
+			getMeta: () => {
+				calls++;
+				return { from: "instance" };
+			},
+		},
 	});
 
-	assertEquals(calls, 0);
-	assertEquals(hooked, 0);
+	assert.deepEqual(calls, 0);
+	assert.deepEqual(hooked, 0);
 	assert(!("meta" in record));
-	assertEquals(Object.values(consoleOutput).flat(), []);
+	assert.deepEqual(Object.values(consoleOutput).flat(), []);
 
 	restoreConsole();
 });
 
-Deno.test("toJsonRecord does not mutate data.meta", () => {
+test("toJsonRecord does not mutate data.meta", () => {
 	reset();
 	createClog.global.jsonTopLevelMeta = ["trace_id"];
 	const meta = { trace_id: TRACE, user: "u1" };
@@ -540,7 +553,7 @@ Deno.test("toJsonRecord does not mutate data.meta", () => {
 		meta,
 	});
 
-	assertEquals(meta, { trace_id: TRACE, user: "u1" });
+	assert.deepEqual(meta, { trace_id: TRACE, user: "u1" });
 	assert(record.meta !== meta);
 
 	restoreConsole();

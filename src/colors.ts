@@ -76,7 +76,8 @@ const _autoColorCache = new Map<string, string>();
 export function autoColor(namespace: string): string {
 	const cached = _autoColorCache.get(namespace);
 	if (cached !== undefined) return cached;
-	const color = AUTO_PALETTE[strHash(namespace) % AUTO_PALETTE.length];
+	// in range: the index is taken modulo the palette length
+	const color = AUTO_PALETTE[strHash(namespace) % AUTO_PALETTE.length] as string;
 	_autoColorCache.set(namespace, color);
 	return color;
 }

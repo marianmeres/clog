@@ -824,11 +824,12 @@ throw new Error(clog.error("Something failed"));
 ### Testing with Mock Writer
 
 ```typescript
-// test.ts
+// clog.test.ts
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { createClog } from "@marianmeres/clog";
-import { assertEquals } from "@std/assert";
 
-Deno.test("logs correct message", () => {
+test("logs correct message", () => {
 	const captured: string[] = [];
 
 	createClog.global.writer = (data) => {
@@ -838,7 +839,7 @@ Deno.test("logs correct message", () => {
 	const clog = createClog("test");
 	clog.log("Hello");
 
-	assertEquals(captured[0], "Hello");
+	assert.equal(captured[0], "Hello");
 
 	createClog.reset(); // Clean up
 });
@@ -1030,6 +1031,23 @@ createClog.DISABLED = true;
 // Remove or use custom writer that no-ops
 createClog.global.writer = () => {};
 ```
+
+## Development
+
+Node LTS (`.node-version`), pnpm, Biome, `node:test`. The source is erasable-only
+TypeScript that Node runs directly; `dist/` is built only for publishing to npm. JSR is
+served the `.ts` source (`jsr.json`).
+
+| Command                             | Does                                                    |
+| ----------------------------------- | ------------------------------------------------------- |
+| `pnpm install`                      | installs the dev tooling                                |
+| `pnpm test` / `pnpm run test:watch` | `node --test` over `tests/**/*.test.ts`                 |
+| `pnpm run test:deno`                | the same suite on Deno, resolved as JSR consumers see it |
+| `pnpm run typecheck`                | `tsc --noEmit` over `src`, `tests` and `examples`       |
+| `pnpm run lint` / `pnpm run format` | `biome check .` read-only / with `--write`              |
+| `pnpm run ci`                       | typecheck + lint + test, what CI runs                   |
+| `pnpm run build`                    | `tsc -p tsconfig.build.json` → `dist/`                  |
+| `pnpm run rp` / `pnpm run rpm`      | patch / minor release, then publish to npm and JSR      |
 
 ## License
 

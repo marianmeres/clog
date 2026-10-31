@@ -2,7 +2,8 @@
  * Web preset tests for `@marianmeres/clog/web`.
  */
 
-import { assert, assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { createClog, type LogData } from "../src/clog.ts";
 import {
 	configureWebLogger,
@@ -11,9 +12,7 @@ import {
 } from "../src/web.ts";
 import { consoleOutput, reset, restoreConsole } from "./_helpers.ts";
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-Deno.test("returns forwarder when send is provided", async () => {
+test("returns forwarder when send is provided", async () => {
 	reset();
 
 	const forwarder = configureWebLogger({
@@ -22,29 +21,29 @@ Deno.test("returns forwarder when send is provided", async () => {
 	});
 
 	assert(forwarder);
-	assertEquals(typeof forwarder.hook, "function");
-	assertEquals(typeof forwarder.stop, "function");
+	assert.deepEqual(typeof forwarder.hook, "function");
+	assert.deepEqual(typeof forwarder.stop, "function");
 
 	await forwarder.drain();
 	restoreConsole();
 });
 
-Deno.test("returns undefined in console-only mode (no send)", () => {
+test("returns undefined in console-only mode (no send)", () => {
 	reset();
 
 	const forwarder = configureWebLogger({
 		getMeta: () => ({ env: "test" }),
 	});
 
-	assertEquals(forwarder, undefined);
+	assert.deepEqual(forwarder, undefined);
 	// getMeta should still install
-	assertEquals(typeof createClog.global.getMeta, "function");
-	assertEquals(createClog.global.getMeta?.(), { env: "test" });
+	assert.deepEqual(typeof createClog.global.getMeta, "function");
+	assert.deepEqual(createClog.global.getMeta?.(), { env: "test" });
 
 	restoreConsole();
 });
 
-Deno.test("wires forwarder.hook into createClog.global.hook", async () => {
+test("wires forwarder.hook into createClog.global.hook", async () => {
 	reset();
 
 	const received: LogData[][] = [];
@@ -56,26 +55,26 @@ Deno.test("wires forwarder.hook into createClog.global.hook", async () => {
 	});
 
 	assert(forwarder);
-	assertEquals(createClog.global.hook, forwarder.hook);
+	assert.deepEqual(createClog.global.hook, forwarder.hook);
 
 	const clog = createClog("test");
 	clog.log("hello");
 	clog.warn("world");
 
-	assertEquals(forwarder.size, 2);
+	assert.deepEqual(forwarder.size, 2);
 
 	await forwarder.flush();
 
-	assertEquals(received.length, 1);
-	assertEquals(received[0].length, 2);
-	assertEquals(received[0][0].args[0], "hello");
-	assertEquals(received[0][1].args[0], "world");
+	assert.deepEqual(received.length, 1);
+	assert.deepEqual(received[0]!.length, 2);
+	assert.deepEqual(received[0]![0]!.args[0], "hello");
+	assert.deepEqual(received[0]![1]!.args[0], "world");
 
 	await forwarder.drain();
 	restoreConsole();
 });
 
-Deno.test("send exceptions mark flush as failed (no crash)", async () => {
+test("send exceptions mark flush as failed (no crash)", async () => {
 	reset();
 
 	let calls = 0;
@@ -90,17 +89,17 @@ Deno.test("send exceptions mark flush as failed (no crash)", async () => {
 	assert(forwarder);
 
 	createClog("test").log("x");
-	assertEquals(forwarder.size, 1);
+	assert.deepEqual(forwarder.size, 1);
 
 	const ok = await forwarder.flush();
-	assertEquals(ok, false);
+	assert.deepEqual(ok, false);
 	assert(calls >= 1);
 
 	await forwarder.drain();
 	restoreConsole();
 });
 
-Deno.test("stop halts delivery, start resumes", async () => {
+test("stop halts delivery, start resumes", async () => {
 	reset();
 
 	const received: LogData[][] = [];
@@ -113,25 +112,25 @@ Deno.test("stop halts delivery, start resumes", async () => {
 
 	assert(forwarder);
 	forwarder.stop();
-	assertEquals(forwarder.isRunning, false);
+	assert.deepEqual(forwarder.isRunning, false);
 
 	createClog("test").log("buffered");
 	// Buffer holds the entry; nothing is sent because interval is stopped.
-	assertEquals(forwarder.size, 1);
-	assertEquals(received.length, 0);
+	assert.deepEqual(forwarder.size, 1);
+	assert.deepEqual(received.length, 0);
 
 	forwarder.start();
 	assert(forwarder.isRunning);
 
 	await forwarder.flush();
-	assertEquals(received.length, 1);
-	assertEquals(received[0][0].args[0], "buffered");
+	assert.deepEqual(received.length, 1);
+	assert.deepEqual(received[0]![0]!.args[0], "buffered");
 
 	await forwarder.drain();
 	restoreConsole();
 });
 
-Deno.test("getMeta is installed as createClog.global.getMeta", () => {
+test("getMeta is installed as createClog.global.getMeta", () => {
 	reset();
 
 	configureWebLogger({
@@ -146,44 +145,44 @@ Deno.test("getMeta is installed as createClog.global.getMeta", () => {
 
 	clog.log("hello");
 
-	assertEquals(capturedMeta, { source: "preset", version: 1 });
+	assert.deepEqual(capturedMeta, { source: "preset", version: 1 });
 	restoreConsole();
 });
 
-Deno.test("getMeta is omitted when not provided", async () => {
+test("getMeta is omitted when not provided", async () => {
 	reset();
 
 	const forwarder = configureWebLogger({ send: async () => {} });
 
-	assertEquals(createClog.global.getMeta, undefined);
+	assert.deepEqual(createClog.global.getMeta, undefined);
 
 	await forwarder?.drain();
 	restoreConsole();
 });
 
-Deno.test("error handlers are skipped without addEventListener (deno test env)", () => {
+test("error handlers are skipped without addEventListener (server env)", () => {
 	reset();
 
-	// Deno test runtime: globalThis has no `window`/`document` and
-	// addEventListener varies; the preset checks for the function and
-	// no-ops when absent. We assert configure does not throw and returns
-	// an undefined forwarder.
+	// Server test runtime: globalThis has no `window`/`document` and
+	// addEventListener varies (Deno has it, Node does not); the preset checks
+	// for the function and no-ops when absent. We assert configure does not
+	// throw and returns an undefined forwarder.
 	const forwarder = configureWebLogger({});
-	assertEquals(forwarder, undefined);
+	assert.deepEqual(forwarder, undefined);
 	restoreConsole();
 });
 
-Deno.test("getOrCreateAgentId returns 'n/a' outside browser", () => {
+test("getOrCreateAgentId returns 'n/a' outside browser", () => {
 	reset();
-	// No window/document in deno test runtime.
-	assertEquals(getOrCreateAgentId(), "n/a");
-	assertEquals(getOrCreateAgentId({ storageKey: "anything" }), "n/a");
+	// No window/document in a server test runtime.
+	assert.deepEqual(getOrCreateAgentId(), "n/a");
+	assert.deepEqual(getOrCreateAgentId({ storageKey: "anything" }), "n/a");
 	restoreConsole();
 });
 
 /**
  * Runs `fn` against a minimal browser-shape global so isBrowser() returns
- * true. Deno defines `localStorage` as a non-trivial accessor; use
+ * true. Node and Deno define `localStorage` as a non-trivial accessor; use
  * defineProperty to install a plain mock for the duration of the call.
  */
 function withBrowserMock(
@@ -193,7 +192,7 @@ function withBrowserMock(
 	},
 	fn: () => void,
 ) {
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: installs browser globals
 	const g = globalThis as any;
 	const prevWindow = Object.getOwnPropertyDescriptor(g, "window");
 	const prevDocument = Object.getOwnPropertyDescriptor(g, "document");
@@ -232,7 +231,7 @@ function withBrowserMock(
 // Note: agent ids are memoized per storageKey for the module's lifetime, so
 // each test below uses its own key.
 
-Deno.test("getOrCreateAgentId uses configured storageKey (browser mock)", () => {
+test("getOrCreateAgentId uses configured storageKey (browser mock)", () => {
 	reset();
 
 	const store = new Map<string, string>();
@@ -246,22 +245,22 @@ Deno.test("getOrCreateAgentId uses configured storageKey (browser mock)", () => 
 	withBrowserMock(fakeLocalStorage, () => {
 		const id1 = getOrCreateAgentId({ storageKey: "custom-key" });
 		assert(id1 && id1 !== "n/a");
-		assertEquals(store.get("custom-key"), id1);
+		assert.deepEqual(store.get("custom-key"), id1);
 
 		// Same key returns same id
 		const id2 = getOrCreateAgentId({ storageKey: "custom-key" });
-		assertEquals(id1, id2);
+		assert.deepEqual(id1, id2);
 
 		// Default key writes a separate entry
 		const idDefault = getOrCreateAgentId();
 		assert(idDefault !== id1);
-		assertEquals(store.get(DEFAULT_AGENT_ID_STORAGE_KEY), idDefault);
+		assert.deepEqual(store.get(DEFAULT_AGENT_ID_STORAGE_KEY), idDefault);
 	});
 
 	restoreConsole();
 });
 
-Deno.test("getOrCreateAgentId reuses an id already in storage", () => {
+test("getOrCreateAgentId reuses an id already in storage", () => {
 	reset();
 
 	const store = new Map([["existing-key", "stored-id"]]);
@@ -271,14 +270,14 @@ Deno.test("getOrCreateAgentId reuses an id already in storage", () => {
 			setItem: (k, v) => void store.set(k, v),
 		},
 		() => {
-			assertEquals(getOrCreateAgentId({ storageKey: "existing-key" }), "stored-id");
+			assert.deepEqual(getOrCreateAgentId({ storageKey: "existing-key" }), "stored-id");
 		},
 	);
 
 	restoreConsole();
 });
 
-Deno.test("getOrCreateAgentId is stable when getItem throws (one console.error)", () => {
+test("getOrCreateAgentId is stable when getItem throws (one console.error)", () => {
 	reset();
 
 	withBrowserMock(
@@ -295,20 +294,20 @@ Deno.test("getOrCreateAgentId is stable when getItem throws (one console.error)"
 			const id2 = getOrCreateAgentId({ storageKey: "getitem-throws-key" });
 			const id3 = getOrCreateAgentId({ storageKey: "getitem-throws-key" });
 			assert(id1 && id1 !== "n/a");
-			assertEquals(id2, id1);
-			assertEquals(id3, id1);
+			assert.deepEqual(id2, id1);
+			assert.deepEqual(id3, id1);
 		},
 	);
 
 	// getItem and setItem each fail once — on the first call only.
-	assertEquals(consoleOutput.error.length, 2);
-	assert(consoleOutput.error[0].includes("Unable to read agent id"));
-	assert(consoleOutput.error[1].includes("Unable to persist agent id"));
+	assert.deepEqual(consoleOutput.error.length, 2);
+	assert(consoleOutput.error[0]!.includes("Unable to read agent id"));
+	assert(consoleOutput.error[1]!.includes("Unable to persist agent id"));
 
 	restoreConsole();
 });
 
-Deno.test("getOrCreateAgentId is stable when setItem throws (one console.error)", () => {
+test("getOrCreateAgentId is stable when setItem throws (one console.error)", () => {
 	reset();
 
 	withBrowserMock(
@@ -322,12 +321,12 @@ Deno.test("getOrCreateAgentId is stable when setItem throws (one console.error)"
 			const id1 = getOrCreateAgentId({ storageKey: "setitem-throws-key" });
 			const id2 = getOrCreateAgentId({ storageKey: "setitem-throws-key" });
 			assert(id1 && id1 !== "n/a");
-			assertEquals(id2, id1);
+			assert.deepEqual(id2, id1);
 		},
 	);
 
-	assertEquals(consoleOutput.error.length, 1);
-	assert(consoleOutput.error[0].includes("Unable to persist agent id"));
+	assert.deepEqual(consoleOutput.error.length, 1);
+	assert(consoleOutput.error[0]!.includes("Unable to persist agent id"));
 
 	restoreConsole();
 });

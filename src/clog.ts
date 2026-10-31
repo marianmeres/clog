@@ -123,7 +123,7 @@ const CLOG_INSTANCE: unique symbol = Symbol.for("@marianmeres/clog-instance");
 export type LogData = {
 	level: (typeof LEVEL_MAP)[LogLevel];
 	namespace: string | false;
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: whatever the caller passed, as with console
 	args: any[];
 	timestamp: string;
 	config?: ClogConfig;
@@ -175,6 +175,7 @@ export type WriterFn = (data: LogData) => void;
  * };
  * ```
  */
+// biome-ignore lint/suspicious/noConfusingVoidType: `void` admits any void-returning callback; `undefined` would reject them
 export type HookFn = (data: LogData) => void | typeof CLOG_SKIP;
 
 /**
@@ -191,7 +192,7 @@ export interface Logger {
 	 * @param args - Arguments to log
 	 * @returns The first argument as a string (clog) or void (console)
 	 */
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-compatible signature (README: Why `any` Return Type?)
 	debug: (...args: any[]) => any;
 
 	/**
@@ -199,7 +200,7 @@ export interface Logger {
 	 * @param args - Arguments to log
 	 * @returns The first argument as a string (clog) or void (console)
 	 */
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-compatible signature (README: Why `any` Return Type?)
 	log: (...args: any[]) => any;
 
 	/**
@@ -207,7 +208,7 @@ export interface Logger {
 	 * @param args - Arguments to log
 	 * @returns The first argument as a string (clog) or void (console)
 	 */
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-compatible signature (README: Why `any` Return Type?)
 	warn: (...args: any[]) => any;
 
 	/**
@@ -215,7 +216,7 @@ export interface Logger {
 	 * @param args - Arguments to log
 	 * @returns The first argument as a string (clog) or void (console)
 	 */
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-compatible signature (README: Why `any` Return Type?)
 	error: (...args: any[]) => any;
 }
 
@@ -237,7 +238,7 @@ export interface Clog extends Logger {
 	 * @param args - Arguments to log
 	 * @returns The first argument as a string
 	 */
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-compatible signature (README: Why `any` Return Type?)
 	(...args: any[]): any;
 
 	/**
@@ -264,7 +265,6 @@ export interface ClogConfig {
 	 * @example "red", "blue", "#ff0000"
 	 */
 	// `string & {}` preserves "auto" literal in IntelliSense while allowing any string
-	// deno-lint-ignore ban-types
 	color?: "auto" | (string & {}) | null;
 
 	/**
@@ -421,7 +421,7 @@ export interface GlobalConfig {
  * module instances (e.g., when different packages bundle their own copy).
  */
 const GLOBAL_KEY = Symbol.for("@marianmeres/clog");
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny lint/suspicious/noAssignInExpressions: get-or-create the untyped global slot
 const GLOBAL: GlobalConfig = ((globalThis as any)[GLOBAL_KEY] ??= {
 	hook: undefined,
 	writer: undefined,
@@ -433,19 +433,25 @@ const GLOBAL: GlobalConfig = ((globalThis as any)[GLOBAL_KEY] ??= {
 
 type Runtime = "browser" | "node" | "deno" | "unknown";
 
+/** The globals runtime detection probes; no runtime's typings declare them all. */
+type RuntimeGlobals = {
+	window?: { document?: unknown };
+	Deno?: { version?: { deno?: string } };
+	process?: { versions?: { node?: string } };
+};
+
 let _cachedRuntime: Runtime | null = null;
 function detectRuntime(): Runtime {
-	if (_cachedRuntime !== null) return _cachedRuntime;
-	// deno-lint-ignore no-explicit-any
-	if (typeof window !== "undefined" && (window as any)?.document) {
-		return (_cachedRuntime = "browser");
-	}
-	if (globalThis.Deno?.version?.deno) return (_cachedRuntime = "deno");
-	// deno-lint-ignore no-explicit-any
-	if ((globalThis as any).process?.versions?.node) {
-		return (_cachedRuntime = "node");
-	}
-	return (_cachedRuntime = "unknown");
+	_cachedRuntime ??= probeRuntime();
+	return _cachedRuntime;
+}
+
+function probeRuntime(): Runtime {
+	const g = globalThis as RuntimeGlobals;
+	if (g.window?.document) return "browser";
+	if (g.Deno?.version?.deno) return "deno";
+	if (g.process?.versions?.node) return "node";
+	return "unknown";
 }
 
 // --- Stack capture (path-based frame filtering) ---
@@ -490,7 +496,7 @@ function captureStackLines(limit?: number): string[] {
  * produce the same rendering as the default writer.
  */
 export function formatStack(lines: string[]): string {
-	return "\n---\nStack:\n" + lines.map((v) => "  " + v.trim()).join("\n");
+	return `\n---\nStack:\n${lines.map((v) => `  ${v.trim()}`).join("\n")}`;
 }
 
 // --- Namespace rendering ---
@@ -511,7 +517,7 @@ function renderNs(ns: string | false): string {
 // --- Arg processing ---
 
 /** Stringify non-primitive args when stringify flag is enabled */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: console-style args
 function _stringifyArgs(args: any[], config?: ClogConfig): any[] {
 	if (!(config?.stringify ?? GLOBAL.stringify)) return args;
 	return args.map((arg) => {
@@ -533,7 +539,7 @@ function _stringifyArgs(args: any[], config?: ClogConfig): any[] {
  * Handles null, undefined, primitives, StyledText, and objects.
  * Useful for custom writers that need to convert values to strings.
  */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: console-style args
 export function stringifyValue(arg: any): string {
 	if (arg === null) return "null";
 	if (arg === undefined) return "undefined";
@@ -547,22 +553,22 @@ export function stringifyValue(arg: any): string {
 }
 
 /** Check if any arg is a styled text object */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: console-style args
 function _hasStyledArgs(args: any[]): boolean {
 	return args.some((arg) => arg?.[CLOG_STYLED]);
 }
 
 /** Clean styled args by extracting plain text (for non-%c environments) */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: console-style args
 function _cleanStyledArgs(args: any[]): any[] {
 	return args.map((arg) => (arg?.[CLOG_STYLED] ? arg.text : arg));
 }
 
 /** Process args containing styled text objects, building %c format string */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: console-style args
 function _processStyledArgs(args: any[]): [string, any[]] {
 	let format = "";
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	const values: any[] = [];
 
 	for (const arg of args) {
@@ -585,7 +591,7 @@ function _processStyledArgs(args: any[]): [string, any[]] {
  * from `clog.log()`. Under stringify or concat modes, objects are JSON
  * rendered to match what actually appears in the log line.
  */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: console-style args
 function firstArgAsString(args: any[], config?: ClogConfig): string {
 	if (args.length === 0) return "";
 	const concat = config?.concat ?? GLOBAL.concat;
@@ -706,7 +712,8 @@ export function toJsonRecord(data: LogData): Record<string, unknown> {
 			if (!Object.hasOwn(meta, key) || meta[key] === undefined) continue;
 			if (_isReservedJsonKey(key, fieldNames)) continue;
 			rest ??= { ...meta };
-			(promoted ??= {})[key] = meta[key];
+			promoted ??= {};
+			promoted[key] = meta[key];
 			delete rest[key];
 		}
 	}
@@ -724,7 +731,7 @@ export function toJsonRecord(data: LogData): Record<string, unknown> {
 	args.slice(1).forEach((arg, i) => {
 		record[`${fieldNames.arg}_${i}`] = arg?.stack ?? arg;
 	});
-	if (stack && stack.length) record[fieldNames.stack] = formatStack(stack);
+	if (stack?.length) record[fieldNames.stack] = formatStack(stack);
 	return record;
 }
 
@@ -745,7 +752,7 @@ const defaultWriter: WriterFn = (data: LogData) => {
 	const runtime = detectRuntime();
 	const consoleMethod = CONSOLE_METHOD[level];
 	const nsText = renderNs(namespace);
-	const stackStr = stack && stack.length ? formatStack(stack) : null;
+	const stackStr = stack?.length ? formatStack(stack) : null;
 
 	// Concat mode: single string, plain text (no %c)
 	const shouldConcat = config?.concat ?? GLOBAL.concat;
@@ -838,7 +845,7 @@ const colorWriter = (configuredColor: string): WriterFn => (data: LogData) => {
 	const color = configuredColor === "auto" ? autoColor(namespace) : configuredColor;
 	const processedArgs = _stringifyArgs(args, config);
 	const consoleMethod = CONSOLE_METHOD[level];
-	const stackStr = stack && stack.length ? formatStack(stack) : null;
+	const stackStr = stack?.length ? formatStack(stack) : null;
 	const nsText = renderNs(namespace);
 
 	if (_hasStyledArgs(processedArgs)) {
@@ -918,7 +925,7 @@ export function createClog(
 ): Clog {
 	const ns = namespace ?? false;
 
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	const _apply = (level: LogLevel, args: any[]): string => {
 		// Shallow clone args so hooks/writers cannot mutate the caller's array.
 		const clonedArgs = args.slice();
@@ -982,21 +989,21 @@ export function createClog(
 	};
 
 	// Create callable function that proxies to log
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	const logger = ((...args: any[]) => _apply("log", args)) as Clog;
 
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	logger.debug = (...args: any[]) => {
 		if ((config?.debug ?? GLOBAL.debug) === false) {
 			return firstArgAsString(args, config);
 		}
 		return _apply("debug", args);
 	};
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	logger.log = (...args: any[]) => _apply("log", args);
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	logger.warn = (...args: any[]) => _apply("warn", args);
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	logger.error = (...args: any[]) => _apply("error", args);
 
 	Object.defineProperty(logger, "ns", { value: ns, writable: false });
@@ -1064,7 +1071,7 @@ createClog.reset = (): void => {
  *                    falsy value disables the namespace.
  */
 export function createNoopClog(namespace?: string | false | null): Clog {
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	const _return = (...args: any[]) => String(args[0] ?? "");
 	const clog = _return as Clog;
 	clog.debug = _return;
@@ -1112,9 +1119,9 @@ export function createNoopClog(namespace?: string | false | null): Clog {
 export function withNamespace<T extends Logger>(
 	logger: T,
 	namespace: string,
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-compatible signature (README: Why `any` Return Type?)
 ): T & ((...args: any[]) => string) {
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: reads clog's marker off an arbitrary logger
 	const marker = (logger as any)[CLOG_INSTANCE] as
 		| { ns: string | false; config?: ClogConfig }
 		| undefined;
@@ -1122,36 +1129,36 @@ export function withNamespace<T extends Logger>(
 	if (marker) {
 		// Compose structurally: new clog with composed namespace + inherited config
 		const composed = marker.ns ? `${marker.ns}:${namespace}` : namespace;
-		// deno-lint-ignore no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: a clog satisfies the declared return type
 		return createClog(composed, marker.config) as any;
 	}
 
 	// Non-clog logger: preserve arg-prefix wrapping (for native console etc.)
 	const prefix = `[${namespace}]`;
 
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	const wrapped = ((...args: any[]) => {
 		logger.log(prefix, ...args);
 		return String(args[0] ?? "");
-		// deno-lint-ignore no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: console-compatible signature (README: Why `any` Return Type?)
 	}) as T & ((...args: any[]) => string);
 
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	wrapped.debug = (...args: any[]) => {
 		logger.debug(prefix, ...args);
 		return String(args[0] ?? "");
 	};
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	wrapped.log = (...args: any[]) => {
 		logger.log(prefix, ...args);
 		return String(args[0] ?? "");
 	};
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	wrapped.warn = (...args: any[]) => {
 		logger.warn(prefix, ...args);
 		return String(args[0] ?? "");
 	};
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: console-style args
 	wrapped.error = (...args: any[]) => {
 		logger.error(prefix, ...args);
 		return String(args[0] ?? "");
@@ -1190,7 +1197,7 @@ export function withMeta<T extends Logger>(
 	logger: T,
 	meta: Record<string, unknown> | (() => Record<string, unknown>),
 ): T {
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: reads clog's marker off an arbitrary logger
 	const marker = (logger as any)[CLOG_INSTANCE] as
 		| { ns: string | false; config?: ClogConfig }
 		| undefined;
@@ -1204,6 +1211,6 @@ export function withMeta<T extends Logger>(
 		? ((() => _mergeMetaSources([parentMeta, meta])) as ClogConfig["meta"])
 		: meta;
 
-	// deno-lint-ignore no-explicit-any
+	// biome-ignore lint/suspicious/noExplicitAny: a clog satisfies the declared return type
 	return createClog(marker.ns, { ...marker.config, meta: layered }) as any;
 }

@@ -1,11 +1,11 @@
 import { blue, colored, green, pink, red, SAFE_COLORS, yellow } from "../src/colors.ts";
 import { createClog, withNamespace } from "../src/clog.ts";
-import { assertEquals } from "@std/assert/equals";
+import assert from "node:assert/strict";
 
 // createClog.global.stacktrace = true;
 
-const clog = createClog("deno-raw", { color: "auto" });
-// const clog = createClog("deno-raw", { color: "auto" });
+const clog = createClog("raw", { color: "auto" });
+// const clog = createClog("raw", { color: "auto" });
 
 clog("direct");
 clog.log("log");
@@ -38,7 +38,7 @@ clog("Error:", red("Failed to connect"));
 clog(blue("Info:"), "Processing complete in", yellow("12ms"));
 console.log(...pink("also works with console.log"));
 
-//
+// biome-ignore lint/style/useTemplate: concatenating a styled value is the point here
 clog("Status:" + green("OK"));
 
 //
@@ -48,7 +48,7 @@ Object.entries(SAFE_COLORS).forEach(([name, color]) => {
 
 const nested = withNamespace(withNamespace(clog, "foo"), "bar");
 
-assertEquals(nested.log("baz"), "baz");
+assert.deepEqual(nested.log("baz"), "baz");
 
 //
 const clogx = withNamespace(createClog(false, { color: "red" }), "foo");
@@ -59,7 +59,7 @@ x.debug("yyy");
 
 //
 createClog.global.debug = false;
-assertEquals(nested.debug("no output"), "no output"); // no console output
+assert.deepEqual(nested.debug("no output"), "no output"); // no console output
 createClog.global.debug = true;
 
 //

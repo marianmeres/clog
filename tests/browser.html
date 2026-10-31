@@ -5,7 +5,8 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Test</title>
 		<script type="module">
-		import { createClog, withNamespace } from "../.npm-dist/dist/mod.js";
+		// serves the built package: `pnpm run build` first
+		import { createClog, withNamespace } from "../dist/mod.js";
 
 		// createClog.global.concat = true;
 		createClog.global.stacktrace = true;

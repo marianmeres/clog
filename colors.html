@@ -168,7 +168,7 @@
 					<option value="golden">Golden Angle (stable)</option>
 				</select>
 			</div>
-			<button class="copy-btn" id="copyBtn">Copy All</button>
+			<button type="button" class="copy-btn" id="copyBtn">Copy All</button>
 		</div>
 
 		<div class="info" id="info"></div>
@@ -227,8 +227,8 @@
 		function getPerceptualAdjustments(hue) {
 			const h = hue % 360;
 
-			let baseLightness = 55;
-			let baseSaturation = 55;
+			const baseLightness = 55;
+			const baseSaturation = 55;
 			let lightnessBoost = 0;
 			let saturationAdjust = 0;
 
@@ -332,10 +332,14 @@
 				const rows = document.querySelectorAll(
 					`[data-index="${index}"]`,
 				);
-				rows.forEach((row) => row.classList.add("copied"));
+				rows.forEach((row) => {
+					row.classList.add("copied");
+				});
 
 				setTimeout(() => {
-					rows.forEach((row) => row.classList.remove("copied"));
+					rows.forEach((row) => {
+						row.classList.remove("copied");
+					});
 				}, 600);
 			} catch (err) {
 				console.error("Failed to copy:", err);
@@ -343,7 +347,7 @@
 		}
 
 		function renderColors() {
-			const count = parseInt(document.getElementById("count").value) || 0;
+			const count = parseInt(document.getElementById("count").value, 10) || 0;
 			const method = document.getElementById("method").value;
 			const capped = count > MAX_COLORS;
 			currentColors = generateDistinctColors(

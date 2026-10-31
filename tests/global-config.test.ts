@@ -2,7 +2,8 @@
  * Global configuration tests (hook, writer, reset)
  */
 
-import { assert, assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { CLOG_SKIP, createClog, type LogData } from "../src/clog.ts";
 import {
 	capturedData,
@@ -13,7 +14,7 @@ import {
 	restoreConsole,
 } from "./_helpers.ts";
 
-Deno.test("global hook captures all logs", () => {
+test("global hook captures all logs", () => {
 	reset();
 	resetCapturedData();
 	createClog.global.hook = (data: LogData) => {
@@ -26,19 +27,19 @@ Deno.test("global hook captures all logs", () => {
 	clog1.log("msg1");
 	clog2.warn("msg2");
 
-	assertEquals(capturedData.length, 2);
-	assertEquals(capturedData[0].level, "INFO");
-	assertEquals(capturedData[0].namespace, "module1");
-	assertEquals(capturedData[0].args[0], "msg1");
+	assert.deepEqual(capturedData.length, 2);
+	assert.deepEqual(capturedData[0]!.level, "INFO");
+	assert.deepEqual(capturedData[0]!.namespace, "module1");
+	assert.deepEqual(capturedData[0]!.args[0], "msg1");
 
-	assertEquals(capturedData[1].level, "WARNING");
-	assertEquals(capturedData[1].namespace, "module2");
-	assertEquals(capturedData[1].args[0], "msg2");
+	assert.deepEqual(capturedData[1]!.level, "WARNING");
+	assert.deepEqual(capturedData[1]!.namespace, "module2");
+	assert.deepEqual(capturedData[1]!.args[0], "msg2");
 
 	restoreConsole();
 });
 
-Deno.test("global writer overrides default", () => {
+test("global writer overrides default", () => {
 	reset();
 	const customOutput: string[] = [];
 
@@ -49,14 +50,14 @@ Deno.test("global writer overrides default", () => {
 	const clog = createClog("test");
 	clog.log("hello");
 
-	assertEquals(consoleOutput.log.length, 0); // default not called
-	assertEquals(customOutput.length, 1);
-	assertEquals(customOutput[0], "INFO:test:hello");
+	assert.deepEqual(consoleOutput.log.length, 0); // default not called
+	assert.deepEqual(customOutput.length, 1);
+	assert.deepEqual(customOutput[0], "INFO:test:hello");
 
 	restoreConsole();
 });
 
-Deno.test("instance writer overrides default", () => {
+test("instance writer overrides default", () => {
 	reset();
 	const customOutput: string[] = [];
 
@@ -68,14 +69,14 @@ Deno.test("instance writer overrides default", () => {
 
 	clog.warn("warning");
 
-	assertEquals(consoleOutput.warn.length, 0); // default not called
-	assertEquals(customOutput.length, 1);
-	assertEquals(customOutput[0], "WARNING:warning");
+	assert.deepEqual(consoleOutput.warn.length, 0); // default not called
+	assert.deepEqual(customOutput.length, 1);
+	assert.deepEqual(customOutput[0], "WARNING:warning");
 
 	restoreConsole();
 });
 
-Deno.test("global writer takes precedence over instance writer", () => {
+test("global writer takes precedence over instance writer", () => {
 	reset();
 	const globalOutput: string[] = [];
 	const instanceOutput: string[] = [];
@@ -92,13 +93,13 @@ Deno.test("global writer takes precedence over instance writer", () => {
 
 	clog.log("test");
 
-	assertEquals(globalOutput.length, 1);
-	assertEquals(instanceOutput.length, 0); // instance writer not called
+	assert.deepEqual(globalOutput.length, 1);
+	assert.deepEqual(instanceOutput.length, 0); // instance writer not called
 
 	restoreConsole();
 });
 
-Deno.test("hook is called before writer", () => {
+test("hook is called before writer", () => {
 	reset();
 	const callOrder: string[] = [];
 
@@ -114,24 +115,24 @@ Deno.test("hook is called before writer", () => {
 
 	clog.log("test");
 
-	assertEquals(callOrder, ["hook", "writer"]);
+	assert.deepEqual(callOrder, ["hook", "writer"]);
 
 	restoreConsole();
 });
 
-Deno.test("reset() clears global configuration", () => {
+test("reset() clears global configuration", () => {
 	createClog.global.hook = () => {};
 	createClog.global.writer = () => {};
 	createClog.global.jsonOutput = true;
 
 	createClog.reset();
 
-	assertEquals(createClog.global.hook, undefined);
-	assertEquals(createClog.global.writer, undefined);
-	assertEquals(createClog.global.jsonOutput, false);
+	assert.deepEqual(createClog.global.hook, undefined);
+	assert.deepEqual(createClog.global.writer, undefined);
+	assert.deepEqual(createClog.global.jsonOutput, false);
 });
 
-Deno.test("hook mutation: namespace prefix propagates to default text writer", () => {
+test("hook mutation: namespace prefix propagates to default text writer", () => {
 	reset();
 
 	createClog.global.hook = (data: LogData) => {
@@ -141,14 +142,14 @@ Deno.test("hook mutation: namespace prefix propagates to default text writer", (
 	const clog = createClog("api");
 	clog.log("hello");
 
-	assertEquals(consoleOutput.log.length, 1);
+	assert.deepEqual(consoleOutput.log.length, 1);
 	// Composed namespace renders as "[svc] [api]" in text output.
-	assert(consoleOutput.log[0].includes("[svc] [api]"));
+	assert(consoleOutput.log[0]!.includes("[svc] [api]"));
 
 	restoreConsole();
 });
 
-Deno.test("hook mutation: namespace prefix propagates to JSON 'logger' field", () => {
+test("hook mutation: namespace prefix propagates to JSON 'logger' field", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.hook = (data: LogData) => {
@@ -158,14 +159,14 @@ Deno.test("hook mutation: namespace prefix propagates to JSON 'logger' field", (
 	const clog = createClog("api");
 	clog.log("hello");
 
-	assertEquals(consoleOutput.log.length, 1);
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.logger, "svc:api");
+	assert.deepEqual(consoleOutput.log.length, 1);
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.logger, "svc:api");
 
 	restoreConsole();
 });
 
-Deno.test("hook mutation: data.args replacement reaches the writer without touching caller's array", () => {
+test("hook mutation: data.args replacement reaches the writer without touching caller's array", () => {
 	reset();
 	const seenByWriter: unknown[][] = [];
 	createClog.global.writer = (data: LogData) => {
@@ -181,17 +182,17 @@ Deno.test("hook mutation: data.args replacement reaches the writer without touch
 	const callerArgs = ["request token=secret123", { id: 1 }];
 	clog.log(...callerArgs);
 
-	assertEquals(seenByWriter.length, 1);
-	assertEquals(seenByWriter[0][0], "request token=***");
-	assertEquals(seenByWriter[0][1], { id: 1 });
+	assert.deepEqual(seenByWriter.length, 1);
+	assert.deepEqual(seenByWriter[0]![0], "request token=***");
+	assert.deepEqual(seenByWriter[0]![1], { id: 1 });
 	// Caller's array was not mutated by either the clone (existing guarantee)
 	// or the hook's replacement (replacement targets data.args, a clone).
-	assertEquals(callerArgs[0], "request token=secret123");
+	assert.deepEqual(callerArgs[0], "request token=secret123");
 
 	restoreConsole();
 });
 
-Deno.test("hook mutation: meta augmentation surfaces in writer", () => {
+test("hook mutation: meta augmentation surfaces in writer", () => {
 	reset();
 	const seen: Array<Record<string, unknown> | undefined> = [];
 	createClog.global.writer = (data: LogData) => {
@@ -205,13 +206,13 @@ Deno.test("hook mutation: meta augmentation surfaces in writer", () => {
 	const clog = createClog("api");
 	clog.log("ping");
 
-	assertEquals(seen.length, 1);
-	assertEquals(seen[0], { traceId: "abc" });
+	assert.deepEqual(seen.length, 1);
+	assert.deepEqual(seen[0], { traceId: "abc" });
 
 	restoreConsole();
 });
 
-Deno.test("hook mutation: transform combined with CLOG_SKIP suppresses writer (mutation has no observable effect)", () => {
+test("hook mutation: transform combined with CLOG_SKIP suppresses writer (mutation has no observable effect)", () => {
 	reset();
 	const seenByWriter: LogData[] = [];
 	createClog.global.writer = (data: LogData) => {
@@ -225,12 +226,12 @@ Deno.test("hook mutation: transform combined with CLOG_SKIP suppresses writer (m
 	const clog = createClog("api");
 	clog.log("hello");
 
-	assertEquals(seenByWriter.length, 0); // writer never ran
+	assert.deepEqual(seenByWriter.length, 0); // writer never ran
 
 	restoreConsole();
 });
 
-Deno.test("batching pattern example", () => {
+test("batching pattern example", () => {
 	reset();
 	const batch: LogData[] = [];
 
@@ -248,10 +249,10 @@ Deno.test("batching pattern example", () => {
 	const clog = createClog("app");
 	clog.log("msg1");
 	clog.log("msg2");
-	assertEquals(batch.length, 2);
+	assert.deepEqual(batch.length, 2);
 
 	clog.log("msg3"); // triggers flush
-	assertEquals(batch.length, 0); // batch was flushed
+	assert.deepEqual(batch.length, 0); // batch was flushed
 
 	restoreConsole();
 });

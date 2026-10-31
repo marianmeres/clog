@@ -1,0 +1,14 @@
+{
+  "name": "@marianmeres/clog",
+  "exports": {
+    ".": "./src/mod.ts",
+    "./forward": "./src/forward.ts",
+    "./web": "./src/web.ts"
+  },
+  "imports": {
+    "@marianmeres/batch": "jsr:@marianmeres/batch@^1.3.0"
+  },
+  "publish": {
+    "include": ["src/**/*.ts", "README.md", "API.md", "AGENTS.md", "LICENSE"]
+  }
+}

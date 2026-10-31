@@ -1,6 +1,7 @@
-import { assert, assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { createClog, type LogData } from "../src/clog.ts";
-import { createLogForwarder, type LogForwarder } from "../src/forward.ts";
+import { createLogForwarder } from "../src/forward.ts";
 
 // Helper to wait for async operations
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -10,7 +11,7 @@ function reset() {
 	createClog.reset();
 }
 
-Deno.test("creates forwarder successfully", () => {
+test("creates forwarder successfully", () => {
 	const forwarder = createLogForwarder(async () => true, {
 		flushIntervalMs: 0,
 	});
@@ -30,7 +31,7 @@ Deno.test("creates forwarder successfully", () => {
 	forwarder.stop();
 });
 
-Deno.test("hook adds items to batch", async () => {
+test("hook adds items to batch", async () => {
 	const received: LogData[][] = [];
 
 	const forwarder = createLogForwarder(
@@ -52,14 +53,14 @@ Deno.test("hook adds items to batch", async () => {
 
 	forwarder.hook(testData);
 
-	assertEquals(forwarder.size, 1);
-	assertEquals(forwarder.dump().length, 1);
-	assertEquals(forwarder.dump()[0], testData);
+	assert.deepEqual(forwarder.size, 1);
+	assert.deepEqual(forwarder.dump().length, 1);
+	assert.deepEqual(forwarder.dump()[0], testData);
 
 	await forwarder.drain();
 });
 
-Deno.test("flush calls flusher function", async () => {
+test("flush calls flusher function", async () => {
 	const received: LogData[][] = [];
 
 	const forwarder = createLogForwarder(
@@ -86,20 +87,20 @@ Deno.test("flush calls flusher function", async () => {
 		timestamp: new Date().toISOString(),
 	});
 
-	assertEquals(forwarder.size, 2);
+	assert.deepEqual(forwarder.size, 2);
 
 	await forwarder.flush();
 
-	assertEquals(received.length, 1);
-	assertEquals(received[0].length, 2);
-	assertEquals(received[0][0].args[0], "msg1");
-	assertEquals(received[0][1].args[0], "msg2");
-	assertEquals(forwarder.size, 0);
+	assert.deepEqual(received.length, 1);
+	assert.deepEqual(received[0]!.length, 2);
+	assert.deepEqual(received[0]![0]!.args[0], "msg1");
+	assert.deepEqual(received[0]![1]!.args[0], "msg2");
+	assert.deepEqual(forwarder.size, 0);
 
 	await forwarder.drain();
 });
 
-Deno.test("drain flushes and stops", async () => {
+test("drain flushes and stops", async () => {
 	const received: LogData[][] = [];
 
 	const forwarder = createLogForwarder(
@@ -122,12 +123,12 @@ Deno.test("drain flushes and stops", async () => {
 	const result = await forwarder.drain();
 
 	assert(result);
-	assertEquals(received.length, 1);
-	assertEquals(received[0][0].args[0], "final");
-	assertEquals(forwarder.isRunning, false);
+	assert.deepEqual(received.length, 1);
+	assert.deepEqual(received[0]![0]!.args[0], "final");
+	assert.deepEqual(forwarder.isRunning, false);
 });
 
-Deno.test("subscribe receives state updates", async () => {
+test("subscribe receives state updates", async () => {
 	const states: { size: number; isRunning: boolean; isFlushing: boolean }[] = [];
 
 	const forwarder = createLogForwarder(async () => true, {
@@ -157,14 +158,14 @@ Deno.test("subscribe receives state updates", async () => {
 	await forwarder.drain();
 });
 
-Deno.test("properties work correctly", async () => {
+test("properties work correctly", async () => {
 	const forwarder = createLogForwarder(async () => true, {
 		flushIntervalMs: 1000,
 	});
 
-	assertEquals(forwarder.size, 0);
+	assert.deepEqual(forwarder.size, 0);
 	assert(forwarder.isRunning);
-	assertEquals(forwarder.isFlushing, false);
+	assert.deepEqual(forwarder.isFlushing, false);
 
 	forwarder.add({
 		level: "INFO",
@@ -173,10 +174,10 @@ Deno.test("properties work correctly", async () => {
 		timestamp: new Date().toISOString(),
 	});
 
-	assertEquals(forwarder.size, 1);
+	assert.deepEqual(forwarder.size, 1);
 
 	forwarder.stop();
-	assertEquals(forwarder.isRunning, false);
+	assert.deepEqual(forwarder.isRunning, false);
 
 	forwarder.start();
 	assert(forwarder.isRunning);
@@ -184,7 +185,7 @@ Deno.test("properties work correctly", async () => {
 	await forwarder.drain();
 });
 
-Deno.test("reset clears buffer", async () => {
+test("reset clears buffer", async () => {
 	const forwarder = createLogForwarder(async () => true, {
 		flushIntervalMs: 0,
 	});
@@ -198,16 +199,16 @@ Deno.test("reset clears buffer", async () => {
 		timestamp: new Date().toISOString(),
 	});
 
-	assertEquals(forwarder.size, 1);
+	assert.deepEqual(forwarder.size, 1);
 
 	forwarder.reset();
 
-	assertEquals(forwarder.size, 0);
+	assert.deepEqual(forwarder.size, 0);
 
 	await forwarder.drain();
 });
 
-Deno.test("configure updates settings", async () => {
+test("configure updates settings", async () => {
 	const received: LogData[][] = [];
 
 	const forwarder = createLogForwarder(
@@ -230,7 +231,7 @@ Deno.test("configure updates settings", async () => {
 		timestamp: new Date().toISOString(),
 	});
 
-	assertEquals(received.length, 0); // not yet at threshold
+	assert.deepEqual(received.length, 0); // not yet at threshold
 
 	forwarder.add({
 		level: "INFO",
@@ -242,13 +243,13 @@ Deno.test("configure updates settings", async () => {
 	// Give time for threshold flush
 	await delay(10);
 
-	assertEquals(received.length, 1); // threshold triggered flush
-	assertEquals(received[0].length, 2);
+	assert.deepEqual(received.length, 1); // threshold triggered flush
+	assert.deepEqual(received[0]!.length, 2);
 
 	await forwarder.drain();
 });
 
-Deno.test("integration with clog global hook", async () => {
+test("integration with clog global hook", async () => {
 	reset();
 	const received: LogData[][] = [];
 
@@ -265,7 +266,7 @@ Deno.test("integration with clog global hook", async () => {
 			received.push([...logs]);
 			return true;
 		},
-		// deno-lint-ignore no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: a partial config on purpose
 		{ flushIntervalMs: 0, logger: noopLogger } as any,
 	);
 
@@ -283,24 +284,24 @@ Deno.test("integration with clog global hook", async () => {
 	clog.warn("warning");
 	clog.error("error");
 
-	assertEquals(forwarder.size, 3);
+	assert.deepEqual(forwarder.size, 3);
 
 	await forwarder.flush();
 
-	assertEquals(received.length, 1);
-	assertEquals(received[0].length, 3);
-	assertEquals(received[0][0].args[0], "hello");
-	assertEquals(received[0][0].level, "INFO");
-	assertEquals(received[0][1].args[0], "warning");
-	assertEquals(received[0][1].level, "WARNING");
-	assertEquals(received[0][2].args[0], "error");
-	assertEquals(received[0][2].level, "ERROR");
+	assert.deepEqual(received.length, 1);
+	assert.deepEqual(received[0]!.length, 3);
+	assert.deepEqual(received[0]![0]!.args[0], "hello");
+	assert.deepEqual(received[0]![0]!.level, "INFO");
+	assert.deepEqual(received[0]![1]!.args[0], "warning");
+	assert.deepEqual(received[0]![1]!.level, "WARNING");
+	assert.deepEqual(received[0]![2]!.args[0], "error");
+	assert.deepEqual(received[0]![2]!.level, "ERROR");
 
 	await forwarder.drain();
 	reset();
 });
 
-Deno.test("autostart parameter", async () => {
+test("autostart parameter", async () => {
 	reset(); // ensure no global hook is set (avoids circular loop with batch debug)
 
 	// With autostart = true (default)
@@ -316,11 +317,11 @@ Deno.test("autostart parameter", async () => {
 		{ flushIntervalMs: 1000 },
 		false,
 	);
-	assertEquals(forwarder2.isRunning, false);
+	assert.deepEqual(forwarder2.isRunning, false);
 	await forwarder2.drain();
 });
 
-Deno.test("flushThreshold triggers immediate flush", async () => {
+test("flushThreshold triggers immediate flush", async () => {
 	reset(); // ensure no global hook is set (avoids circular loop with batch debug)
 	const received: LogData[][] = [];
 
@@ -348,7 +349,7 @@ Deno.test("flushThreshold triggers immediate flush", async () => {
 		timestamp: new Date().toISOString(),
 	});
 
-	assertEquals(received.length, 0);
+	assert.deepEqual(received.length, 0);
 
 	// Add item that triggers threshold
 	forwarder.add({
@@ -361,13 +362,13 @@ Deno.test("flushThreshold triggers immediate flush", async () => {
 	// Give time for flush
 	await delay(10);
 
-	assertEquals(received.length, 1);
-	assertEquals(received[0].length, 3);
+	assert.deepEqual(received.length, 1);
+	assert.deepEqual(received[0]!.length, 3);
 
 	await forwarder.drain();
 });
 
-Deno.test("hook resolves meta at log time, not at flush time", async () => {
+test("hook resolves meta at log time, not at flush time", async () => {
 	reset();
 	const received: LogData[] = [];
 
@@ -397,7 +398,7 @@ Deno.test("hook resolves meta at log time, not at flush time", async () => {
 
 	await forwarder.flush();
 
-	assertEquals(
+	assert.deepEqual(
 		received.map((d) => d.meta),
 		[
 			{ requestId: "r1", attempt: 1 },

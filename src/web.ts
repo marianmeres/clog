@@ -79,11 +79,13 @@ export interface ConfigureWebLoggerOptions {
 	 * before logging (useful for third-party noise). Any other return
 	 * value — including `undefined` — lets the error through.
 	 */
+	// biome-ignore lint/suspicious/noConfusingVoidType: `void` admits any void-returning callback; `undefined` would reject them
 	uncaughtErrorFilter?: (e: ErrorEvent) => void | false;
 	/**
 	 * Filter for unhandled promise rejections. Return `false` to drop
 	 * the event before logging.
 	 */
+	// biome-ignore lint/suspicious/noConfusingVoidType: `void` admits any void-returning callback; `undefined` would reject them
 	unhandledRejectionFilter?: (e: PromiseRejectionEvent) => void | false;
 	/**
 	 * `true` (default) registers the built-in handler, `false` disables
@@ -240,6 +242,7 @@ export function getOrCreateAgentId(
 }
 
 function makeDefaultUncaughtErrorHandler(
+	// biome-ignore lint/suspicious/noConfusingVoidType: `void` admits any void-returning callback; `undefined` would reject them
 	filter?: (e: ErrorEvent) => void | false,
 ) {
 	const clog = createClog("uncaught_error");
@@ -255,6 +258,7 @@ function makeDefaultUncaughtErrorHandler(
 }
 
 function makeDefaultUnhandledRejectionHandler(
+	// biome-ignore lint/suspicious/noConfusingVoidType: `void` admits any void-returning callback; `undefined` would reject them
 	filter?: (e: PromiseRejectionEvent) => void | false,
 ) {
 	const clog = createClog("unhandled_rejection");

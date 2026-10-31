@@ -2,7 +2,8 @@
  * config.meta (per-logger meta merged over the base getMeta) and withMeta tests
  */
 
-import { assert, assertEquals, assertStrictEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import {
 	createClog,
 	createNoopClog,
@@ -26,7 +27,7 @@ function captureHook() {
 
 // --- config.meta ---------------------------------------------------------
 
-Deno.test("meta is merged over the global getMeta and wins on conflicts", () => {
+test("meta is merged over the global getMeta and wins on conflicts", () => {
 	reset();
 	captureHook();
 	createClog.global.getMeta = () => ({ projectId: "p1", source: "global" });
@@ -34,7 +35,7 @@ Deno.test("meta is merged over the global getMeta and wins on conflicts", () => 
 	const clog = createClog("test", { meta: { traceId: "t1", source: "instance" } });
 	clog.log("hello");
 
-	assertEquals(capturedData[0].meta, {
+	assert.deepEqual(capturedData[0]!.meta, {
 		projectId: "p1",
 		source: "instance",
 		traceId: "t1",
@@ -43,7 +44,7 @@ Deno.test("meta is merged over the global getMeta and wins on conflicts", () => 
 	restoreConsole();
 });
 
-Deno.test("meta is merged over an instance getMeta (which replaces the global)", () => {
+test("meta is merged over an instance getMeta (which replaces the global)", () => {
 	reset();
 	captureHook();
 	createClog.global.getMeta = () => ({ fromGlobal: true });
@@ -54,7 +55,7 @@ Deno.test("meta is merged over an instance getMeta (which replaces the global)",
 	});
 	clog.log("hello");
 
-	assertEquals(capturedData[0].meta, {
+	assert.deepEqual(capturedData[0]!.meta, {
 		fromInstance: true,
 		source: "meta",
 		traceId: "t1",
@@ -63,7 +64,7 @@ Deno.test("meta is merged over an instance getMeta (which replaces the global)",
 	restoreConsole();
 });
 
-Deno.test("a global getMeta installed after the logger was created still applies", () => {
+test("a global getMeta installed after the logger was created still applies", () => {
 	reset();
 	captureHook();
 
@@ -72,26 +73,26 @@ Deno.test("a global getMeta installed after the logger was created still applies
 	createClog.global.getMeta = () => ({ projectId: "p1" });
 	clog.log("after");
 
-	assertEquals(capturedData[0].meta, { traceId: "t1" });
-	assertEquals(capturedData[1].meta, { projectId: "p1", traceId: "t1" });
+	assert.deepEqual(capturedData[0]!.meta, { traceId: "t1" });
+	assert.deepEqual(capturedData[1]!.meta, { projectId: "p1", traceId: "t1" });
 
 	restoreConsole();
 });
 
-Deno.test("meta works without any getMeta (instance or global)", () => {
+test("meta works without any getMeta (instance or global)", () => {
 	reset();
 	captureHook();
 
 	createClog("test", { meta: { traceId: "t1" } }).log("static");
 	createClog("test", { meta: () => ({ traceId: "t2" }) }).log("fn");
 
-	assertEquals(capturedData[0].meta, { traceId: "t1" });
-	assertEquals(capturedData[1].meta, { traceId: "t2" });
+	assert.deepEqual(capturedData[0]!.meta, { traceId: "t1" });
+	assert.deepEqual(capturedData[1]!.meta, { traceId: "t2" });
 
 	restoreConsole();
 });
 
-Deno.test("function meta is not called when no consumer reads .meta", () => {
+test("function meta is not called when no consumer reads .meta", () => {
 	reset();
 	let calls = 0;
 
@@ -103,12 +104,12 @@ Deno.test("function meta is not called when no consumer reads .meta", () => {
 	});
 	clog.log("plain text writer does not read meta");
 
-	assertEquals(calls, 0);
+	assert.deepEqual(calls, 0);
 
 	restoreConsole();
 });
 
-Deno.test("function meta is called once per line when .meta is read", () => {
+test("function meta is called once per line when .meta is read", () => {
 	reset();
 	let calls = 0;
 	createClog.global.hook = (data: LogData) => {
@@ -123,12 +124,12 @@ Deno.test("function meta is called once per line when .meta is read", () => {
 	clog.log("first");
 	clog.log("second");
 
-	assertEquals(calls, 2);
+	assert.deepEqual(calls, 2);
 
 	restoreConsole();
 });
 
-Deno.test("a hook mutating data.meta does not mutate a static meta object", () => {
+test("a hook mutating data.meta does not mutate a static meta object", () => {
 	reset();
 	createClog.global.hook = (data: LogData) => {
 		data.meta!.traceId = "mutated";
@@ -138,12 +139,12 @@ Deno.test("a hook mutating data.meta does not mutate a static meta object", () =
 	const meta = { traceId: "t1" };
 	createClog("test", { meta }).log("hello");
 
-	assertEquals(meta, { traceId: "t1" });
+	assert.deepEqual(meta, { traceId: "t1" });
 
 	restoreConsole();
 });
 
-Deno.test("a static meta object is read per line (later changes apply)", () => {
+test("a static meta object is read per line (later changes apply)", () => {
 	reset();
 	// Read .meta inside the hook: it is lazy, so reading it later would see
 	// the object's state at read time, not at log time.
@@ -158,12 +159,12 @@ Deno.test("a static meta object is read per line (later changes apply)", () => {
 	meta.traceId = "t2";
 	clog.log("second");
 
-	assertEquals(seen, [{ traceId: "t1" }, { traceId: "t2" }]);
+	assert.deepEqual(seen, [{ traceId: "t1" }, { traceId: "t2" }]);
 
 	restoreConsole();
 });
 
-Deno.test("throwing base getMeta: meta is still present", () => {
+test("throwing base getMeta: meta is still present", () => {
 	reset();
 	captureHook();
 	createClog.global.getMeta = () => {
@@ -172,12 +173,12 @@ Deno.test("throwing base getMeta: meta is still present", () => {
 
 	createClog("test", { meta: { traceId: "t1" } }).log("hello");
 
-	assertEquals(capturedData[0].meta, { traceId: "t1" });
+	assert.deepEqual(capturedData[0]!.meta, { traceId: "t1" });
 
 	restoreConsole();
 });
 
-Deno.test("throwing function meta: the base is still present", () => {
+test("throwing function meta: the base is still present", () => {
 	reset();
 	captureHook();
 	createClog.global.getMeta = () => ({ projectId: "p1" });
@@ -188,12 +189,12 @@ Deno.test("throwing function meta: the base is still present", () => {
 		},
 	}).log("hello");
 
-	assertEquals(capturedData[0].meta, { projectId: "p1" });
+	assert.deepEqual(capturedData[0]!.meta, { projectId: "p1" });
 
 	restoreConsole();
 });
 
-Deno.test("both sources throwing: meta is undefined", () => {
+test("both sources throwing: meta is undefined", () => {
 	reset();
 	captureHook();
 
@@ -206,28 +207,28 @@ Deno.test("both sources throwing: meta is undefined", () => {
 		},
 	}).log("hello");
 
-	assertEquals(capturedData[0].meta, undefined);
+	assert.deepEqual(capturedData[0]!.meta, undefined);
 
 	restoreConsole();
 });
 
-Deno.test("both sources returning undefined: meta is undefined", () => {
+test("both sources returning undefined: meta is undefined", () => {
 	reset();
 	captureHook();
 
 	createClog("test", {
-		// deno-lint-ignore no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: a non-conforming return on purpose
 		getMeta: () => undefined as any,
-		// deno-lint-ignore no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: a non-conforming return on purpose
 		meta: () => undefined as any,
 	}).log("hello");
 
-	assertEquals(capturedData[0].meta, undefined);
+	assert.deepEqual(capturedData[0]!.meta, undefined);
 
 	restoreConsole();
 });
 
-Deno.test("withNamespace child inherits meta", () => {
+test("withNamespace child inherits meta", () => {
 	reset();
 	captureHook();
 	createClog.global.getMeta = () => ({ projectId: "p1" });
@@ -235,26 +236,26 @@ Deno.test("withNamespace child inherits meta", () => {
 	const child = withNamespace(createClog("a", { meta: { traceId: "t1" } }), "b");
 	child.log("hello");
 
-	assertEquals(child.ns, "a:b");
-	assertEquals(capturedData[0].meta, { projectId: "p1", traceId: "t1" });
+	assert.deepEqual(child.ns, "a:b");
+	assert.deepEqual(capturedData[0]!.meta, { projectId: "p1", traceId: "t1" });
 
 	restoreConsole();
 });
 
-Deno.test("JSON output puts the merged meta under the meta field", () => {
+test("JSON output puts the merged meta under the meta field", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ projectId: "p1" });
 
 	createClog("api", { meta: { traceId: "t1" } }).log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.meta, { projectId: "p1", traceId: "t1" });
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.meta, { projectId: "p1", traceId: "t1" });
 
 	restoreConsole();
 });
 
-Deno.test("JSON output respects jsonFieldNames for the merged meta", () => {
+test("JSON output respects jsonFieldNames for the merged meta", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ projectId: "p1" });
@@ -264,14 +265,14 @@ Deno.test("JSON output respects jsonFieldNames for the merged meta", () => {
 		jsonFieldNames: { meta: "context" },
 	}).log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
+	const output = JSON.parse(consoleOutput.log[0]!);
 	assert(!("meta" in output));
-	assertEquals(output.context, { projectId: "p1", traceId: "t1" });
+	assert.deepEqual(output.context, { projectId: "p1", traceId: "t1" });
 
 	restoreConsole();
 });
 
-Deno.test("JSON output omits meta when every source throws", () => {
+test("JSON output omits meta when every source throws", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => {
@@ -284,7 +285,7 @@ Deno.test("JSON output omits meta when every source throws", () => {
 		},
 	}).log("hello");
 
-	const output = JSON.parse(consoleOutput.log[0]);
+	const output = JSON.parse(consoleOutput.log[0]!);
 	assert(!("meta" in output));
 
 	restoreConsole();
@@ -292,7 +293,7 @@ Deno.test("JSON output omits meta when every source throws", () => {
 
 // --- withMeta ------------------------------------------------------------
 
-Deno.test("withMeta keeps the namespace and adds meta over the base", () => {
+test("withMeta keeps the namespace and adds meta over the base", () => {
 	reset();
 	captureHook();
 	createClog.global.getMeta = () => ({ projectId: "p1" });
@@ -300,14 +301,14 @@ Deno.test("withMeta keeps the namespace and adds meta over the base", () => {
 	const reqLog = withMeta(createClog("api"), { requestId: "r1" });
 	reqLog.log("hello");
 
-	assertEquals(reqLog.ns, "api");
-	assertEquals(capturedData[0].namespace, "api");
-	assertEquals(capturedData[0].meta, { projectId: "p1", requestId: "r1" });
+	assert.deepEqual(reqLog.ns, "api");
+	assert.deepEqual(capturedData[0]!.namespace, "api");
+	assert.deepEqual(capturedData[0]!.meta, { projectId: "p1", requestId: "r1" });
 
 	restoreConsole();
 });
 
-Deno.test("nested withMeta keeps both layers, inner layer wins", () => {
+test("nested withMeta keeps both layers, inner layer wins", () => {
 	reset();
 	captureHook();
 
@@ -317,7 +318,7 @@ Deno.test("nested withMeta keeps both layers, inner layer wins", () => {
 	const callLog = withMeta(reqLog, () => ({ layer: "call", attempt: ++attempt }));
 	callLog.log("hello");
 
-	assertEquals(capturedData[0].meta, {
+	assert.deepEqual(capturedData[0]!.meta, {
 		layer: "call",
 		service: "s1",
 		requestId: "r1",
@@ -327,7 +328,7 @@ Deno.test("nested withMeta keeps both layers, inner layer wins", () => {
 	restoreConsole();
 });
 
-Deno.test("withMeta does not change the parent logger", () => {
+test("withMeta does not change the parent logger", () => {
 	reset();
 	captureHook();
 
@@ -335,12 +336,12 @@ Deno.test("withMeta does not change the parent logger", () => {
 	withMeta(log, { requestId: "r1" });
 	log.log("parent");
 
-	assertEquals(capturedData[0].meta, { service: "s1" });
+	assert.deepEqual(capturedData[0]!.meta, { service: "s1" });
 
 	restoreConsole();
 });
 
-Deno.test("withMeta layers are isolated: a throwing layer drops only itself", () => {
+test("withMeta layers are isolated: a throwing layer drops only itself", () => {
 	reset();
 	captureHook();
 
@@ -356,13 +357,13 @@ Deno.test("withMeta layers are isolated: a throwing layer drops only itself", ()
 	child.log("child");
 	grandchild.log("grandchild");
 
-	assertEquals(capturedData[0].meta, { requestId: "r1" });
-	assertEquals(capturedData[1].meta, { requestId: "r1" });
+	assert.deepEqual(capturedData[0]!.meta, { requestId: "r1" });
+	assert.deepEqual(capturedData[1]!.meta, { requestId: "r1" });
 
 	restoreConsole();
 });
 
-Deno.test("withMeta keeps the parent's other config (getMeta, debug)", () => {
+test("withMeta keeps the parent's other config (getMeta, debug)", () => {
 	reset();
 	captureHook();
 
@@ -374,27 +375,27 @@ Deno.test("withMeta keeps the parent's other config (getMeta, debug)", () => {
 	child.debug("suppressed");
 	child.log("hello");
 
-	assertEquals(capturedData.length, 1);
-	assertEquals(capturedData[0].meta, { fromGetMeta: true, requestId: "r1" });
+	assert.deepEqual(capturedData.length, 1);
+	assert.deepEqual(capturedData[0]!.meta, { fromGetMeta: true, requestId: "r1" });
 
 	restoreConsole();
 });
 
-Deno.test("withNamespace over withMeta keeps the layered meta", () => {
+test("withNamespace over withMeta keeps the layered meta", () => {
 	reset();
 	captureHook();
 
 	const child = withNamespace(withMeta(createClog("api"), { requestId: "r1" }), "db");
 	child.log("hello");
 
-	assertEquals(child.ns, "api:db");
-	assertEquals(capturedData[0].meta, { requestId: "r1" });
+	assert.deepEqual(child.ns, "api:db");
+	assert.deepEqual(capturedData[0]!.meta, { requestId: "r1" });
 
 	restoreConsole();
 });
 
-Deno.test("withMeta returns non-clog loggers unchanged", () => {
+test("withMeta returns non-clog loggers unchanged", () => {
 	const noop = createNoopClog("x");
-	assertStrictEquals(withMeta(console, { requestId: "r1" }), console);
-	assertStrictEquals(withMeta(noop, { requestId: "r1" }), noop);
+	assert.equal(withMeta(console, { requestId: "r1" }), console);
+	assert.equal(withMeta(noop, { requestId: "r1" }), noop);
 });

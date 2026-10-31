@@ -2,7 +2,8 @@
  * getMeta functionality tests
  */
 
-import { assert, assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { createClog, type LogData } from "../src/clog.ts";
 import {
 	capturedData,
@@ -13,7 +14,7 @@ import {
 	restoreConsole,
 } from "./_helpers.ts";
 
-Deno.test("instance config provides metadata to hook", () => {
+test("instance config provides metadata to hook", () => {
 	reset();
 	resetCapturedData();
 	createClog.global.hook = (data: LogData) => {
@@ -26,13 +27,13 @@ Deno.test("instance config provides metadata to hook", () => {
 
 	clog.log("hello");
 
-	assertEquals(capturedData.length, 1);
-	assertEquals(capturedData[0].meta, { userId: "user-123", requestId: "req-456" });
+	assert.deepEqual(capturedData.length, 1);
+	assert.deepEqual(capturedData[0]!.meta, { userId: "user-123", requestId: "req-456" });
 
 	restoreConsole();
 });
 
-Deno.test("global config provides metadata to hook", () => {
+test("global config provides metadata to hook", () => {
 	reset();
 	resetCapturedData();
 	createClog.global.hook = (data: LogData) => {
@@ -43,13 +44,13 @@ Deno.test("global config provides metadata to hook", () => {
 	const clog = createClog("test");
 	clog.log("hello");
 
-	assertEquals(capturedData.length, 1);
-	assertEquals(capturedData[0].meta, { sessionId: "sess-789" });
+	assert.deepEqual(capturedData.length, 1);
+	assert.deepEqual(capturedData[0]!.meta, { sessionId: "sess-789" });
 
 	restoreConsole();
 });
 
-Deno.test("instance overrides global", () => {
+test("instance overrides global", () => {
 	reset();
 	resetCapturedData();
 	createClog.global.hook = (data: LogData) => {
@@ -63,13 +64,13 @@ Deno.test("instance overrides global", () => {
 
 	clog.log("hello");
 
-	assertEquals(capturedData.length, 1);
-	assertEquals(capturedData[0].meta, { source: "instance" });
+	assert.deepEqual(capturedData.length, 1);
+	assert.deepEqual(capturedData[0]!.meta, { source: "instance" });
 
 	restoreConsole();
 });
 
-Deno.test("metadata available in custom writer", () => {
+test("metadata available in custom writer", () => {
 	reset();
 	let capturedMeta: Record<string, unknown> | undefined;
 
@@ -82,12 +83,12 @@ Deno.test("metadata available in custom writer", () => {
 
 	clog.log("hello");
 
-	assertEquals(capturedMeta, { traceId: "trace-001" });
+	assert.deepEqual(capturedMeta, { traceId: "trace-001" });
 
 	restoreConsole();
 });
 
-Deno.test("metadata included in JSON output", () => {
+test("metadata included in JSON output", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	createClog.global.getMeta = () => ({ userId: "user-abc", env: "test" });
@@ -95,16 +96,16 @@ Deno.test("metadata included in JSON output", () => {
 	const clog = createClog("api");
 	clog.log("Request received");
 
-	assertEquals(consoleOutput.log.length, 1);
+	assert.deepEqual(consoleOutput.log.length, 1);
 
-	const output = JSON.parse(consoleOutput.log[0]);
-	assertEquals(output.meta, { userId: "user-abc", env: "test" });
-	assertEquals(output.message, "Request received");
+	const output = JSON.parse(consoleOutput.log[0]!);
+	assert.deepEqual(output.meta, { userId: "user-abc", env: "test" });
+	assert.deepEqual(output.message, "Request received");
 
 	restoreConsole();
 });
 
-Deno.test("undefined meta not included in JSON output", () => {
+test("undefined meta not included in JSON output", () => {
 	reset();
 	createClog.global.jsonOutput = true;
 	// No getMeta configured
@@ -112,15 +113,15 @@ Deno.test("undefined meta not included in JSON output", () => {
 	const clog = createClog("test");
 	clog.log("no meta");
 
-	assertEquals(consoleOutput.log.length, 1);
+	assert.deepEqual(consoleOutput.log.length, 1);
 
-	const output = JSON.parse(consoleOutput.log[0]);
+	const output = JSON.parse(consoleOutput.log[0]!);
 	assert(!("meta" in output), "meta field should not be present when undefined");
 
 	restoreConsole();
 });
 
-Deno.test("called on each log", () => {
+test("called on each log", () => {
 	reset();
 	resetCapturedData();
 	createClog.global.hook = (data: LogData) => {
@@ -136,15 +137,15 @@ Deno.test("called on each log", () => {
 	clog.log("second");
 	clog.log("third");
 
-	assertEquals(capturedData.length, 3);
-	assertEquals(capturedData[0].meta, { callCount: 1 });
-	assertEquals(capturedData[1].meta, { callCount: 2 });
-	assertEquals(capturedData[2].meta, { callCount: 3 });
+	assert.deepEqual(capturedData.length, 3);
+	assert.deepEqual(capturedData[0]!.meta, { callCount: 1 });
+	assert.deepEqual(capturedData[1]!.meta, { callCount: 2 });
+	assert.deepEqual(capturedData[2]!.meta, { callCount: 3 });
 
 	restoreConsole();
 });
 
-Deno.test("works with all log levels", () => {
+test("works with all log levels", () => {
 	reset();
 	resetCapturedData();
 	createClog.global.hook = (data: LogData) => {
@@ -160,18 +161,18 @@ Deno.test("works with all log levels", () => {
 	clog.warn("warn");
 	clog.error("error");
 
-	assertEquals(capturedData.length, 4);
+	assert.deepEqual(capturedData.length, 4);
 	capturedData.forEach((data) => {
-		assertEquals(data.meta, { userId: "test-user" });
+		assert.deepEqual(data.meta, { userId: "test-user" });
 	});
 
 	restoreConsole();
 });
 
-Deno.test("reset() clears global getMeta", () => {
+test("reset() clears global getMeta", () => {
 	createClog.global.getMeta = () => ({ test: true });
 
 	createClog.reset();
 
-	assertEquals(createClog.global.getMeta, undefined);
+	assert.deepEqual(createClog.global.getMeta, undefined);
 });
